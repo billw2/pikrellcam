@@ -1,0 +1,38 @@
+glcd library
+============
+
+I originally wrote this glcd library to drive SPI LCDs connected to
+my Raspberry Pi adapter PCB and my STM32 project PCBs.  For PiKrellCam,
+I added a simple I420 driver for drawing overlays on the camera mjpeg stream.
+
+The libkrellm directory organization here is structured for linking to
+my Raspberry Pi programs.  For the purpose of distributing the PiKrellCam
+program, other programs and libkrellm libraries have been removed to
+avoid stuff not necessary for PiKrellCam.
+
+When compiling for an I420 only program such as PiKrellCam, wiringPi
+is not required and -D HAVE_WIRINGPI should not be defined.
+
+If compiled to use the ili9341 driver, the Makefile must have a
+-D HAVE_WIRINGPI define as a compiler argument and the final link
+must include -lwiringPi
+
+
+Features
+--------
+Draw areas with clipping - tiled drawing areas can be created and graphics
+    drawing primitives will clip to the draw areas.
+
+Widgets - Buttons, sliders and titled windows.
+
+Fonts - easy to add standard .bdf fonts.
+
+When using the ili9341 driver, colors can be selected using standard
+    X11 color names.  The I420 driver color uses only YUV intensity and
+    does not touch the UV.
+
+TODO
+----
+	Add other controllers.
+	Auto detect LCD model if possible.
+	I420 UV color.

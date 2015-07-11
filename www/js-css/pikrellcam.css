@@ -1,0 +1,155 @@
+
+*	{
+	box-sizing: border-box;
+	}
+
+table
+	{
+    border-collapse: collapse;
+    border-spacing: 0;
+	}
+
+td,
+th	{
+	padding: 0;
+	}
+
+body
+	{
+    font-size: 0.9em;
+	}
+
+.text-center
+	{
+    text-align: center;
+	}
+
+.top-margin
+	{
+	margin-top: 6px;
+	}
+
+selected
+	{
+	text-shadow: -1px -1px 0px #fff, 1px 1px 0px #000;
+	color: #706468;
+	opacity: 0.85;
+	font-size: 1.2em;
+//	font-style: bold;
+//	color:#690300;
+	}
+
+.text-shadow
+	{
+	text-shadow: -1px -1px 0px #fff, 1px 1px 0px #000;
+//	color: #fce4c8;
+//	color: #8c7478;
+	color: #706468;
+	opacity: 0.85;
+	}
+
+
+.text-shadow-large
+	{
+	text-shadow: -1px -1px 0px #fff, 1px 1px 0px #000;
+//	color: #fce4c8;
+//	color: #8c7478;
+	color: #706468;
+	opacity: 0.85;
+	font-size: 1.5em;
+	margin-bottom: 6px;
+	}
+
+.text-shadow-large:hover
+	{
+	text-shadow: -1px -1px 0px #fff, 1px 1px 0px #000;
+//	color: #ccb498;
+//	color: #8c7458;
+	color: #908080;
+	opacity: 0.85;
+	font-size: 1.5em;
+	margin-bottom: 6px;
+	}
+
+
+.btn-menu
+	{
+	-webkit-border-radius: 5;
+	-moz-border-radius: 5;
+	border-radius: 5px;
+	font-family: Arial;
+	color: #000000;
+	font-size: 1.0em;
+//	background: #c1c6d1;
+	background: #c7c7c7;
+	padding: 3px 6px 3px 6px;
+	border: solid #1f628d 1px;
+	text-decoration: none;
+	}
+
+.btn-menu:hover
+	{
+	background: #d4d4d4;
+	text-decoration: none;
+	}
+
+
+.btn-control
+	{
+	-webkit-border-radius: 5;
+	-moz-border-radius: 5;
+	border-radius: 7px;
+	font-family: Arial;
+	color: #000000;
+	font-size: 1.0em;
+//	background: #9daaad;
+	background: #bac1c2;
+	padding: 3px 6px 3px 6px;
+	border: solid #1f628d 1px;
+	text-decoration: none;
+	}
+
+.btn-control:hover
+	{
+//	background: #aab7be;
+	background: #c4cacb;
+	text-decoration: none;
+	}
+
+.motion-control
+	{
+	color: #315b71;
+	}
+
+.snap-control
+	{
+	color: #31715b;
+	}
+
+.alert-control
+	{
+	background: #b8a5a5;
+	}
+
+.alert-control:hover
+	{
+	background: #cfc0c3;
+	}
+
+/* centers table */
+.table-container
+	{
+	margin: 0 auto;
+	}
+
+.table-container td
+	{
+	border: 1px solid black;
+	padding: 4px;
+	}
+
+.expanded-image
+	{
+    width: 100%;
+    z-index: 100;
+	}

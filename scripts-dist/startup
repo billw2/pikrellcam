@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Startup cript to mount a flash/usb drive on media_dir.
+#
+# This script should be configured in ~/.pikrellcam/pikrellcam.conf and not
+#   in the at-command.conf file.  Eg in pikrellcam.conf:
+#   on_startup $C/startup $I $m $G
+#
+# Argument substitution done by PiKrellCam before running this script:
+#   $C - scripts directory so this script is found.
+#   $I - install directory full path
+#   $m - the media directory full path
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#
+
+# Uncomment and change the MOUNT_DISK name to the name of the disk
+# you want to mount on media_dir.
+# If the media_dir directory is on a tmpfs, it will not be mounted.
+#
+#MOUNT_DISK=sda1
+
+INSTALL_DIR=$1
+MEDIA_DIR=$2
+LOG_FILE=$3
+
+
+if [ "$LOG_FILE" == "" ]
+then
+	LOG_FILE=/dev/null
+fi
+
+if [ "$MOUNT_DISK" == "" ]
+then
+	echo "  MOUNT_DISK is not set." >> $LOG_FILE
+	exit 0
+fi
+
+if ! grep -q $MOUNT_DISK /proc/partitions
+then
+	echo "  Cannot find $MOUNT_DISK to mount on $MEDIA_DIR" >> $LOG_FILE
+	exit 1
+fi
+
+DISK_DEVICE=/dev/$MOUNT_DISK
+cd $INSTALL_DIR
+
+CURMOUNT_DIR=`fgrep "$DISK_DEVICE " /etc/mtab | cut -f 2 -d ' ' `
+if [ "$CURMOUNT_DIR" != "" ]
+then
+	if [ "$CURMOUNT_DIR" != "$MEDIA_DIR" ]
+	then
+		echo "  umount $DISK_DEVICE from $CURMOUNT_DIR" >> $LOG_FILE
+		sudo umount $DISK_DEVICE
+	fi
+fi
+
+if ! mountpoint -q $MEDIA_DIR
+then
+	FS_TYPE=`stat -f -c '%T' $MEDIA_DIR`
+	if [ "$FS_TYPE" != "tmpfs" ]
+	then
+		echo "  mount $DISK_DEVICE $MEDIA_DIR" >> $LOG_FILE
+		sudo mount $DISK_DEVICE $MEDIA_DIR
+		#
+		# PiKrellCam will make subdirectories and fixup permissions.
+	else
+		echo "  not mounting $DISK_DEVICE because $MEDIA_DIR is a tmpfs" >> $LOG_FILE
+	fi
+else
+	echo "  $MEDIA_DIR is already mounted." >> $LOG_FILE
+fi

@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# This init script is hardwired to be run when PiKrellCam starts.
+# It verifies that the www config matches the PiKrellCam config.
+# This is not a user script for the "scripts" directory.
+#
+# Argument substitution done by PiKrellCam before running this script:
+#   $I - install directory full path
+#   $m - the media directory full path
+#   $M - the mjpeg_file PiKrellCam writes and the web page reads.
+#   $P - the fifo command file full path
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#
+
+INSTALL_DIR=$1
+MEDIA_DIR=$2
+MJPEG_FILE=$3
+FIFO_FILE=$4
+LOG_FILE=$5
+
+if [ "$LOG_FILE" == "" ]
+then
+	LOG_FILE = /dev/null
+fi
+
+cd $INSTALL_DIR
+
+# note there is a tab before 'define' in the CMD assignments.
+#
+WWW_CONFIG=$INSTALL_DIR/www/config.php
+PIKRELLCAM=$INSTALL_DIR/pikrellcam
+MEDIA_LINK=www/media
+
+if [ ! -h $MEDIA_LINK ]
+then
+	echo "  making $MEDIA_LINK link to $MEDIA_DIR" >> $LOG_FILE
+	ln -s $MEDIA_DIR $MEDIA_LINK
+else
+	CURRENT_MEDIA=`realpath $MEDIA_LINK`
+	if [ "$CURRENT_MEDIA" != "$MEDIA_DIR" ]
+	then
+		echo "  replacing $MEDIA_LINK link from $CURRENT_MEDIA to $MEDIA_DIR" >> $LOG_FILE
+		rm $MEDIA_LINK
+		ln -s $MEDIA_DIR $MEDIA_LINK
+	else
+		echo "  $MEDIA_LINK link is already set to $MEDIA_DIR" >> $LOG_FILE
+	fi
+fi
+
+if ! grep -q $MJPEG_FILE $WWW_CONFIG
+then
+	CMD="/MJPEG_FILE/c\	define\(\"MJPEG_FILE\", \"$MJPEG_FILE\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: MJPEG_FILE updated to: $MJPEG_FILE" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: MJPEG_FILE not changed." >> $LOG_FILE
+fi
+
+if ! grep -q $FIFO_FILE $WWW_CONFIG
+then
+	CMD="/FIFO_FILE/c\	define\(\"FIFO_FILE\", \"$FIFO_FILE\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: FIFO_FILE updated to: $FIFO_FILE" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: FIFO_FILE not changed." >> $LOG_FILE
+fi
+
+if ! grep -q $PIKRELLCAM $WWW_CONFIG
+then
+	CMD="/PIKELLCAM/c\	define\(\"PIKRELLCAM\", \"$PIKRELLCAM\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: PIKELLCAM updated to: $PIKELLCAM" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: PIKRELLCAM not changed." >> $LOG_FILE
+fi

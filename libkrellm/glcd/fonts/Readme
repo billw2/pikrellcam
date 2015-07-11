@@ -1,0 +1,40 @@
+
+Steps to add a font to the ukrellm glcd library.
+-----------------------------------------------
+
+1) Get or generate a .bdf font file of the font you want, here use the
+9x15.bdf font from X11 as an example.
+
+2) If you want to reduce the font size to a minimum to conserve memory space,
+Edit the 9x15.bdf file to remove glyphs before the 'space' and after the
+'tilde'.  There should be 95 chars remaining in the font, so change the
+CHARS line in the 9x15.bdf file to be 95.  Check this by running:
+
+		$ grep STARTCHAR 9x15.bdf | wc
+
+
+3) Run bdf2c on the .bdf file to generate the C file font.c.  I have modified
+bdf2c (original from: http://sourceforge.net/projects/bdf2c/) to output a
+font.c file in a format suitable for the ukrellm glcd library.
+Give the font a C name "font_9x15" to be referenced in your code..
+
+		$ bdf2c -n font_9x15 -b < 9x15.bdf > 9x15.c
+
+If the 9x15.bdf file was not edited to make 'space' the first character,
+then you will need to edit the 9x15.c file and correctly initialize the
+"first_char" in the font_9x15 structure declaration at the bottom of the file.
+
+4) Make the "font_9x15" name visible to code in the glcd library.
+	Edit glcd-fonts.h and add the line:
+
+		extern GlcdFont	font_9x15;
+
+5) Make the 9x15.c file visible to make so it will be compiled.
+Add a target to cSRCS_$(d) in rules.mk in the libglcd directory:
+
+cSRCS_$(d) :=  fonts/shadow-bold.c \
+               fonts/9x15.c
+
+5) Now your application can access the font, E.g.
+
+		GlcdFont *font = &font_9x15;

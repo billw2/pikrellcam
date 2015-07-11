@@ -1,0 +1,9 @@
+Scripts in the scripts-dist direcotory are distribution scripts which,
+except for the init script, are copied to the scripts dir when
+install-pikrellcam.sh is run.
+
+Scripts in the "scripts-dist" directory should not be edited since they
+are subject to being replaced when PiKrellCam is upgraded.
+
+Scripts in the "scripts" directory are user editable and are configured to
+be run from pikrellcam.conf or at-commands.conf.

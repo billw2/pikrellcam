@@ -1,0 +1,80 @@
+
+/* --------- COLLAPSIBLE PANELS ----------*/
+
+h3, p, ol, ul, li {
+	margin:0px;
+	padding:0px;
+	font-size:0.85em;
+	font-family:Arial, Helvetica, sans-serif;
+}
+ol, ul {
+	padding:3px 0 10px 22px;	
+}
+li {
+	padding:0 0 4px 0;	
+}
+hr {
+	border:none;
+	height:1px;
+	border-top:1px dashed #999;
+}
+#container {
+    width:95%; 
+	margin:auto;
+	margin-top:10px;
+}
+
+.expandable-panel {
+    width:100%; 
+    position:relative;
+    min-height:34px;
+    overflow:auto;
+    margin-bottom: 3px;
+	border:1px solid #999;
+}   
+.expandable-panel-heading {
+    width:100%; 
+    cursor:pointer;
+    min-height:34px;
+    clear:both;
+    background-color:#c8c8c8;
+    position:relative;
+}
+.expandable-panel-heading:hover {
+    color:#666;
+}
+.expandable-panel-heading h3 {
+    padding:8px 10px 6px 15px; 
+    font-size:1.2em;
+    line-height:20px;
+}
+.expandable-panel-content { 
+    padding:8px 15px 0 15px;
+    margin-top:-999px;
+}
+.expandable-panel-content p {
+    padding:4px 0 6px 0;
+}
+.expandable-panel-content p:first-child  {
+	padding-top:10px;
+}
+.expandable-panel-content p:last-child {
+	padding-bottom:15px;	
+}
+.icon-close-open {
+    width:20px;
+    height:20px;
+    position:absolute;
+    background-image:url(images/icon-close-open.png);
+    right:15px;
+}
+
+.expandable-panel-content img {
+	float:right;
+	padding-left:12px;	
+	/* clear:both; */
+}
+.header-active {
+    background-color:#c4c8c8;
+}
+

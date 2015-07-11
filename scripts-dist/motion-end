@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Script to ssh copy a motion video file from the pi to an archive site.
+# If this script is configured to be run as the on_motion_end command, than
+# motion videos can be immediately saved to a backup site as long as the
+# backup site is online.
+#
+# This script should be configured in ~/.pikrellcam/pikrellcam.conf and not
+#   in the at-command.conf file.  Eg in pikrellcam.conf:
+#   on_motion_end $C/motion-end $v $P $G
+#
+# Argument substitution done by PiKrellCam before running this script:
+#   $C - scripts directory so this script is found.
+#   $v - the full path name of the motion video just saved.
+#	$P - the command FIFO so we can write an inform notice to display on the
+#        PiKrellCam web page (not used yet).
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#
+
+# ====== WARNING ======
+# This script will fail on hosts that are not authenticated, so you may need
+# to initially do a manual ssh or scp to the host and answer yes when asked if
+# you want to continue connecting so the host will be added to the list of
+# known hosts.
+#
+
+VIDEO_FILE=$1
+FIFO=$2
+LOG_FILE=$3
+
+if [ "$LOG_FILE" == "" ]
+then
+	LOG_FILE = /dev/null
+fi
+
+
+# Add a line for all the hosts to copy the video file to with this info:
+#    dest_name=(user host password ssh_port video_directory)
+# and then add a scp_video line below for the "dest_name".
+#    scp_video $VIDEO_FILE ${dest_name[@]}
+#
+machine1=(user machine1.com password 22 /home/pi/motion_videos)
+rpi2=(pi rpi2 raspberry 20002 /home/pi/videos)
+
+
+scp_video()
+	{
+	dest=($@)
+	video=${dest[0]}
+	user=${dest[1]}
+	host=${dest[2]}
+	password=${dest[3]}
+	port=${dest[4]}
+	dir=${dest[5]}
+
+	echo $video copy to $host
+
+	# Do the scp if the port is open.
+	if nc -zv -w 3 $host $port 2> /dev/null
+	then
+		echo "  sshpass -p $password scp -P $port $video $user@$host:$dir" >> $LOG_FILE
+		sshpass -p $password scp -P $port $video $user@$host:$dir 2>> $LOG_FILE
+	else
+		echo "  Cannot connect to $host:$port.  scp of $video failed." >> $LOG_FILE
+	fi
+	}
+
+scp_video $VIDEO_FILE ${machine1[@]}
+scp_video $VIDEO_FILE ${rpi2[@]}
+
+# A delete of the video could be here.  Or write a scheduled videos
+# directory cleanup and run it from the at-command list.  Or manage
+# it by hand.
