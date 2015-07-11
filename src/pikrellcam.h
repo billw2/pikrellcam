@@ -158,7 +158,6 @@ typedef struct
 	int		vx,
 			vy;
 	int		mag2,		/* Magnitude^2 of this composite vector */
-			len2,		/*   and the length^2 */
 			mag2_count;	/* Number of MotionVectors added into this composite. */
 	boolean	vertical;
 	}

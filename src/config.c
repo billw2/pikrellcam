@@ -116,16 +116,16 @@ metering_mode_set(char *option, char *setting)
 
 ParameterTable awb_mode_table[] =
 	{
-	{ MMAL_PARAM_AWBMODE_OFF,			"off" },
-	{ MMAL_PARAM_AWBMODE_AUTO,			"auto" },
-	{ MMAL_PARAM_AWBMODE_SUNLIGHT,		"sunlight" },
-	{ MMAL_PARAM_AWBMODE_CLOUDY,		"cloudy" },
-	{ MMAL_PARAM_AWBMODE_SHADE,			"shade" },
-	{ MMAL_PARAM_AWBMODE_TUNGSTEN,		"tungsten" },
-	{ MMAL_PARAM_AWBMODE_FLUORESCENT,	"flourescent" },
-	{ MMAL_PARAM_AWBMODE_INCANDESCENT,	"incandescent" },
-	{ MMAL_PARAM_AWBMODE_FLASH,			"flash" },
-	{ MMAL_PARAM_AWBMODE_HORIZON,		"horizon" }
+	{ MMAL_PARAM_AWBMODE_OFF,           "off" },
+	{ MMAL_PARAM_AWBMODE_AUTO,          "auto" },
+	{ MMAL_PARAM_AWBMODE_SUNLIGHT,      "sunlight" },
+	{ MMAL_PARAM_AWBMODE_CLOUDY,        "cloudy" },
+	{ MMAL_PARAM_AWBMODE_SHADE,         "shade" },
+	{ MMAL_PARAM_AWBMODE_TUNGSTEN,      "tungsten" },
+	{ MMAL_PARAM_AWBMODE_FLUORESCENT,   "flourescent" },
+	{ MMAL_PARAM_AWBMODE_INCANDESCENT,  "incandescent" },
+	{ MMAL_PARAM_AWBMODE_FLASH,         "flash" },
+	{ MMAL_PARAM_AWBMODE_HORIZON,       "horizon" }
 	};
 
 #define	AWB_MODE_TABLE_SIZE	\
@@ -136,15 +136,15 @@ awb_mode_set(char *option, char *setting)
 	{
 	MMAL_PARAMETER_AWBMODE_T	awb_mode =
 				{ { MMAL_PARAMETER_AWB_MODE, sizeof(awb_mode) }, 0 };
-	int							value;
-	MMAL_STATUS_T				status = MMAL_EINVAL;
+	int				value;
+	MMAL_STATUS_T	status = MMAL_EINVAL;
 
 	if ((value = find_param(setting, awb_mode_table,
-							AWB_MODE_TABLE_SIZE)) >= 0)
+						AWB_MODE_TABLE_SIZE)) >= 0)
 		{
 		awb_mode.value = value;
 		status = mmal_port_parameter_set(camera.control_port,
-							&awb_mode.hdr);
+						&awb_mode.hdr);
 		}
 	return status;
 	}

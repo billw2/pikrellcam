@@ -57,7 +57,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	{
 	CompositeVector	*cvec, tvec;
 	MotionVector	*mv;
-	int				x, y, mag2, mb_index, mvlen2, dot, cos2,
+	int				x, y, mag2, mb_index, mvmag2, dot, cos2,
 					x0, y0, x1, y1,
 					in_box_count;
 	int16_t			*pm, *pp, *pn;
@@ -145,22 +145,21 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		tvec.vx /= tvec.mag2_count;
 		tvec.vy /= tvec.mag2_count;
 		tvec.mag2 = tvec.vx * tvec.vx + tvec.vy * tvec.vy;
-		tvec.len2 = tvec.vx * tvec.vx + tvec.vy * tvec.vy;
 
 		for (y = y0; y < y1; ++y)
 			{
 			for (x = x0; x < x1; ++x)
 				{
 				mb_index = mf->width * y + x;
-				if ((mvlen2 = *(mf->trigger + mb_index)) <= 1)
+				if ((mvmag2 = *(mf->trigger + mb_index)) <= 1)
 					continue;
 
 				mv = &mf->vectors[mb_index];
 				dot = tvec.vx * mv->vx + tvec.vy * mv->vy;
 				if (   dot > 0		/* angle at least < 90 deg */
-				    && mvlen2 > 0
-				    && tvec.len2 > 0
-					&& (cos2 = 100 * dot * dot / (tvec.len2 * mvlen2)) >= 82
+				    && mvmag2 > 0
+				    && tvec.mag2 > 0
+					&& (cos2 = 100 * dot * dot / (tvec.mag2 * mvmag2)) >= 82
 				   )
 					{
 					mf->trigger_count += 1;
@@ -195,7 +194,6 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		cvec->vx /= cvec->mag2_count;
 		cvec->vy /= cvec->mag2_count;
 		cvec->mag2 = cvec->vx * cvec->vx + cvec->vy * cvec->vy;
-		cvec->len2 = cvec->vx * cvec->vx + cvec->vy * cvec->vy;
 
 		/* Set a vertical flag.  The idea was vertical filtering would be
 		|  usefull for rain, but it turns out it's just as likely the

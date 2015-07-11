@@ -682,6 +682,7 @@ restart_camera(void)
 	pthread_mutex_lock(&vcb->mutex);
 	video_record_stop(vcb);
 	vcb->state = VCB_STATE_RESTARTING;
+	pikrellcam.camera_adjust = camera_adjust_temp;	/* May not be changed */
 	pthread_mutex_unlock(&vcb->mutex);
 
 	camera_stop();
@@ -694,8 +695,6 @@ static void
 apply_adjustment(void)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
-	boolean				need_new_buffer = FALSE,
-						need_camera_restart = FALSE;
 
 	if (!adjustments || !cur_adj)
 		return;
@@ -704,37 +703,25 @@ apply_adjustment(void)
 		if (   motion_times_temp.pre_capture != pikrellcam.motion_times.pre_capture
 		    || motion_times_temp.event_gap != pikrellcam.motion_times.event_gap
 		   )
-			need_new_buffer = TRUE;
+			{
+			pthread_mutex_lock(&vcb->mutex);
+			pikrellcam.motion_times  = motion_times_temp;
+			circular_buffer_init();
+			pthread_mutex_unlock(&vcb->mutex);
+			}		
 		}
 	else if (adjustments == &camera_adjustment[0])
 		{
-		if (camera_adjust_temp.video_bitrate != pikrellcam.camera_adjust.video_bitrate)
-			need_camera_restart = TRUE;
-
 		if (   camera_adjust_temp.video_fps != pikrellcam.camera_adjust.video_fps
 		    || camera_adjust_temp.still_quality != pikrellcam.camera_adjust.still_quality
+		    || camera_adjust_temp.video_bitrate != pikrellcam.camera_adjust.video_bitrate
 		   )
-			need_camera_restart = TRUE;
-		}
-	/* All other adjustments have been done live. */
+			restart_camera();
+		else	/* Pick up changes not requiring new buffer or camera restart */
+			pikrellcam.camera_adjust = camera_adjust_temp;
 
-	if (need_new_buffer || need_camera_restart)
-		{
-		pthread_mutex_lock(&vcb->mutex);
-		video_record_stop(vcb);
-		vcb->state = VCB_STATE_RESTARTING;
-		pikrellcam.camera_adjust = camera_adjust_temp;
-		if (need_new_buffer)
-			circular_buffer_init();
-		pthread_mutex_unlock(&vcb->mutex);
-		if (need_camera_restart)
-			{
-			camera_stop();
-			camera_start();
-			}
+		/* All other adjustments have been done live. */
 		}
-	else	/* Pick up changes not requiring new buffer or camera restart */
-		pikrellcam.camera_adjust = camera_adjust_temp;
 	}
 
 static void
@@ -1149,7 +1136,7 @@ display_command(char *cmd)
 			display_menu_index = &menu_still_presets_index;
 			display_state = DISPLAY_MENU;
 			display_menu = STILL_PRESET;
-			for (i = N_VIDEO_PRESET_ENTRIES - 1; i > 0 ; --i)
+			for (i = N_STILL_PRESET_ENTRIES - 1; i > 0 ; --i)
 				{
 				sscanf(still_presets_entry[i], "%dx%d", &width, &height);
 				if (   pikrellcam.camera_config.still_width == width

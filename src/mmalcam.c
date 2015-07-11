@@ -278,11 +278,10 @@ circular_buffer_init()
 		if (vcb->data)
 			free(vcb->data);
 		vcb->data = (int8_t *)malloc(size);
+		log_printf("circular buffer allocate: %.2f MBytes (%d seconds at %.1f Mbits/sec)\n",
+				(float) size / 1000000.0, seconds,
+				(double)pikrellcam.camera_adjust.video_bitrate / 1000000.0);
 		}
-	log_printf("circular buffer allocate: %.2f MBytes (%d seconds at %.1f Mbits/sec)\n",
-			   (float) size / 1000000.0,
-			   seconds,
-			   (double)pikrellcam.camera_adjust.video_bitrate / 1000000.0);
 	if (!vcb->data)
 		{
 		log_printf("Aborting because circular buffer malloc() failed.\n");

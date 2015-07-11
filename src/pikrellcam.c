@@ -753,7 +753,7 @@ make_fifo(char *fifo_path)
 		}
 	if (fifo_exists)
 		check_modes(fifo_path, 0664);
-    return fifo_exists;
+	return fifo_exists;
 	}
 
 static boolean
@@ -834,8 +834,7 @@ main(int argc, char *argv[])
 		else
 			arg = argv[i + 1];
 
-		/* For the config table, command line args can set SAFE values.
-		|  For camera parameters, we do not set the camera, only replace
+		/* For camera parameters, do not set the camera, only replace
 		|  values in the parameter table.
 		*/
 		if (   !config_set_option(opt, arg, TRUE)
@@ -875,7 +874,8 @@ main(int argc, char *argv[])
 	log_printf("using mjpeg: %s\n", pikrellcam.mjpeg_filename);
 
 
-	/* Subdirs must match www/config.php
+	/* Subdirs must match www/config.php and the init script is supposed
+	|  to take care of that.
 	*/
 	asprintf(&pikrellcam.video_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_VIDEO_SUBDIR);
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
@@ -884,8 +884,6 @@ main(int argc, char *argv[])
 	if (!make_dir(pikrellcam.media_dir))
 		exit(1);
 
-	/* init script syncs www/config.php to pikrellcam.conf
-	*/
 	snprintf(buf, sizeof(buf), "%s/scripts-dist/init $I $m $M $P $G",
 								pikrellcam.install_dir);
 	exec_wait(buf, NULL);

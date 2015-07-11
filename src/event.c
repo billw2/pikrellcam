@@ -201,8 +201,8 @@ exec_no_wait(char *command, char *arg)
 	exec_command(command, arg, FALSE, &pid);
 	}
 
-  /* Create a unactived event and store the child pid of an exec() in the
-  |  event.  Event will be actived only after the caller fills in the
+  /* Create a unactivated event and store the child pid of an exec() in the
+  |  event.  Event will be activated only after the caller fills in the
   |  Event func() pointer and the child exit is caught where the Event time
   |  will be set to t_now.
   */
