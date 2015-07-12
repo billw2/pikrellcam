@@ -614,22 +614,23 @@ command_process(char *command_line)
 
 		case tl_start:
 			if ((n = atoi(args)) < 1)
-				n = 60;
+				n = 0;
 			time_lapse.activated = TRUE;
 			time_lapse.on_hold = FALSE;
-			if (!time_lapse.event)
+			if (!time_lapse.event && n > 0)
 				{
 				time_lapse.sequence = 0;
 				++time_lapse.series;
 				time_lapse.event = event_add("timelapse",
 							pikrellcam.t_now, n, timelapse_capture, NULL);
 				}
-			else
+			else if (n > 0)		/* Change the period */
 				{
 				time_lapse.event->time += (n - time_lapse.period);
 				time_lapse.event->period = n;
 				}
-			time_lapse.period = n;
+			if (n > 0)
+				time_lapse.period = n;	/* n == 0 just sets on_hold FALSE */
 			config_timelapse_save_status();	
 			break;
 

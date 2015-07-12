@@ -359,7 +359,7 @@ if (file_exists('password.php'))
                       <span style="margin-left:40px;">
                         Period
                       </span>
-                      <input type="text" id="tl_period" value="60" size="3"
+                      <input type="text" id="tl_period" value="0" size="3"
                       >sec
                       <input type="button" value="Start"
                         class="btn-menu"
