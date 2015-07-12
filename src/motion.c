@@ -573,6 +573,7 @@ motion_command(char *cmd_line)
 			config_set_boolean(&mf->show_vectors, arg1);
 			break;
 		case ADD_REGION:		/* add_region x y dx dy */
+			memset((char *) &mrtmp, 0, sizeof(MotionRegion));
 			if (get_motion_args(&mrtmp, arg1, arg2, arg3, arg4, 0.00, 1.0))
 				{
 				pthread_mutex_lock(&mf->region_list_mutex);
