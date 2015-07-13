@@ -624,7 +624,7 @@ static Adjustment	picture_adjustment[] =
 	{ "brightness",    0, 100, 1,   0, 0, 0, "", NULL, NULL },
 	{ "saturation", -100, 100, 1,   0, 0, 0, "", NULL, NULL },
 	{ "iso",           0, 800, 100, 0, 0, 0, "", NULL, NULL },
-//	{ "shutter_speed", 0, 6000000, 10000, 0, 0, 0, "usec", NULL, NULL }
+	{ "shutter_speed", 0, 6000000, 100, 0, 0, 0, "usec", NULL, NULL }
 	};
 
 #define N_PICTURE_ADJUSTMENTS \
@@ -750,7 +750,7 @@ display_adjustment(uint8_t *i420)
 	DrawArea	*da = &adj_control_area;
 	GlcdFont	*font = normal_font;
 	char		buf[50];
-	int			bar_x0, bar_y0, bar_dy, bar_width, adj_x;
+	int			bar_x0, bar_y0, bar_dy, bar_width, adj_x, fast_factor;
 	static int	prev_action;
 	boolean		boolean_flag = FALSE;
 
@@ -782,14 +782,22 @@ display_adjustment(uint8_t *i420)
 
 	cur_adj->prev_value = cur_adj->value;
 
+	fast_factor = 2;
+	while ((cur_adj->max - cur_adj->min) / (fast_factor * cur_adj->increment)
+				> 50)
+		fast_factor += 1;
+
+	if (fast_factor > 20)	/* XXX for shutter_speed, this needs work */
+		fast_factor = 20;
+
 	if (display_action == LEFT_ARROW)
 		cur_adj->value -= cur_adj->increment;
 	else if (display_action == RIGHT_ARROW)
 		cur_adj->value += cur_adj->increment;
 	else if (display_action == REPEAT_LEFT_ARROW)
-		cur_adj->value -= 2 * cur_adj->increment;
+		cur_adj->value -= fast_factor * cur_adj->increment;
 	else if (display_action == REPEAT_RIGHT_ARROW)
-		cur_adj->value += 2 * cur_adj->increment;
+		cur_adj->value += fast_factor * cur_adj->increment;
 
 	if (cur_adj->value > cur_adj->max)
 		{

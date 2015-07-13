@@ -506,6 +506,7 @@ typedef struct
 static Command commands[] =
 	{
 	{ "record",      record,       1 },
+	{ "record_pause", record_pause, 0 },
 	{ "pause",       record_pause, 0 },
 	{ "still",       still,        0 },
 
@@ -537,8 +538,6 @@ command_process(char *command_line)
 	if (!command_line || *command_line == '\0')
 		return;
 
-	log_printf("command_process: %s\n", command_line);
-
 	n = sscanf(command_line, "%63s %[^\n]", command, args);
 	if (n < 1 || command[0] == '#')
 		return;
@@ -563,6 +562,9 @@ command_process(char *command_line)
 			log_printf("Bad command: [%s] [%s]\n", command, args);
 		return;
 		}
+	if (cmd->code != display_cmd)
+		log_printf("command_process: %s\n", command_line);
+
 	if (cmd->code < display_cmd && !display_is_default())
 		{
 		display_set_default();
