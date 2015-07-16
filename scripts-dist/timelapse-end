@@ -3,7 +3,7 @@
 # Script to run commands on timelapse files when a timelapse is ended.
 # This script should be configured in ~/.pikrellcam/pikrellcam.conf and not
 #   in the at-command.conf file.  Eg in pikrellcam.conf:
-#   on_timelapse_end $C/timelapse-end $L $T $n $G $l
+#   on_timelapse_end $C/timelapse-end $L $T $n $G $P $l
 #
 # Argument substitution done by PiKrellCam before running this script:
 #   $C - scripts directory so this script is found.

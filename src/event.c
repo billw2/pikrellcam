@@ -674,8 +674,9 @@ at_command_add(char *at_line)
 	char		 frequency[32], at_time[64], cmd[200];
 	int			 n;
 
+	frequency[0] = '\0';
 	n = sscanf(at_line, "%31s %63s \"%199[^\n\"]", frequency, at_time, cmd);
-	if (frequency[0] == '#')
+	if (frequency[0] == '#' || frequency[0] == '\n' || frequency[0] == '\0')
 		return;
 	if (n != 3)
 		{

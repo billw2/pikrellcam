@@ -176,7 +176,7 @@ fi
 # ===== sudoers permission for www-data to run pikrellcam as pi ======
 #
 CMD=$PWD/pikrellcam
-if ! grep -q "$cmd" /etc/sudoers.d/pikrellcam 2>/dev/null
+if ! grep -q "$CMD" /etc/sudoers.d/pikrellcam 2>/dev/null
 then
 	echo "Adding to /etc/sudoers.d: www-data permission to run pikrellcam as user pi:"
 	cp etc/pikrellcam.sudoers /tmp/pikrellcam.sudoers.tmp
@@ -286,7 +286,7 @@ fi
 
 if [ "$WRITE_PASSWORD" == "yes" ]
 then
-	if [ $$PASSWORD == "unset" ]
+	if [ "$PASSWORD" == "unset" ]
 	then
 		echo "Setting web page password to not require a password."
 	else
