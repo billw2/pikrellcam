@@ -198,7 +198,10 @@ exec_no_wait(char *command, char *arg)
 	{
 	pid_t	pid;
 
-	exec_command(command, arg, FALSE, &pid);
+	if (*command == '@')
+		command_process(command + 1);
+	else
+		exec_command(command, arg, FALSE, &pid);
 	}
 
   /* Create a unactivated event and store the child pid of an exec() in the
