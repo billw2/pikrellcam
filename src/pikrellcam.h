@@ -143,6 +143,31 @@ typedef struct
 
   /* ------------------ Motion Detection ---------------
   */
+
+  /*  Scale a motion vector coordinate to a mjpeg frame coordinate.
+  |  Motion vector coordinates are video frame coords / 16.
+  */
+#define	MOTION_VECTOR_TO_MJPEG_X(mvx) \
+			((mvx) * 16 * pikrellcam.mjpeg_width / pikrellcam.camera_config.video_width)
+#define	MOTION_VECTOR_TO_MJPEG_Y(mvy) \
+			((mvy) * 16 * pikrellcam.mjpeg_height / pikrellcam.camera_config.video_height)
+
+  /* Scale a mjpeg coordinate to a motion vector frame coordinate.
+  */
+#define	MJPEG_TO_MOTION_VECTOR_X(mjx) \
+			((mjx) * pikrellcam.camera_config.video_width / 16 / pikrellcam.mjpeg_width)
+#define	MJPEG_TO_MOTION_VECTOR_Y(mjy) \
+			((mjy) * pikrellcam.camera_config.video_height / 16 / pikrellcam.mjpeg_height)
+
+
+typedef struct
+	{
+	int	x0, y0,
+		x1, y1;
+	}
+	Area;
+
+
 typedef struct
 	{
     int8_t	vx,
@@ -157,8 +182,13 @@ typedef struct
 			y;
 	int		vx,
 			vy;
+
 	int		mag2,		/* Magnitude^2 of this composite vector */
 			mag2_count;	/* Number of MotionVectors added into this composite. */
+
+	int		box_w,			/* A box around the composite center for testing */
+			box_h,			/*  the vector concentration composing the cvec  */
+			in_box_count;	/* Count of motion vectors inside of box */
 	boolean	vertical;
 	}
 	CompositeVector;
@@ -177,8 +207,7 @@ typedef struct
 			dx, dy;
 
 	CompositeVector  vector;
-	int		box_w,			/* A box around the composite center for testing */
-			box_h;			/*  the vector concentration composing the cvec  */
+
 	int		reject_count,	/* vectors not pointing in composite direction.  */
 			sparkle_count;	/* number of isolated vectors */
 	boolean	motion;
@@ -209,7 +238,10 @@ typedef struct
 					height;			/* height in macroblocks */
 	int				vectors_size;
 	MotionVector	*vectors;
-	CompositeVector	best_frame_vector,
+	CompositeVector	frame_vector,
+					preview_frame_vector,
+					final_preview_vector;;
+	CompositeVector	best_region_vector,
 					best_motion_vector;
 	int16_t			*trigger;
 	int				n_regions,
@@ -225,6 +257,9 @@ typedef struct
 			reject_count,	/* # of frame vectors not pointing same as composite vector */
 			sparkle_count,	/* nuber of isolated vectors */
 			vertical_count;
+
+	Area	motion_area,	/* Geometric area convering passing vectors */
+			preview_motion_area;	/* Copy to preserve values for preview */
 
 	float	sparkle_expma;
 
@@ -250,7 +285,7 @@ typedef struct
 	KeyFrame;
 
 
-#define	H264_HEADER_SIZE	29	/* What the GPU gives us */
+#define	H264_MAX_HEADER_SIZE	29	/* Can be less */
 
   /* While waiting for a video record to start, the h264 callback requests
   |  keyframes once per second so we can have second resolution on pre_capture
@@ -267,7 +302,7 @@ typedef struct
 	FILE		*file;
 	int			state;
 
-	int8_t	   h264_header[H264_HEADER_SIZE];
+	int8_t	   h264_header[H264_MAX_HEADER_SIZE];
 	int		   h264_header_position;
 
 	int8_t	   *data; 		/* h.264 video data array      */
@@ -373,6 +408,7 @@ typedef struct
 			*on_motion_preview_save_cmd;
 	boolean	motion_preview_clean,
 			motion_vertical_filter;
+	int		motion_area_min_side;
 
 	CameraConfig
 			camera_config;
@@ -578,6 +614,8 @@ void	motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf);
 void	motion_regions_config_save(char *config_file);
 boolean	motion_regions_config_load(char *config_file);
 void	motion_preview_file_event(void);
+void	motion_preview_area_fixup(void);
+void	print_cvec(char *str, CompositeVector *cvec);
 
 /* On Screen Display
 */

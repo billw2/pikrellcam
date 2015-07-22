@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# This is a motion event on_motion_preview_save script.
+# Uncomment lines to enable emailing the preview jpeg, copying the preview
+# jpeg, taking a still, or generating a thumb of the preview jpeg.
+#
+# uncomment any echo lines to the LOG_FILE if you want logging.
+#
+# Argument substitution done by PiKrellCam before running this script:
+#   $C - scripts directory so this script is found.
+#   $F - the preview jpeg filename full path (from MJPEG_DIR)
+#   $m - the media directory full path
+#   $P - the command FIFO
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $i	 width of the motion detected area in the preview jpeg
+#   $J	 height of the motion detected area in the preview jpeg
+#   $K	 x coordinate of the motion detected area center in the preview jpeg
+#   $Y	 y coordinate of the motion detected area center in the preview jpeg
+# 
+# In ~/.pikrellcam.conf, for this script as is, make on_motion_preview_save:
+#
+# on_motion_preview_save  $C/preview-save  $F $m $P $G $i $J $K $Y
+
+PREVIEW_JPEG=$1
+MEDIA_DIR=$2
+FIFO=$3
+LOG_FILE=$4
+
+# uncomment and edit MY_EMAIL to your email address to email the preview jpeg.
+#
+MY_EMAIL=myuser@gmail.com
+#mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL
+#echo "mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL" >> $LOG_FILE
+
+
+
+# uncomment to copy the low resolution preview jpeg to the stills directory.
+# Edit PREVIEW_JPEG_DIR to copy it anywhere you want.
+#
+PREVIEW_JPEG_DIR=$MEDIA_DIR/stills
+#cp $PREVIEW_JPEG $PREVIEW_JPEG_DIR
+#echo "cp $PREVIEW_JPEG $PREVIEW_JPEG_DIR" >> $LOG_FILE
+
+
+
+# uncomment if you want to take a still.  This is probably only useful if
+# preview_save_mode is "first" because if the mode is "best" the still will
+# be taken after the action has ended.  So use the on_motion_begin command
+# to take a still if preview_save_mode is "best".  The on_motion_begin
+# command can be a script like this or the internal command "@still"
+# Note that taking a full resolution still can put a glitch into the motion
+# video being recorded because the camera has to switch modes.
+#
+#echo "still" > $FIFO
+#echo "preview save script: still" >> $LOG_FILE
+
+
+
+# Uncomment the "convert" line to generate a thumb of the motion detected area
+# inside of the preview jpeg.
+# The default here is to save the thumb into the media_dir/stills directory
+# so a name is created with a ".th" inserted into the PREVIEW_JPEG name in case
+# saving the full jpeg has also been enabled to save to the same directory.
+#
+W=$5
+H=$6
+X=$7
+Y=$8
+
+XT=`expr $W / 2`
+XO=`expr $X - $XT`
+YT=`expr $H / 2`
+YO=`expr $Y - $YT`
+
+THUMB_JPEG_DIR=$MEDIA_DIR/stills
+
+# Change a motion-xxx.jpg into motion-xxx.th.jpg.  PREVIEW_JPEG is a full path.
+# This is not necessary if THUMB_JPEG_DIR is different from PREVIEW_JPEG_DIR
+# or the PREVIEW_JPEG is not copied.
+BASE=`basename $PREVIEW_JPEG`
+THUMB_JPEG=${BASE%.jpg}.th.jpg
+
+#convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG
+#echo "convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE

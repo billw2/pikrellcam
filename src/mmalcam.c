@@ -318,6 +318,25 @@ vcb_video_write(VideoCircularBuffer *vcb)
 	vcb->tail = vcb->head;
 	}
 
+static void
+h264_header_save(MMAL_BUFFER_HEADER_T *mmalbuf)
+	{
+	VideoCircularBuffer *vcb = &video_circular_buffer;
+
+	if (vcb->h264_header_position + mmalbuf->length > H264_MAX_HEADER_SIZE)
+		log_printf("h264 header bytes error.\n");
+	else
+		{
+		/* Save header bytes to write to .mp4 video files
+		*/
+		mmal_buffer_header_mem_lock(mmalbuf);
+		memcpy(vcb->h264_header + vcb->h264_header_position,
+					mmalbuf->data, mmalbuf->length);
+		mmal_buffer_header_mem_unlock(mmalbuf);
+		vcb->h264_header_position += mmalbuf->length;
+		}
+	}
+
 void
 video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
@@ -329,6 +348,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 	if (vcb->state == VCB_STATE_RESTARTING)
 		{
+		if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CONFIG)
+			h264_header_save(mmalbuf);
 		fps_count = 0;
 		return_buffer_to_port(port, mmalbuf);
 		return;
@@ -336,30 +357,17 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 	pthread_mutex_lock(&vcb->mutex);
 	if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CONFIG)
-		{
-		if (vcb->h264_header_position + mmalbuf->length > H264_HEADER_SIZE)
-			log_printf("h264 header bytes error.\n");
-		else
-			{
-			/* Save header bytes to write to .mp4 video files
-			*/
-			mmal_buffer_header_mem_lock(mmalbuf);
-			memcpy(vcb->h264_header + vcb->h264_header_position,
-						mmalbuf->data, mmalbuf->length);
-			mmal_buffer_header_mem_unlock(mmalbuf);
-			vcb->h264_header_position += mmalbuf->length;
-			}
-		}
+		h264_header_save(mmalbuf);
 	else if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CODECSIDEINFO)
 		{
 		if (++fps_count >= pikrellcam.mjpeg_divider)
 			{
+			motion_frame_event = TRUE;		/* synchronize with i420 callback */
 			fps_count = 0;
 			mmal_buffer_header_mem_lock(mmalbuf);
 			memcpy(motion_frame.vectors, mmalbuf->data, motion_frame.vectors_size);
 			mmal_buffer_header_mem_unlock(mmalbuf);
 			motion_frame_process(vcb, &motion_frame);
-			motion_frame_event = TRUE;		/* synchronize with i420 callback */
 			}
 		}
 	else
@@ -418,7 +426,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  The keyframe data we collected above keeps a pointer to
 			|  video data close to the pre_capture time we want.
 			*/
-			fwrite(vcb->h264_header, 1, H264_HEADER_SIZE, vcb->file);
+			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
 			vcb->tail = vcb->key_frame[vcb->pre_frame_index].position;
 			vcb_video_write(vcb);
 			vcb->record_start = t_cur - pikrellcam.motion_times.pre_capture;
@@ -435,7 +443,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			/* Write mp4 header and set tail to most recent keyframe.
 			|  So manual records may have up to about a sec pre_capture.
 			*/
-			fwrite(vcb->h264_header, 1, H264_HEADER_SIZE, vcb->file);
+			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
 			vcb->tail = vcb->key_frame[vcb->cur_frame_index].position;
 			vcb->record_start = t_cur;
 			vcb->state = VCB_STATE_MANUAL_RECORD;

@@ -20,6 +20,7 @@
 
 #include "pikrellcam.h"
 #include <signal.h>
+#include <locale.h>
 
 #define	EVENT_LOOP_FREQUENCY	10
 
@@ -421,9 +422,11 @@ video_record_stop(VideoCircularBuffer *vcb)
 	if (vcb->state & VCB_STATE_MOTION_RECORD)
 		{
 		if (!strcmp(pikrellcam.motion_preview_save_mode, "best"))
+			{
+			motion_preview_area_fixup();
 			event_add("preview save command", pikrellcam.t_now, 0,
 					event_preview_save_cmd, pikrellcam.on_motion_preview_save_cmd);
-
+			}
 		if (event)	/* a mp4 video save event needs a MP4Box child exit */
 			{
 			event->data = pikrellcam.on_motion_end_cmd;
@@ -798,6 +801,8 @@ main(int argc, char *argv[])
 
 	pgm_name = argv[0];
 	bcm_host_init();
+	setlocale (LC_ALL, "");
+
 	time(&pikrellcam.t_now);
 
 	config_set_defaults();

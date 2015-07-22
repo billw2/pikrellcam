@@ -107,7 +107,8 @@ function next_select($dir, $cur_file)
 			$extension = strtolower(substr(strrchr($selected, "."), 1));
 			if ($extension == "jpg")
 				echo "<a href='$media_dir" . '/' . $selected . "' target='_blank'>
-                        <img src='$media_dir" . '/' . $selected . "' width='640'
+                        <img src='$media_dir" . '/' . $selected . "'
+						style='max-width:100%;'
 					    style='border:6px groove silver;'>
 				      </a>";
 			else

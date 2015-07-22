@@ -208,8 +208,8 @@ ParameterTable parameter_table[] =
 	{ MMAL_PARAMETER_ISO, 			"iso" },					/* uint */
 	{ MMAL_PARAMETER_SHUTTER_SPEED,	"shutter_speed" },			/* uint */
 
-	{ MMAL_PARAMETER_CAPTURE_EXPOSURE_COMP,
- 									"exposure_compensation" },	/* int */
+	{ MMAL_PARAMETER_EXPOSURE_COMP,
+ 									"exposure_compensation" },	/* int -25 to 25 */
 	{ MMAL_PARAMETER_ROTATION,		"rotation" },				/* int */
 
 	{ MMAL_PARAMETER_VIDEO_STABILISATION,	"video_stabilisation" }, /* bool */
@@ -636,17 +636,32 @@ static Config  config[] =
 
 	{ "# Command to run on the motion preview jpeg file.\n"
 	  "# Specify the preview_filename jpeg file with $F.\n"
+	  "# The motion detect area in the jpeg can be passed to this command with\n"
+	  "# these substitution variables:\n"
+	  "#     $i  width of the area\n"
+	  "#     $J  height of the area\n"
+	  "#     $K  x coordinate of the area center\n"
+	  "#     $Y  y coordinate of the area center\n"
 	  "# Example command to email the motion detect preview jpeg:\n"
 	  "#     on_motion_preview_save mpack -s pikrellcam@$H $F myuser@gmail.com\n"
+	  "# Or, example command to run the preview-save script which you can edit\n"
+	  "# to enable emailing, copying the jpeg, and/or generating a thumb:\n"
+	  "#     on_motion_preview_save $C/preview-save  $F $m $P $G $i $J $K $Y\n"
 	  "#",
 	"on_motion_preview_save", "", TRUE, {.string = &pikrellcam.on_motion_preview_save_cmd}, config_string_set },
 
-	{ "# Set to on if you do not want jpeg previews to have overlay text or\n"
-	  "# graphics drawn.  Otherwise they will have whatever is being shown\n"
-	  "# on the web mjpeg.jpg view.\n"
+	{ "# Set to on if you do not want jpeg preview files to have overlay text or\n"
+	  "# graphics drawn.  Otherwise they will have whatever is being shown on\n"
+	  "# the web mjpeg.jpg view.\n"
 	  "#",
 	"motion_preview_clean",  "off", FALSE, {.value = &pikrellcam.motion_preview_clean}, config_value_bool_set },
 
+	{ "# Minimum width and height in pixels for the substitution width and height\n"
+	  "# variables for motion detect areas in the preview jpeg.  These variables\n"
+	  "# This minimum helps with possible frame skew for smaller relatively\n"
+	  "# faster moving objects.\n"
+	  "#",
+	"motion_area_min_side",  "60", FALSE, {.value = &pikrellcam.motion_area_min_side}, config_value_int_set },
 
 
 	{ "\n# --------------------- Video Record Options -----------------------\n"
@@ -705,7 +720,7 @@ static Config  config[] =
 	  "# Set the bitrate lower or higher as you wish to trade off video size\n"
 	  "# and memory usage with video quality.  The Pi camera lens and sensor\n"
 	  "# pixel size combination also can be a limiting factor on video quality\n"
-	  "# and may limit the benefit of a higher bitrate.\n"
+	  "# and may limit the benefit of the highest bitrate settings.\n"
 	  "#",
 	"video_bitrate",  "6000000", TRUE, {.value = &pikrellcam.camera_adjust.video_bitrate},    config_value_int_set },
 
@@ -722,6 +737,7 @@ static Config  config[] =
 	"mjpeg_width",    "640",  TRUE, {.value = &pikrellcam.mjpeg_width},      config_value_int_set },
 
 	{ "# Quality factor (up to 100) affects the quality and size of the stream jpeg.\n"
+	  "# Set this lower if you need to reduce the stream bandwidth.\n"
 	  "#",
 	"mjpeg_quality",  "20",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
 
@@ -849,9 +865,8 @@ config_set_defaults(void)
 
 	/* Camera parameter table and pikrellcam config table have initial value pointers
 	|  to static storage.  Replace these pointers to an allocated copy of the
-	|  initial value so that when later possibly multipe config changes are made
-	|  (command line, config files), the changes can be dup_string()
-	|  replaced into the pointers for printing out if the config is saved.
+	|  initial value so that when later config changes are made the changes
+	|  can be dup_string() replaced into the pointers.
 	*/
 	for (param = &camera_parameters[0];
 				param < &camera_parameters[CAMERA_PARAMETERS_SIZE]; ++param)
@@ -904,6 +919,7 @@ config_load(char *config_file)
 	FILE	*f;
 	char	linebuf[128], opt[64], args[128];
 	int		n;
+	char	*s;
 
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
@@ -911,6 +927,10 @@ config_load(char *config_file)
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
 		n = sscanf(linebuf, "%63s %[^\n]", opt, args);
+		s = args + strlen(args) - 1;
+		if (n == 2)
+			while (*s == ' ' || *s == '\t' || *s == '\r')
+				*s-- = '\0';
 		if (n < 1 || opt[0] == '#')
 			continue;
 		if (   n != 2

@@ -91,22 +91,6 @@ static DrawArea	top_status_area,
 				bottom_status_area;
 
 
-  /* Scale a motion vector coordinate to a mjpeg frame coordinate.
-  |  Motion vector coordinates are video frame coords / 16.
-  */
-#define	MOTION_VECTOR_TO_MJPEG_X(mvx) \
-			((mvx) * 16 * pikrellcam.mjpeg_width / pikrellcam.camera_config.video_width)
-#define	MOTION_VECTOR_TO_MJPEG_Y(mvy) \
-			((mvy) * 16 * pikrellcam.mjpeg_height / pikrellcam.camera_config.video_height)
-
-  /* Scale a mjpeg coordinate to a motion vector frame coordinate.
-  */
-#define	MJPEG_TO_MOTION_VECTOR_X(mjx) \
-			((mjx) * pikrellcam.camera_config.video_width / 16 / pikrellcam.mjpeg_width)
-#define	MJPEG_TO_MOTION_VECTOR_Y(mjy) \
-			((mjy) * pikrellcam.camera_config.video_height / 16 / pikrellcam.mjpeg_height)
-
-
   /* Draw on the I420 frame with my libglcd graphics library functions.
   |  They have a glcd namespace because I wrote the lib for a TFT LCD
   |  screen, but I have added a I420 framebuffer driver (no color yet)
@@ -280,10 +264,10 @@ motion_draw(uint8_t *i420)
 						x + 2, y + dy - 2 * normal_font->char_height - 1, info);
 
 				vec = &mreg->vector;
-				x  = MOTION_VECTOR_TO_MJPEG_X(vec->x - mreg->box_w / 2);
-				y  = MOTION_VECTOR_TO_MJPEG_Y(vec->y - mreg->box_h / 2);
-				dx = MOTION_VECTOR_TO_MJPEG_X(mreg->box_w);
-				dy = MOTION_VECTOR_TO_MJPEG_X(mreg->box_h);
+				x  = MOTION_VECTOR_TO_MJPEG_X(vec->x - vec->box_w / 2);
+				y  = MOTION_VECTOR_TO_MJPEG_Y(vec->y - vec->box_h / 2);
+				dx = MOTION_VECTOR_TO_MJPEG_X(vec->box_w);
+				dy = MOTION_VECTOR_TO_MJPEG_X(vec->box_h);
 				glcd_draw_rectangle(glcd, da, color, x, y, dx, dy);
 
 				x  = MOTION_VECTOR_TO_MJPEG_X(vec->x);
@@ -624,6 +608,9 @@ static Adjustment	picture_adjustment[] =
 	{ "brightness",    0, 100, 1,   0, 0, 0, "", NULL, NULL },
 	{ "saturation", -100, 100, 1,   0, 0, 0, "", NULL, NULL },
 	{ "iso",           0, 800, 100, 0, 0, 0, "", NULL, NULL },
+	{ "exposure_compensation", -25, 25, 1, 0, 0, 0, "", NULL, NULL },
+	{ "video_stabilisation", 0, 1, 1, 0, 0, 0, "", NULL, NULL },
+	{ "rotation",      0, 270, 90, 0, 0, 0, "", NULL, NULL },
 	{ "shutter_speed", 0, 6000000, 100, 0, 0, 0, "usec", NULL, NULL }
 	};
 

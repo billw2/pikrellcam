@@ -77,7 +77,7 @@ DEB_VERSION=`cat /etc/debian_version`
 # =============== apt install needed packages ===============
 #
 PACKAGE_LIST=""
-for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack
+for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack imagemagick
 do
 	if ! dpkg-query -l $PACKAGE &> /dev/null
 	then

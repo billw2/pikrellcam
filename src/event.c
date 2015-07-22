@@ -66,8 +66,9 @@ static Sun	sun;
 static int
 exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 	{
+	CompositeVector *frame_vec = &motion_frame.final_preview_vector;
 	char	specifier, *fmt, *fmt_arg, *copy, *cmd_line, *name, buf[BUFSIZ];
-	int		i, status = 0;
+	int		t, i, status = 0;
 
 	if (!command || !*command)
 		return -1;
@@ -149,6 +150,26 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				break;
 			case 'n':
 				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
+				fmt_arg = buf;
+				break;
+			case 'i':	/* width of motion area */
+				t = frame_vec->box_w;
+				snprintf(buf, sizeof(buf), "%d", t);
+				fmt_arg = buf;
+				break;
+			case 'J':	/* height of motion area */
+				t = frame_vec->box_h;
+				snprintf(buf, sizeof(buf), "%d", t);
+				fmt_arg = buf;
+				break;
+			case 'K':	/* center X of motion area */
+				t = frame_vec->x;
+				snprintf(buf, sizeof(buf), "%d", t);
+				fmt_arg = buf;
+				break;
+			case 'Y':	/* center Y of motion area */
+				t = frame_vec->y;
+				snprintf(buf, sizeof(buf), "%d", t);
 				fmt_arg = buf;
 				break;
 

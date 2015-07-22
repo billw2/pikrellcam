@@ -52,14 +52,15 @@ composite_vector_best(CompositeVector *cvec1, CompositeVector *cvec2)
 	return result;
 	}
 
+
 static void
 get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	{
 	CompositeVector	*cvec, tvec;
 	MotionVector	*mv;
+	Area			*area;
 	int				x, y, mag2, mb_index, mvmag2, dot, cos2,
-					x0, y0, x1, y1,
-					in_box_count;
+					x0, y0, x1, y1;
 	int16_t			*pm, *pp, *pn;
 
 	cvec = &mreg->vector;
@@ -151,13 +152,13 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			for (x = x0; x < x1; ++x)
 				{
 				mb_index = mf->width * y + x;
-				if ((mvmag2 = *(mf->trigger + mb_index)) <= 1)
+				mvmag2 = *(mf->trigger + mb_index);
+				if (mvmag2 <= 1)
 					continue;
 
 				mv = &mf->vectors[mb_index];
 				dot = tvec.vx * mv->vx + tvec.vy * mv->vy;
 				if (   dot > 0		/* angle at least < 90 deg */
-				    && mvmag2 > 0
 				    && tvec.mag2 > 0
 					&& (cos2 = 100 * dot * dot / (tvec.mag2 * mvmag2)) >= 82
 				   )
@@ -168,10 +169,20 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 					cvec->vy += mv->vy;
 					cvec->x  += x;
 					cvec->y  += y;
+
+					area = &mf->motion_area;
+					if (area->x0 == 0 || area->x0 > x)
+						area->x0 = x;
+					if (area->x1 < x)
+						area->x1 = x;
+					if (area->y0 == 0 || area->y0 > y)
+						area->y0 = y;
+					if (area->y1 < y)
+						area->y1 = y;
 					}
 				else
 					{
-					*(mf->trigger + mf->width * y + x) = 2;
+					*(mf->trigger + mf->width * y + x) = 2;	/* reject flag */
 					mf->reject_count += 1;
 					mreg->reject_count += 1;
 					}
@@ -208,22 +219,22 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		/* Get a box that will hold at least 2x mag2_limit_count vectors
 		|  and count the vectors within the box.
 		*/
-		for (mreg->box_w = 4, mreg->box_h = 4;
-					mreg->box_w * mreg->box_h <= 2 * cvec->mag2_count;   )
+		for (cvec->box_w = 4, cvec->box_h = 4;
+				cvec->box_w * cvec->box_h <= 2 * cvec->mag2_count;   )
 			{
-			if (mreg->box_h <= mreg->box_w)
-				mreg->box_h += 2;
+			if (cvec->box_h <= cvec->box_w)
+				cvec->box_h += 2;
 			else
-				mreg->box_w += 2;
+				cvec->box_w += 2;
 			}
 
-		in_box_count = 0;
-		for (y = cvec->y - mreg->box_h / 2; y <= cvec->y + mreg->box_h / 2; ++y)
+		cvec->in_box_count = 0;
+		for (y = cvec->y - cvec->box_h / 2; y <= cvec->y + cvec->box_h / 2; ++y)
 			{
-			for (x = cvec->x - mreg->box_w / 2; x <= cvec->x + mreg->box_w / 2; ++x)
+			for (x = cvec->x - cvec->box_w / 2; x <= cvec->x + cvec->box_w / 2; ++x)
 				{
 				if (*(mf->trigger + mf->width * y + x) > 2)
-					in_box_count += 1;
+					cvec->in_box_count += 1;
 				}
 			}
 
@@ -240,14 +251,14 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			{
 			if (cvec->mag2_count < 15)	/* Small object size could be configurable */
 				{
-				if (   in_box_count > cvec->mag2_count * 8 / 10
-					&& cvec->mag2 < 5 * mf->mag2_limit
+				if (   cvec->in_box_count > cvec->mag2_count * 8 / 10
+				    && cvec->mag2 < 5 * mf->mag2_limit
 				    && mreg->reject_count < cvec->mag2_count / 2
 				   )
 					mreg->motion = 1;
 				}
-			else if (   in_box_count > cvec->mag2_count * 7 / 10
-			         || (   in_box_count > cvec->mag2_count * 5 / 10
+			else if (   cvec->in_box_count > cvec->mag2_count * 7 / 10
+			         || (   cvec->in_box_count > cvec->mag2_count * 5 / 10
 			             && mreg->reject_count < cvec->mag2_count * 4 / 10
 			            )
 			        )
@@ -256,9 +267,9 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			/* else assume it's not concentrated enough for a motion cvec */
 
 		if (   mreg->motion > 0
-		    && composite_vector_best(cvec, &mf->best_frame_vector)
+		    && composite_vector_best(cvec, &mf->best_region_vector)
 		   )
-			mf->best_frame_vector = *cvec;
+			mf->best_region_vector = *cvec;
 
 		if (pikrellcam.verbose_motion)
 			{
@@ -267,10 +278,10 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 				mreg->region_number,
 				cvec->x, cvec->y, cvec->vx, cvec->vy, cvec->mag2,
 				cvec->mag2_count, mreg->reject_count,
-				mreg->box_w, mreg->box_h);
+				cvec->box_w, cvec->box_h);
 			printf(
 "   in_box_count:%d motion:%d vetical: %d sparkle:%d\n",
-				in_box_count, mreg->motion,
+				cvec->in_box_count, mreg->motion,
 				cvec->vertical, mreg->sparkle_count);
 			}
 		}
@@ -282,9 +293,11 @@ void
 motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	{
 	MotionRegion	*mreg;
+	CompositeVector	*reg_vec, *frame_vec;
 	SList 			*mrlist;
 	int				motion_count, fail_count;
 	char			tbuf[50];
+	int				x0, y0, x1, y1, t;
 
 	/* Allow some startup camera settle time before motion detecting.
 	*/
@@ -301,7 +314,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	memset(mf->trigger, 0, MF_TRIGGER_SIZE);
 	any_count = 0;
 	cvec_count = 0;
-	mf->best_frame_vector = zero_cvec;
+	mf->best_region_vector = zero_cvec;
+	mf->motion_area.x0 = mf->motion_area.y0 = mf->motion_area.x1 = mf->motion_area.y1 = 0;
 
 	pthread_mutex_lock(&mf->region_list_mutex);
 	for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
@@ -315,23 +329,16 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		mf->mag2_limit_count = pikrellcam.motion_magnitude_limit_count;
 		get_composite_vector(mf, mreg);
 		}
-	pthread_mutex_unlock(&mf->region_list_mutex);
-
-	/* To be used (large sparkle counts after sunset / before sunrise).
-	*/
-	mf->sparkle_expma = EXPMA_SMOOTHING * (float) mf->sparkle_count +
-							(1.0 - EXPMA_SMOOTHING) * mf->sparkle_expma;
-
-	if (pikrellcam.verbose_motion && any_count > 3)
-		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
-			any_count, mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
 
 	motion_count = 0;
 	fail_count = 0;
+	mf->frame_vector = zero_cvec;
+	frame_vec = &mf->frame_vector;
 
 	for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 		{
 		mreg = (MotionRegion *) mrlist->data;
+		reg_vec = &mreg->vector;
 
 		if (   (   mreg->vector.mag2_count > 0
 		        || mreg->sparkle_count > 3   /* Look more at this */
@@ -340,8 +347,57 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		   )
 			fail_count += 1;
 		else if (mreg->motion > 0)
+			{
 			motion_count += 1;
+			frame_vec->x  += reg_vec->x;
+			frame_vec->y  += reg_vec->y;
+			frame_vec->vx += reg_vec->vx;
+			frame_vec->vy += reg_vec->vy;
+			}
 		}
+
+	/* The frame composite vector is the vector sum of all the region composite
+	|  vectors and the box is formed from the max dx and dy of the region
+	|  vector box extents from the frame vector center.  This vector box is
+	|  likely smaller than the geometric box recorded in the motion_area values.
+	*/
+	if (motion_count > 0)
+		{
+		frame_vec->x /= motion_count;
+		frame_vec->y /= motion_count;
+		frame_vec->vx /= motion_count;
+		frame_vec->vy /= motion_count;
+
+		x0 = y0 = x1 = y1 = 0;
+		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
+			{
+			mreg = (MotionRegion *) mrlist->data;
+			if (mreg->motion == 0)
+				continue;
+			reg_vec = &mreg->vector;
+
+			t = reg_vec->x - reg_vec->box_w / 2;
+			if (x0 == 0 || t < x0)
+				x0 = t;
+			t = reg_vec->x + reg_vec->box_w / 2;
+			if (t > x1)
+				x1 = t;
+			t = reg_vec->y - reg_vec->box_h / 2;
+			if (y0 == 0 || t < y0)
+				y0 = t;
+			t = reg_vec->y + reg_vec->box_h / 2;
+			if (t > y1)
+				y1 = t;
+			}
+		frame_vec->box_w = 2 * MAX(frame_vec->x - x0, x1 - frame_vec->x);
+		frame_vec->box_h = 2 * MAX(frame_vec->y - y0, y1 - frame_vec->y);
+		}
+	pthread_mutex_unlock(&mf->region_list_mutex);
+
+	/* To be used (large sparkle counts after sunset / before sunrise).
+	*/
+	mf->sparkle_expma = EXPMA_SMOOTHING * (float) mf->sparkle_count +
+							(1.0 - EXPMA_SMOOTHING) * mf->sparkle_expma;
 
 	mf->motion_status = MOTION_NONE;
 	if (   motion_count > 0
@@ -359,9 +415,11 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 
 	if (pikrellcam.verbose_motion && any_count > 3)
 		{
+		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
+			any_count, mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
+
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
-		printf(
-"%s motion count:%d fail:%d window:%d  %s\n",
+		printf("%s motion count:%d fail:%d window:%d  %s\n",
 			tbuf, motion_count, fail_count, mf->frame_window,
 			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "");
 		printf("\n");
@@ -382,9 +440,14 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			*/
 			video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
 			mf->do_preview_save = TRUE;
-			mf->best_motion_vector = mf->best_frame_vector;
+			mf->best_motion_vector = mf->best_region_vector;
+			mf->preview_frame_vector = mf->frame_vector;
+			mf->preview_motion_area = mf->motion_area;
 			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
+				{
+				motion_preview_area_fixup();
 				mf->do_preview_save_cmd = TRUE;
+				}
 			}
 		else if (vcb->state == VCB_STATE_MOTION_RECORD)
 			{
@@ -394,10 +457,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			*/
 			vcb->motion_sync_time = pikrellcam.t_now + pikrellcam.motion_times.post_capture;
 			if (   !strcmp(pikrellcam.motion_preview_save_mode, "best")
-			    && composite_vector_best(&mf->best_frame_vector, &mf->best_motion_vector)
+			    && composite_vector_best(&mf->best_region_vector, &mf->best_motion_vector)
 			   )
 				{
-				mf->best_motion_vector = mf->best_frame_vector;
+				mf->best_motion_vector = mf->best_region_vector;
+				mf->preview_frame_vector = mf->frame_vector;
+				mf->preview_motion_area = mf->motion_area;
 				mf->do_preview_save = TRUE;
 				/* on_preview_save_cmd for save mode "best" is handled
 				|  in video_record_stop().
@@ -405,6 +470,76 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				}
 			}
 		}
+	}
+
+
+void
+motion_preview_area_fixup(void)
+	{
+	CompositeVector *frame_vec;
+	Area            *area = &motion_frame.preview_motion_area;
+	int             sign, d, dx, dy;
+
+	motion_frame.final_preview_vector = motion_frame.preview_frame_vector;
+	frame_vec = &motion_frame.final_preview_vector;
+
+	/* frame_vec is built from boxes for vector density counts which do not
+	|  try to accurately frame motion extents, but compared to motion_area
+	|  it is more likely to not include spurious vectors outside of motion
+	|  of interest.  But can get better framing by adjusting the frame_vec
+	|  somewhat based on the motion_area.
+	*/
+	area->x0 = MOTION_VECTOR_TO_MJPEG_X(area->x0);
+	area->y0 = MOTION_VECTOR_TO_MJPEG_Y(area->y0);
+	area->x1 = MOTION_VECTOR_TO_MJPEG_X(area->x1);
+	area->y1 = MOTION_VECTOR_TO_MJPEG_Y(area->y1);
+	frame_vec->x     = MOTION_VECTOR_TO_MJPEG_X(frame_vec->x);
+	frame_vec->y     = MOTION_VECTOR_TO_MJPEG_Y(frame_vec->y);
+	frame_vec->box_w = MOTION_VECTOR_TO_MJPEG_X(frame_vec->box_w);
+	frame_vec->box_h = MOTION_VECTOR_TO_MJPEG_Y(frame_vec->box_h);
+	dx = frame_vec->box_w;
+	dy = frame_vec->box_h;
+
+	d = frame_vec->x + dx / 2;
+	if (d < area->x1)
+		dx += (area->x1 - d) / 3;
+	d = frame_vec->x - dx / 2;
+	if (d > area->x0)
+		dx += (d - area->x1) / 3;
+	d = frame_vec->y - dy / 2;
+	if (d > area->y0)
+		dy += (d - area->y0);
+	d = frame_vec->y + dy / 2;
+	if (d < area->y1)
+		dy += (area->y1 - d);
+	d = pikrellcam.motion_area_min_side;
+	if (dx < d)
+		dx = d;
+	if (dy < d)
+		dy = d;
+	frame_vec->box_w = dx;
+	frame_vec->box_h = dy;
+
+	/* Adjust for camera video path skew so small faster objects have a chance
+	|  of being framed.
+	*/
+	sign = frame_vec->vx >= 0 ? -1 : 1;
+	d = abs(frame_vec->vx) - 5;
+	if (d > 0)
+		frame_vec->x += sign * 8 * d / 10;
+	if (frame_vec->x + dx / 2 >= pikrellcam.mjpeg_width)
+		frame_vec->x = pikrellcam.mjpeg_width - dx / 2 - 1;
+	if (frame_vec->x - dx / 2 < 0)
+		frame_vec->x = dx / 2 + 1;
+
+	sign = frame_vec->vy >= 0 ? -1 : 1;
+	d = abs(frame_vec->vy) - 5;
+	if (d > 0)
+		frame_vec->y += sign * 8 * d / 10;
+	if (frame_vec->y + dy / 2 >= pikrellcam.mjpeg_height)
+		frame_vec->y = pikrellcam.mjpeg_height - dy / 2 - 1;
+	if (frame_vec->y - dy / 2 < 0)
+		frame_vec->y = dy / 2 + 1;
 	}
 
 
@@ -724,14 +859,19 @@ motion_command(char *cmd_line)
 			break;
 
 		case SET_LIMITS:		/* limits magnitude count */
+			/* Allow manual override settings higher than gui allows */
 			n = atoi(arg1);
-			if (n < 3 || n > 120)
-				n = 7;
+			if (n < 3)
+				n = 3;
+			if (n > 120)
+				n = 120;
 			pikrellcam.motion_magnitude_limit = n;
 
 			n = atoi(arg2);
-			if (n < 3 || n > mf->width * mf->height / 2)
-				n = 5;
+			if (n < 2)
+				n = 2;
+			if (n > mf->width * mf->height / 2)
+				n = n > mf->width * mf->height / 2;
 			pikrellcam.motion_magnitude_limit_count = n;
 			break;
 		}
