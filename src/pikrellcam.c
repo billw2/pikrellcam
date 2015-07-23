@@ -237,6 +237,7 @@ still_capture(char *fname)
 			else
 				event_count_down_add("still saved", n,
 						event_notify_expire, &pikrellcam.still_notify);
+			pikrellcam.still_capture_event = TRUE;
 			pikrellcam.still_notify = TRUE;
 			}
 		}

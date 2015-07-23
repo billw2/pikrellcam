@@ -360,6 +360,14 @@ event_preview_dispose(void)
 	dup_string(&pikrellcam.preview_filename, "");
 	}
 
+void
+event_still_capture_cmd(char *cmd)
+	{
+	if (!cmd || !*cmd)
+		return;
+
+	exec_wait(cmd, NULL);
+	}
 
   /* Add an event to trigger once after counting down the time to zero.
   |  since the event process loop runs many times/second, this allows higher

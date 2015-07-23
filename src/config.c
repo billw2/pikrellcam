@@ -769,6 +769,15 @@ static Config  config[] =
 	  "#",
 	"still_quality", "30", TRUE, {.value = &pikrellcam.camera_adjust.still_quality},   config_value_int_set },
 
+	{ "# Command to run after a still capture.\n"
+	  "# email the still somewhere with:\n"
+	  "#   on_still_capture mpack -s pikrellcam@$H $s myuser@gmail.com\n"
+	  "# Or do an email and/or something like copy or move the still somewhere\n"
+	  "# with a script you write ($s is the still file pathname):\n"
+	  "#   on_still_capture $C/still-capture $s $P $G\n"
+	  "#",
+	"on_still_capture", "", TRUE, {.string = &pikrellcam.on_still_capture_cmd}, config_string_set },
+
 	{ "# Timelapse video name format.  See comments about strftime() above.\n"
 	  "# A timelapse_video_name may use this pikrellcam substitution variable:\n"
 	  "#     $n - The timelapse capture series number (printed as %05d)\n"

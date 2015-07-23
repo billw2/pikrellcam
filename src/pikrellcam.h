@@ -438,6 +438,8 @@ typedef struct
 	char	*still_filename,
 			*still_last_save;
 	int		still_sequence;
+	boolean	still_capture_event;;
+	char	*on_still_capture_cmd;
 
 	char	*timelapse_video_name,
 			*timelapse_format,
@@ -640,6 +642,7 @@ void	event_preview_save(void);
 void	event_preview_save_cmd(char *cmd);
 void	event_preview_dispose(void);
 void	event_motion_end_cmd(char *cmd);
+void	event_still_capture_cmd(char *cmd);
 
 void	event_notify_expire(boolean *notify);
 void	event_child_signal(int sig_num);

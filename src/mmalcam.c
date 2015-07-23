@@ -204,6 +204,11 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		{
 		fclose(still_jpeg_encoder.file);
 		still_jpeg_encoder.file = NULL;
+		if (pikrellcam.still_capture_event)
+			event_add("still capture command", pikrellcam.t_now, 0,
+					event_still_capture_cmd,
+					pikrellcam.on_still_capture_cmd);
+		pikrellcam.still_capture_event = FALSE;
 		}
 	return_buffer_to_port(port, buffer);
 	}
