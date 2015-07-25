@@ -188,6 +188,20 @@ camera_stop(void)
 	camera_object_destroy(&camera);
 	}
 
+void
+camera_restart(void)
+	{
+	VideoCircularBuffer	*vcb = &video_circular_buffer;
+
+	pthread_mutex_lock(&vcb->mutex);
+	video_record_stop(vcb);
+	vcb->state = VCB_STATE_RESTARTING;
+	pikrellcam.camera_adjust = camera_adjust_temp;	/* May not be changed */
+	pthread_mutex_unlock(&vcb->mutex);
+
+	camera_stop();
+	camera_start();
+	}
 
 boolean
 still_capture(char *fname)
@@ -402,7 +416,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 		{
 		asprintf(&cmd, "(MP4Box %s -fps %d -add %s %s %s ; rm %s)",
 				pikrellcam.verbose ? "" : "-quiet",
-				pikrellcam.camera_adjust.mp4_box_fps,
+				pikrellcam.camera_adjust.video_mp4box_fps,
 				pikrellcam.video_h264, pikrellcam.video_pathname,
 				pikrellcam.verbose ? "" : "2> /dev/null",
 				pikrellcam.video_h264);
@@ -493,7 +507,11 @@ typedef enum
 
 	motion_cmd,
 	motion_enable,
-	display_cmd,
+	display_cmd,        /* Placement above here can affect OSD.  If menu */
+		                /* or adjustment is showing, above commands redirect */
+	                    /* to cancel the menu or adjustment. */
+	video_fps,
+	video_mp4box_fps,
 	save_config,
 	quit
 	}
@@ -517,14 +535,20 @@ static Command commands[] =
 	{ "tl_start",    tl_start,   1 },
 	{ "tl_end",      tl_end,     0 },
 	{ "tl_hold",    tl_hold,   1 },
-	{ "tl_inform_convert",    tl_inform_convert,   1 },
 	{ "tl_show_status",  tl_show_status,   1 },
 
 	{ "motion",        motion_cmd,     1 },
 	{ "motion_enable", motion_enable,  1 },
 
+	/* Above commands are redirected to abort a menu or adjustment display
+	*/
 	{ "display",       display_cmd,     1 },
 
+	/* Below commands are not redirected to abort a menu or adjustment */
+	{ "tl_inform_convert",    tl_inform_convert,   1 },
+
+	{ "video_fps", video_fps,  1 },
+	{ "video_mp4box_fps", video_mp4box_fps,  1 },
 	{ "save_config", save_config,    0 },
 	{ "quit",        quit,    0 },
 	};
@@ -564,6 +588,8 @@ command_process(char *command_line)
 		    && !mmalcam_config_parameter_set(command, args, TRUE)
 	       )
 			log_printf("Bad command: [%s] [%s]\n", command, args);
+		else
+			pikrellcam.config_modified = TRUE;
 		return;
 		}
 	if (cmd->code != display_cmd)
@@ -695,6 +721,24 @@ command_process(char *command_line)
 					video_record_stop(vcb);
 				pthread_mutex_unlock(&vcb->mutex);
 				}
+			break;
+
+		case video_fps:
+			if ((n = atoi(args)) < 1)
+				n = 1;
+			if (n > 49)
+				n = 24;
+			camera_adjust_temp.video_fps = n;
+			pikrellcam.camera_adjust.video_fps = n;
+			camera_restart();
+			pikrellcam.config_modified = TRUE;
+			break;
+
+		case video_mp4box_fps:
+			n = atoi(args);
+			camera_adjust_temp.video_mp4box_fps = n;
+			pikrellcam.camera_adjust.video_mp4box_fps = n;
+			pikrellcam.config_modified = TRUE;
 			break;
 
 		case save_config:
@@ -919,7 +963,6 @@ main(int argc, char *argv[])
 	fcntl(fifo, F_SETFL, 0);
 	read(fifo, buf, sizeof(buf));
 	
-	sun_times_init();
 	camera_start();
 	config_timelapse_load_status();
 

@@ -592,10 +592,11 @@ typedef struct
   */
 static Adjustment	camera_adjustment[] =
 	{
-	{ "video bitrate",   2000000, 18000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
-	{ "video fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
-	{ "mp4 boxing fps",  1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.mp4_box_fps },
-	{ "still quality",  5,    100,   1,   0, 0, 0, "", NULL, &camera_adjust_temp.still_quality },
+	{ "video_bitrate",   2000000, 18000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
+	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
+	{ "video_mp4box_fps",  1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
+	{ "mjpeg_divider",  1,  8,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },
+	{ "still_quality",  5,    100,   1,   0, 0, 0, "", NULL, &camera_adjust_temp.still_quality },
 	};
 
 #define N_CAMERA_ADJUSTMENTS \
@@ -611,6 +612,8 @@ static Adjustment	picture_adjustment[] =
 	{ "exposure_compensation", -25, 25, 1, 0, 0, 0, "", NULL, NULL },
 	{ "video_stabilisation", 0, 1, 1, 0, 0, 0, "", NULL, NULL },
 	{ "rotation",      0, 270, 90, 0, 0, 0, "", NULL, NULL },
+	{ "hflip",      0, 1, 1, 0, 0, 0, "", NULL, NULL },
+	{ "vflip",      0, 1, 1, 0, 0, 0, "", NULL, NULL },
 	{ "shutter_speed", 0, 6000000, 100, 0, 0, 0, "usec", NULL, NULL }
 	};
 
@@ -661,20 +664,6 @@ static Adjustment	*cur_adj,
 
 static boolean		cur_adj_start;
 
-void
-restart_camera(void)
-	{
-	VideoCircularBuffer	*vcb = &video_circular_buffer;
-
-	pthread_mutex_lock(&vcb->mutex);
-	video_record_stop(vcb);
-	vcb->state = VCB_STATE_RESTARTING;
-	pikrellcam.camera_adjust = camera_adjust_temp;	/* May not be changed */
-	pthread_mutex_unlock(&vcb->mutex);
-
-	camera_stop();
-	camera_start();
-	}
 
   /* Apply adjustments that were not done live.
   */
@@ -703,7 +692,7 @@ apply_adjustment(void)
 		    || camera_adjust_temp.still_quality != pikrellcam.camera_adjust.still_quality
 		    || camera_adjust_temp.video_bitrate != pikrellcam.camera_adjust.video_bitrate
 		   )
-			restart_camera();
+			camera_restart();
 		else	/* Pick up changes not requiring new buffer or camera restart */
 			pikrellcam.camera_adjust = camera_adjust_temp;
 
@@ -752,7 +741,7 @@ display_adjustment(uint8_t *i420)
 				log_printf("??? no camera parameter %s\n", cur_adj->name);
 				return;
 				}
-			cur_adj->value = atoi(cur_adj->cam_param->arg);;
+			cur_adj->value = atoi(cur_adj->cam_param->arg);
 			}
 		else
 			cur_adj->value = *(cur_adj->config_value);
@@ -767,7 +756,27 @@ display_adjustment(uint8_t *i420)
 	        )
 		display_action = prev_action;
 
-	cur_adj->prev_value = cur_adj->value;
+	/* Set cur adjust to config value if it changed while adjusting.
+	|  For if a FIFO command sets it while we are adjusting.
+	*/
+#if 0
+	if (adjustments == &picture_adjustment[0])
+		{
+		if (atoi(cur_adj->cam_param->arg) != cur_adj->revert_value)
+			{
+			cur_adj->value = atoi(cur_adj->cam_param->arg);
+			cur_adj->revert_value = cur_adj->value;
+			}
+		}
+#endif
+	if (adjustments != &picture_adjustment[0])
+		{
+		if (*(cur_adj->config_value) != cur_adj->revert_value)
+			{
+			cur_adj->value = *(cur_adj->config_value);;
+			cur_adj->revert_value = cur_adj->value;
+			}
+		}
 
 	fast_factor = 2;
 	while ((cur_adj->max - cur_adj->min) / (fast_factor * cur_adj->increment)
@@ -1037,7 +1046,7 @@ display_command(char *cmd)
 					pikrellcam.camera_config.video_width = width;
 					pikrellcam.camera_config.video_height = height;
 					pikrellcam.config_modified = TRUE;
-					restart_camera();
+					camera_restart();
 					}
 				display_state = DISPLAY_MENU;
 				display_action = ACTION_NONE;
@@ -1054,7 +1063,7 @@ display_command(char *cmd)
 					pikrellcam.camera_config.still_width = width;
 					pikrellcam.camera_config.still_height = height;
 					pikrellcam.config_modified = TRUE;
-					restart_camera();
+					camera_restart();
 					}
 				display_state = DISPLAY_MENU;
 				display_action = ACTION_NONE;

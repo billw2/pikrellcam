@@ -149,8 +149,8 @@ fi
 
 # =============== pikrellcam autostart to rc.local  ===============
 #
-#CMD="su pi -c '(sleep 5; \/home\/pi\/pikrellcam\/pikrellcam)  \&'"
-CMD="su pi -c '(sleep 5; $PWD/pikrellcam) \&'"
+#CMD="su $USER -c '(sleep 5; \/home\/pi\/pikrellcam\/pikrellcam)  \&'"
+CMD="su $USER -c '(sleep 5; $PWD/pikrellcam) \&'"
 
 if [ "$AUTOSTART" == "yes" ]
 then
@@ -181,6 +181,7 @@ then
 	echo "Adding to /etc/sudoers.d: www-data permission to run pikrellcam as user pi:"
 	cp etc/pikrellcam.sudoers /tmp/pikrellcam.sudoers.tmp
 	sed -i "s|pikrellcam|$CMD|" /tmp/pikrellcam.sudoers.tmp
+	sed -i "s/USER/$USER/" /tmp/pikrellcam.sudoers.tmp
 	sudo chown root.root /tmp/pikrellcam.sudoers.tmp
 	sudo chmod 440 /tmp/pikrellcam.sudoers.tmp
 	sudo mv /tmp/pikrellcam.sudoers.tmp /etc/sudoers.d/pikrellcam
@@ -265,7 +266,7 @@ then
 	rm -f $fifo
 	mkfifo $fifo
 fi
-sudo chown pi.www-data $fifo
+sudo chown $USER.www-data $fifo
 sudo chmod 664 $fifo
 
 # =============== Setup Password  ===============
@@ -304,7 +305,7 @@ if [ ! -d $SESSION_PATH ]
 then
 	mkdir $SESSION_PATH
 fi
-sudo chown pi.www-data $SESSION_PATH
+sudo chown $USER.www-data $SESSION_PATH
 sudo chmod 775 $SESSION_PATH
 
 

@@ -33,6 +33,7 @@ static SList			*event_list,
 
 typedef struct
 	{
+	boolean initialized;
 	int		sun_valid,
 			civil_valid,
 			nautical_valid;
@@ -496,6 +497,14 @@ sun_times_init(void)
 
 		sun.d_nautical_dusk = TMOD(sun.d_nautical_dusk + tm->tm_gmtoff / 3600);
 		sun.nautical_dusk = sun.d_nautical_dusk * 60;
+
+		log_printf("sunrise/sunset times: %s  dawn/dusk times: %s\n",
+			sun.sun_valid ? "invalid" : "valid",
+			sun.civil_valid ? "invalid" : "valid");
+		log_printf("dawn:    %d:%d\n", sun.dawn / 60, sun.dawn % 60);
+		log_printf("sunrise: %d:%d\n", sun.sunrise / 60, sun.sunrise % 60);
+		log_printf("sunset:  %d:%d\n", sun.sunset / 60, sun.sunset % 60);
+		log_printf("dusk:    %d:%d\n", sun.dusk / 60, sun.dusk % 60);
 		}
 	}
 
@@ -693,8 +702,11 @@ event_process(void)
 				}
 			}
 		start = FALSE;
-		if (day_tick)
+		if (day_tick || !sun.initialized)
+			{
 			sun_times_init();
+			sun.initialized = TRUE;
+			}
 		}
 	}
 

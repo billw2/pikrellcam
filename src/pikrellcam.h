@@ -352,7 +352,7 @@ typedef struct
 	{
 	int		video_fps,
 			video_bitrate,
-			mp4_box_fps,
+			video_mp4box_fps,
 			still_quality;
 	boolean	modified;
 	}
@@ -471,7 +471,8 @@ typedef struct
 			*image_effect,
 			*color_effect,
 			*rotation,
-			*flip,
+			*hflip,
+			*vflip,
 			*crop,
 			*shutter_speed,
 			*raw_capture;
@@ -604,6 +605,7 @@ void		video_record_start(VideoCircularBuffer *vcb, int);
 void		video_record_stop(VideoCircularBuffer *vcb);
 void		camera_start(void);
 void		camera_stop(void);
+void		camera_restart(void);
 void		timelapse_capture(void);
 char		*substitute_var(char *str, char V, char *fmt_arg);
 char		*media_pathname(char *dir, char *fname,

@@ -252,14 +252,7 @@ boolean_control_set(char *option, char *setting)
 	int				value, param;
 	MMAL_STATUS_T	status = MMAL_EINVAL;
 
-	if (   !strcmp(setting, "true")
-	    || !strcmp(setting, "TRUE")
-	    || atoi(setting) == 1
-	   )
-		value = 1;
-	else
-		value = 0;
-
+	value = config_boolean_value(setting);
 	param = find_param(option, parameter_table, PARAMETER_TABLE_SIZE);
 	if (param >= 0)
 		{
@@ -318,26 +311,38 @@ rotation_control_set(char *option, char *setting)
 	return status;
 	}
 
-
 MMAL_STATUS_T
 flip_control_set(char *option, char *setting)
 	{
 	MMAL_PARAMETER_MIRROR_T mirror =
-					{{MMAL_PARAMETER_MIRROR, sizeof(MMAL_PARAMETER_MIRROR_T)},
-					MMAL_PARAM_MIRROR_NONE};
-	int				hflip = FALSE,
-					vflip = FALSE;
-	int				i;
-	MMAL_STATUS_T	status = MMAL_EINVAL;
+                    {{MMAL_PARAMETER_MIRROR, sizeof(MMAL_PARAMETER_MIRROR_T)},
+                    MMAL_PARAM_MIRROR_NONE};
+	CameraParameter *param;
+	int             hflip = FALSE,
+	                vflip = FALSE;
+	int             i;
+	MMAL_STATUS_T   status = MMAL_EINVAL;
 
-	if (*setting != '#')
+	if (!strcmp(option, "hflip"))
 		{
-		if (strstr(setting, "vflip"))
-			vflip = TRUE;
-		if (strstr(setting, "hflip"))
-			hflip = FALSE;
-		}
+		hflip = config_boolean_value(setting);
+		if (!hflip)
+			setting = "off";	/* config transition */
+		param = mmalcam_config_parameter_get("hflip");
+		dup_string(&param->arg, setting);
 
+		param = mmalcam_config_parameter_get("vflip");
+		vflip = config_boolean_value(param->arg);
+		}
+	else
+		{
+		vflip = config_boolean_value(setting);
+		param = mmalcam_config_parameter_get("vflip");
+		dup_string(&param->arg, setting);
+
+		param = mmalcam_config_parameter_get("hflip");
+		hflip = config_boolean_value(param->arg);
+		}
 	if (hflip && vflip)
 		mirror.value = MMAL_PARAM_MIRROR_BOTH;
 	else if (hflip)
@@ -376,8 +381,7 @@ color_effect_set(char *option, char *setting)
 
 	if (sscanf(setting, "%7s %d %d", enable, &colfx.u, &colfx.v) == 3)
 		{
-		if (!strcmp(enable, "true") || !strcmp(enable, "1"))
-			colfx.enable = 1;
+		colfx.enable = config_boolean_value(enable);
 		status = mmal_port_parameter_set(camera.control_port, &colfx.hdr);
 		}
 	return status;
@@ -405,7 +409,8 @@ static CameraParameter  camera_parameters[] =
 	{ "exposure_mode", "auto", exposure_mode_set,    &pikrellcam.exposure_mode },
 	{ "image_effect",  "none", image_effect_set,     &pikrellcam.image_effect },
 
-	{ "hflip",  "#hflip vflip",    flip_control_set,  &pikrellcam.flip },
+	{ "hflip",  "off",    flip_control_set,  &pikrellcam.hflip },
+	{ "vflip",  "off",    flip_control_set,  &pikrellcam.vflip },
 	{ "crop",   "0 0 65536 65536", crop_control_set,  &pikrellcam.crop },
 
 	{ "metering_mode", "average",       metering_mode_set, &pikrellcam.metering_mode },
@@ -492,30 +497,14 @@ config_set_boolean(boolean *result, char *arg)
 	{
 	if (!strcasecmp(arg, "toggle"))
 			*result = *result ? 0 : 1;
-	else if (   !strcmp(arg, "1")
-	         || !strcasecmp(arg, "on") || !strcasecmp(arg, "true")
-	         || !strcasecmp(arg, "yes") || !strcmp(arg, "high")
-	        )
-			*result = 1;
-	else
-			*result = 0;
+	else *result = config_boolean_value(arg);
 	}
 
 static boolean
 config_value_bool_set(char *arg, ConfigResult *result)
 	{
-	int	valid = TRUE;
-
-	if (!strcmp(arg, "1") || !strcmp(arg, "on") || !strcmp(arg, "true") || !strcmp(arg, "yes"))
-		*result->value = 1;
-	else if (!strcmp(arg, "0") || !strcmp(arg, "off") || !strcmp(arg, "false") || !strcmp(arg, "no"))
-		*result->value = 0;
-	else
-		{
-		printf("    Bad config_value_bool_set: %s\n", arg);
-		valid = FALSE;
-		}
-	return valid;
+	*result->value = config_boolean_value(arg);
+	return TRUE;
 	}
 
 static int
@@ -706,13 +695,13 @@ static Config  config[] =
 	  "# Above that may cause web page mjpeg frames to be dropped.  But if\n"
 	  "# you are overclocking the GPU you may be able to set higher.\n"
 	  "#",
-	"video_fps",      "24", TRUE, {.value = &pikrellcam.camera_adjust.video_fps},        config_value_int_set },
+	"video_fps",      "24", FALSE, {.value = &pikrellcam.camera_adjust.video_fps},        config_value_int_set },
 
 	{ "# MP4Box output frames per second if video filename is a .mp4\n"
 	  "# If this is different from video_fps, the final mp4 will be a\n"
 	  "# slow or fast motion video.\n"
 	  "#",
-	"video_mp4box_fps", "24", FALSE, {.value = &pikrellcam.camera_adjust.mp4_box_fps},        config_value_int_set },
+	"video_mp4box_fps", "24", FALSE, {.value = &pikrellcam.camera_adjust.video_mp4box_fps},        config_value_int_set },
 
 	{ "# Video bitrate affects the quality and size of a video recording.\n"
 	  "# Along with pre_capture and event_gap times, it also determines the\n"
