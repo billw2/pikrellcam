@@ -166,7 +166,9 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 						event_preview_save, NULL);
 				if (motion_frame.do_preview_save_cmd)
 					{
-					event_add("motion preview save command", pikrellcam.t_now, 0,
+					event_add("motion area thumb", pikrellcam.t_now, 0,
+							event_motion_area_thumb, NULL);
+					event_add("preview save command", pikrellcam.t_now, 0,
 							event_preview_save_cmd,
 							pikrellcam.on_motion_preview_save_cmd);
 					}

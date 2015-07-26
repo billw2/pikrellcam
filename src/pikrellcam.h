@@ -65,6 +65,7 @@
   /* These subdirs must match what is in www/config.php
   */
 #define PIKRELLCAM_VIDEO_SUBDIR					"videos"
+#define PIKRELLCAM_THUMBS_SUBDIR				"thumbs"
 #define PIKRELLCAM_STILL_SUBDIR					"stills"
 #define PIKRELLCAM_TIMELAPSE_SUBDIR				"timelapse"
 
@@ -372,6 +373,7 @@ typedef struct
 	char	*install_dir,
 			*media_dir,
 			*video_dir,
+			*thumb_dir,
 			*still_dir,
 			*timelapse_dir,
 			*script_dir,
@@ -642,6 +644,7 @@ void	event_remove(Event *event);
 void	event_process(void);
 void	event_preview_save(void);
 void	event_preview_save_cmd(char *cmd);
+void	event_motion_area_thumb(void);
 void	event_preview_dispose(void);
 void	event_motion_end_cmd(char *cmd);
 void	event_still_capture_cmd(char *cmd);

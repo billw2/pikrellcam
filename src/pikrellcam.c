@@ -439,8 +439,11 @@ video_record_stop(VideoCircularBuffer *vcb)
 		if (!strcmp(pikrellcam.motion_preview_save_mode, "best"))
 			{
 			motion_preview_area_fixup();
+			event_add("motion area thumb", pikrellcam.t_now, 0,
+					event_motion_area_thumb, NULL);
 			event_add("preview save command", pikrellcam.t_now, 0,
-					event_preview_save_cmd, pikrellcam.on_motion_preview_save_cmd);
+					event_preview_save_cmd,
+					pikrellcam.on_motion_preview_save_cmd);
 			}
 		if (event)	/* a mp4 video save event needs a MP4Box child exit */
 			{
@@ -931,13 +934,14 @@ main(int argc, char *argv[])
 	|  to take care of that.
 	*/
 	asprintf(&pikrellcam.video_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_VIDEO_SUBDIR);
+	asprintf(&pikrellcam.thumb_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_THUMBS_SUBDIR);
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
 	asprintf(&pikrellcam.timelapse_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_TIMELAPSE_SUBDIR);
 
 	if (!make_dir(pikrellcam.media_dir))
 		exit(1);
 
-	snprintf(buf, sizeof(buf), "%s/scripts-dist/init $I $m $M $P $G",
+	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $m $M $P $G",
 								pikrellcam.install_dir);
 	exec_wait(buf, NULL);
 
@@ -948,6 +952,7 @@ main(int argc, char *argv[])
 
 	if (   !make_dir(pikrellcam.mjpeg_dir)
 	    || !make_dir(pikrellcam.video_dir)
+	    || !make_dir(pikrellcam.thumb_dir)
 	    || !make_dir(pikrellcam.still_dir)
 	    || !make_dir(pikrellcam.timelapse_dir)
 	    || !make_fifo(pikrellcam.command_fifo)

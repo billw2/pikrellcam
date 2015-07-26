@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# This is the default motion event preview_save script.
+# It generates a jpeg of the motion area in the motion preview jpeg
+# and stores it in the media_dir/thumbs directory.
+# Substitute ".th.jpg" for ".jpg" in the PREVIEW_JPEG name.
+#
+# Argument substitution done by PiKrellCam before running this script:
+#   $F - the preview jpeg filename full path (from MJPEG_DIR)
+#   $m - the media directory full path
+#   $P - the command FIFO
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $i	 width of the motion detected area in the preview jpeg
+#   $J	 height of the motion detected area in the preview jpeg
+#   $K	 x coordinate of the motion detected area center in the preview jpeg
+#   $Y	 y coordinate of the motion detected area center in the preview jpeg
+# 
+
+PREVIEW_JPEG=$1
+MEDIA_DIR=$2
+FIFO=$3
+LOG_FILE=$4
+
+W=$5
+H=$6
+X=$7
+Y=$8
+
+XT=`expr $W / 2`
+XO=`expr $X - $XT`
+YT=`expr $H / 2`
+YO=`expr $Y - $YT`
+
+THUMB_JPEG_DIR=$MEDIA_DIR/thumbs
+
+# Change a motion-xxx.jpg into motion-xxx.th.jpg.  PREVIEW_JPEG is a full path.
+BASE=`basename $PREVIEW_JPEG`
+THUMB_JPEG=${BASE%.jpg}.th.jpg
+
+convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG
+echo "convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE

@@ -320,7 +320,7 @@ cd scripts-dist
 
 for script in *
 do
-	if [ ! -f ../scripts/$script ] && [ "$script" != "init" ]
+	if [ ! -f ../scripts/$script ] && [ "${script:0:1}" != "_" ]
 	then
 		cp $script ../scripts 
 	fi

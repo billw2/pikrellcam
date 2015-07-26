@@ -109,6 +109,9 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'V':
 				fmt_arg = pikrellcam.video_dir;
 				break;
+			case 't':
+				fmt_arg = pikrellcam.thumb_dir;
+				break;
 			case 'T':
 				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
 				name = media_pathname(pikrellcam.video_dir,
@@ -325,6 +328,20 @@ event_preview_save(void)
 	free(path);
 	}
 
+  /* Generate a motion area thumb.
+  */
+void
+event_motion_area_thumb(void)
+	{
+	char	*cmd = NULL;
+
+	asprintf(&cmd, "%s/scripts-dist/_thumb $F $m $P $G $i $J $K $Y",
+			pikrellcam.install_dir);
+	exec_wait(cmd, pikrellcam.preview_filename);
+	if (cmd)
+		free(cmd);
+	}
+
   /* Useful for emailing a motion event preview jpeg.
   */
 void
@@ -501,10 +518,10 @@ sun_times_init(void)
 		log_printf("sunrise/sunset times: %s  dawn/dusk times: %s\n",
 			sun.sun_valid ? "invalid" : "valid",
 			sun.civil_valid ? "invalid" : "valid");
-		log_printf("dawn:    %d:%d\n", sun.dawn / 60, sun.dawn % 60);
-		log_printf("sunrise: %d:%d\n", sun.sunrise / 60, sun.sunrise % 60);
-		log_printf("sunset:  %d:%d\n", sun.sunset / 60, sun.sunset % 60);
-		log_printf("dusk:    %d:%d\n", sun.dusk / 60, sun.dusk % 60);
+		log_printf("dawn:    %d:%02d\n", sun.dawn / 60, sun.dawn % 60);
+		log_printf("sunrise: %d:%02d\n", sun.sunrise / 60, sun.sunrise % 60);
+		log_printf("sunset:  %d:%02d\n", sun.sunset / 60, sun.sunset % 60);
+		log_printf("dusk:    %d:%02d\n", sun.dusk / 60, sun.dusk % 60);
 		}
 	}
 
@@ -769,6 +786,7 @@ at_commands_config_save(char *config_file)
 	"#                $H - hostname\n"
 	"#                $E - effective user running PiKrellCam\n"
 	"#                $V - video files directory full path\n"
+	"#                $t - thumb files directory full path\n"
 	"#                $v - last video saved full path filename\n"
 	"#                $S - still files directory full path\n"
 	"#                $s - last still saved full path filename\n"

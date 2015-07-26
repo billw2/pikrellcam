@@ -62,6 +62,9 @@ if (file_exists('password.php'))
       <a href="media.php?dir=<?php echo VIDEO_DIR; ?>"
         class="btn-control"
       >Videos</a>
+      <a href="thumbnails.php"
+        class="btn-control"
+      >Thumbs</a>
       <a href="media.php?dir=<?php echo STILL_DIR; ?>"
         class="btn-control"
         style="margin-right:20px;"

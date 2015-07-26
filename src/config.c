@@ -624,18 +624,21 @@ static Config  config[] =
 	"motion_preview_save_mode", "best", FALSE, {.string = &pikrellcam.motion_preview_save_mode}, config_string_set },
 
 	{ "# Command to run on the motion preview jpeg file.\n"
-	  "# Specify the preview_filename jpeg file with $F.\n"
-	  "# The motion detect area in the jpeg can be passed to this command with\n"
-	  "# these substitution variables:\n"
+	  "# Specify the preview jpeg file name with $F.\n"
+	  "# A jpeg thumb of the motion area is automatically extracted from the\n"
+	  "# preview jpeg and saved to the thumbs directory.  However, if you\n"
+	  "# want to do something else with the motion area, the motion detect\n"
+	  "# area in the jpeg can be passed to this command with these substitution\n"
+	  "# variables\n"
 	  "#     $i  width of the area\n"
 	  "#     $J  height of the area\n"
 	  "#     $K  x coordinate of the area center\n"
 	  "#     $Y  y coordinate of the area center\n"
 	  "# Example command to email the motion detect preview jpeg:\n"
 	  "#     on_motion_preview_save mpack -s pikrellcam@$H $F myuser@gmail.com\n"
-	  "# Or, example command to run the preview-save script which you can edit\n"
-	  "# to enable emailing, copying the jpeg, and/or generating a thumb:\n"
-	  "#     on_motion_preview_save $C/preview-save  $F $m $P $G $i $J $K $Y\n"
+	  "# Or, example command to run the default preview-save script which you\n"
+	  "# can edit to enable emailing or copying the jpeg.\n"
+	  "#     on_motion_preview_save $C/preview-save  $F $m $P $G\n"
 	  "#",
 	"on_motion_preview_save", "", TRUE, {.string = &pikrellcam.on_motion_preview_save_cmd}, config_string_set },
 

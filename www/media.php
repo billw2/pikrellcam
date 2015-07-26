@@ -91,6 +91,11 @@ function next_select($dir, $cur_file)
 			$selected = next_select($media_dir, $del_file);
 //			echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
 			unlink("$media_dir" . "/" . $del_file);
+			if ("$media_dir" == "media/videos")
+				{
+				$base = str_replace(".mp4", "", $del_file);
+				unlink("media/thumbs/" . "$base" . ".th.jpg");
+				}
 			}
 		else if (isset($_GET["delete_all"]))
 			{
@@ -98,6 +103,10 @@ function next_select($dir, $cur_file)
 			array_map('unlink', glob("$media_dir" . "/*.h264"));
 			array_map('unlink', glob("$media_dir" . "/*.jpg"));
 			$selected = "";
+			if ("$media_dir" == "media/videos")
+				{
+				array_map('unlink', glob("media/thumbs" . "/*.th.jpg"));
+				}
 			}
 		else
 			$selected = next_select($media_dir, "");
@@ -184,9 +193,17 @@ function next_select($dir, $cur_file)
 			}
 	  ?>
 	  <p style="margin-top:20px;">
-		<a href="index.php">
-			<span>
-			</span>Back to <?php echo TITLE_STRING; ?>
+		<span>
+			<a href="index.php">
+			Back to <?php echo TITLE_STRING; ?>
+		</span>
+		<?php
+		if ("$media_dir" == "media/videos")
+			{
+			echo '<a href="thumbnails.php">
+				<span style="margin-left: 16px;">Thumbs </span>';
+			}
+		?>
 		</a>
       </p>
     </div>
