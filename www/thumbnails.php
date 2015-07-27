@@ -7,6 +7,7 @@ function showGallery( $pathToVideo, $pathToThumbs )
   $output = "<html>";
   $output .= "<head><title>Thumbnails</title></head>";
   $output .= "<body>";
+  $output .= "<center><h3><a href=index.php>PiKrellCam</a></h3></center>";
   $output .= "<table cellspacing=\"0\" cellpadding=\"2\" width=\"500\">";
   $output .= "<tr>";
 
