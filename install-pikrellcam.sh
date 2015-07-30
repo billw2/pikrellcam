@@ -54,18 +54,36 @@ else
 	AUTOSTART=no
 fi
 
+
+HTPASSWD=www/.htpasswd
+PASSWORD=""
+
 echo ""
-echo "Enter a password if you want a password login for the web page."
-echo "Enter a blank entry if you do not want the password login."
-echo "The password will be configured in: $PWD/www/password.php"
-echo -n "Enter password :"
-read resp
-if [ "$resp" == "" ]
+if [ -f $HTPASSWD ]
 then
-	PASSWORD="unset"
+	echo "A web password is already set."
+	echo -n "Do you want to change the password (yes/no)? "
+	read resp
+	if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
+	then
+		SET_PASSWORD=yes
+	else
+		SET_PASSWORD=no
+	fi
 else
-	PASSWORD=$resp
+	SET_PASSWORD=yes
 fi
+
+if [ "$SET_PASSWORD" == "yes" ]
+then
+	rm -f $HTPASSWD
+	echo "Enter a password for a web page login for user: $USER"
+	echo "Enter a blank entry if you do not want the password login."
+	echo -n "Enter password: "
+	read PASSWORD
+fi
+
+
 
 
 echo ""
@@ -77,7 +95,7 @@ DEB_VERSION=`cat /etc/debian_version`
 # =============== apt install needed packages ===============
 #
 PACKAGE_LIST=""
-for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack imagemagick
+for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack imagemagick apache2-utils
 do
 	if ! dpkg-query -l $PACKAGE &> /dev/null
 	then
@@ -90,7 +108,6 @@ then
 	echo "Installing packages: $PACKAGE_LIST"
 	echo "Running: apt-get update"
 	sudo apt-get update
-	echo "Installing packages: $PACKAGE_LIST"
 	sudo apt-get install -y $PACKAGE_LIST
 else
 	echo "No packages need to be installed."
@@ -269,44 +286,26 @@ fi
 sudo chown $USER.www-data $fifo
 sudo chmod 664 $fifo
 
+
 # =============== Setup Password  ===============
 #
-SESSION_PATH=$PWD/www/session
-
-if [ ! -f www/password.php ]
+OLD_SESSION_PATH=www/session
+if [ -d $OLD_SESSION_PATH ]
 then
-	WRITE_PASSWORD=yes
-else
-	if    ! grep -q $PASSWORD www/password.php 2>/dev/null \
-       || ! grep -q $SESSION_PATH www/password.php 2>/dev/null
-	then
-		WRITE_PASSWORD=yes
-	fi
+	sudo rm -rf $OLD_SESSION_PATH
 fi
 
-
-if [ "$WRITE_PASSWORD" == "yes" ]
+OLD_PASSWORD=www/password.php
+if [ -f $OLD_PASSWORD ]
 then
-	if [ "$PASSWORD" == "unset" ]
-	then
-		echo "Setting web page password to not require a password."
-	else
-		echo "Setting web page password file with password: $PASSWORD"
-	fi
-	cat << EOF > www/password.php
-<?php
-define("PASSWORD", "$PASSWORD");
-define("SESSION_PATH", "$SESSION_PATH");
-?>
-EOF
+	rm -f $OLD_PASSWORD
 fi
 
-if [ ! -d $SESSION_PATH ]
+if [ "$PASSWORD" != "" ]
 then
-	mkdir $SESSION_PATH
+	htpasswd -bc $HTPASSWD $USER $PASSWORD
+	sudo chown $USER.www-data $HTPASSWD
 fi
-sudo chown $USER.www-data $SESSION_PATH
-sudo chmod 775 $SESSION_PATH
 
 
 # =============== copy scripts-dist into scripts  ===============

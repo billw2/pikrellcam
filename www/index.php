@@ -1,10 +1,4 @@
 <?php
-if (file_exists('password.php'))
-	{
-	require_once("password_check.php");
-	}
-?>
-<?php
 	require_once(dirname(__FILE__) . '/config.php');
 ?>
 
@@ -62,7 +56,7 @@ if (file_exists('password.php'))
       <a href="media.php?dir=<?php echo VIDEO_DIR; ?>"
         class="btn-control"
       >Videos</a>
-      <a href="thumbnails.php"
+      <a href="thumbs.php"
         class="btn-control"
       >Thumbs</a>
       <a href="media.php?dir=<?php echo STILL_DIR; ?>"

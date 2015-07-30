@@ -200,7 +200,7 @@ function next_select($dir, $cur_file)
 		<?php
 		if ("$media_dir" == "media/videos")
 			{
-			echo '<a href="thumbnails.php">
+			echo '<a href="thumbs.php">
 				<span style="margin-left: 16px;">Thumbs </span>';
 			}
 		?>

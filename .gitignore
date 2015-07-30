@@ -1,6 +1,5 @@
 scripts
-www/password.php
-www/session
+www/.htpasswd
 www/FIFO
 www/media
 media

@@ -24,6 +24,9 @@ server {
 	root PIKRELLCAM_WWW;
 	index index.php index.html index.htm;
 
+	auth_basic "Restricted";
+	auth_basic_user_file PIKRELLCAM_WWW/.htpasswd;
+
 	# Make site accessible from http://localhost/
 	server_name localhost;
 
