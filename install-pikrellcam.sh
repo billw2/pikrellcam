@@ -231,7 +231,7 @@ else
 fi
 
 if     ! grep -q $PORT /etc/nginx/sites-available/pikrellcam 2>/dev/null \
-	|| ! grep -q "root $PWD/www" /etc/nginx/sites-available/pikrellcam 2>/dev/null
+	|| ! grep -q "root $PWD/www" /etc/nginx/sites-available/pikrellcam 2>/dev/null \
 	|| ! fgrep -q "auth_basic_user_file $PWD/www/.htpasswd" /etc/nginx/sites-available/pikrellcam 2>/dev/null
 then
 	echo "Installing /etc/nginx/sites-available/pikrellcam"
