@@ -611,7 +611,7 @@ static Config  config[] =
 	  "# videos to a different computer.\n"
 	  "# To enable this, add your machine information to the motion-end script\n"
 	  "# and make this the on_motion_end command:\n"
-	  "#   on_motion_end $C/motion_end $v $P $G\n"
+	  "#   on_motion_end $C/motion-end $v $P $G\n"
 	  "#",
 	"on_motion_end",    "", TRUE, {.string = &pikrellcam.on_motion_end_cmd}, config_string_set },
 
