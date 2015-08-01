@@ -249,18 +249,13 @@ else
 	NGINX_SITE=etc/nginx-wheezy-site-default
 fi
 
-if     ! grep -q $PORT /etc/nginx/sites-available/pikrellcam 2>/dev/null \
-	|| ! grep -q "root $PWD/www" /etc/nginx/sites-available/pikrellcam 2>/dev/null \
-	|| ! fgrep -q "auth_basic_user_file $PWD/www/.htpasswd" /etc/nginx/sites-available/pikrellcam 2>/dev/null
-then
-	echo "Installing /etc/nginx/sites-available/pikrellcam"
-	echo "    nginx web server port: $PORT"
-	echo "    nginx web server root: $PWD/www"
-	sudo cp $NGINX_SITE /etc/nginx/sites-available/pikrellcam
-	sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
-				s/PORT/$PORT/" \
+echo "Installing /etc/nginx/sites-available/pikrellcam"
+echo "    nginx web server port: $PORT"
+echo "    nginx web server root: $PWD/www"
+sudo cp $NGINX_SITE /etc/nginx/sites-available/pikrellcam
+sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
+			s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
-fi
 
 NGINX_SITE=/etc/nginx/sites-available/pikrellcam
 
@@ -287,11 +282,8 @@ fi
 if [ "$PASSWORD" == "" ]
 then
 	sudo sed -i 's/	auth_basic/ \# auth_basic/' $NGINX_SITE
-else
-	sudo sed -i 's/	# auth_basic/	auth_basic/' $NGINX_SITE
 fi
 
-echo "Restarting nginx"
 sudo service nginx restart
 
 
