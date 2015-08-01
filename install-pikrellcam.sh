@@ -286,9 +286,9 @@ fi
 
 if [ "$PASSWORD" == "" ]
 then
-	sed -i 's/	auth_basic/ \# auth_basic/' $NGINX_SITE
+	sudo sed -i 's/	auth_basic/ \# auth_basic/' $NGINX_SITE
 else
-	sed -i 's/	# auth_basic/	auth_basic/' $NGINX_SITE
+	sudo sed -i 's/	# auth_basic/	auth_basic/' $NGINX_SITE
 fi
 
 echo "Restarting nginx"
