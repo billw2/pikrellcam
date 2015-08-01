@@ -1,5 +1,5 @@
 <?php
-// display JPEG images in directory in name order, with clickable links
+// display JPEG images in directory in name order, with clickable links  v0.2 7/31/2015
 function showGallery( $pathToVideo, $pathToThumbs )
 {
   $output = "";
@@ -12,7 +12,8 @@ function showGallery( $pathToVideo, $pathToThumbs )
   closedir( $dir ); // close the directory, all done reading
   $counter = 0;     // count how many images total so far
   rsort($a);         // sorts the array of filenames in-place, in reverse order (newest at top)
-
+  $tNow = time();
+  $fModTime = $tNow; // just in case there were no images at at all
   foreach($a as $fname){
       $vname = rtrim($fname, ".th.jpg") . ".mp4"; // filename X.th.jpg becomes X.mp4
       $tFile = "{$pathToThumbs}{$fname}"; // full pathname of thumbnail image
@@ -29,7 +30,6 @@ function showGallery( $pathToVideo, $pathToThumbs )
       $output .= "<img src=\"{$tFile}\" border=\"0\" /></a></fieldset>";
       $counter += 1;
   }
-  $tNow = time();
   $fDur = ($tNow - $fModTime) / 3600;
   $hours = number_format($fDur,1);  // hours with 1 decimal place
   $tString = @date('Y/m/d H:i:s', $tNow);
