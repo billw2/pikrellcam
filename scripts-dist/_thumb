@@ -26,10 +26,22 @@ H=$6
 X=$7
 Y=$8
 
-XT=`expr $W / 2`
+if [ "$W" -gt "$H" ]; then
+	SZ=$W
+else
+	SZ=$H
+fi
+
+XT=`expr $SZ / 2`
 XO=`expr $X - $XT`
-YT=`expr $H / 2`
+YT=`expr $SZ / 2`
 YO=`expr $Y - $YT`
+if [ "$XO" -lt 0 ]; then
+  XO=0
+fi
+if [ "YO" -lt 0 ]; then
+  YO=0
+fi
 
 THUMB_JPEG_DIR=$MEDIA_DIR/thumbs
 
@@ -37,5 +49,5 @@ THUMB_JPEG_DIR=$MEDIA_DIR/thumbs
 BASE=`basename $PREVIEW_JPEG`
 THUMB_JPEG=${BASE%.jpg}.th.jpg
 
-convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG
-echo "convert $PREVIEW_JPEG -crop ${W}x$H+$XO+$YO -resize 200x200 $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE
+convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG
+echo "convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE
