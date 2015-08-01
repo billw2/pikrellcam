@@ -205,6 +205,26 @@ then
 #	sudo cat /etc/sudoers.d/pikrellcam
 fi
 
+# =============== Setup Password  ===============
+#
+OLD_SESSION_PATH=www/session
+if [ -d $OLD_SESSION_PATH ]
+then
+	sudo rm -rf $OLD_SESSION_PATH
+fi
+
+OLD_PASSWORD=www/password.php
+if [ -f $OLD_PASSWORD ]
+then
+	rm -f $OLD_PASSWORD
+fi
+
+if [ "$PASSWORD" != "" ]
+then
+	htpasswd -bc $HTPASSWD $USER $PASSWORD
+	sudo chown $USER.www-data $HTPASSWD
+fi
+
 
 # =============== nginx install ===============
 #
@@ -215,7 +235,6 @@ if ! grep -q "access_log off" /etc/nginx/nginx.conf
 then
 	echo "Turning off nginx access_log."
 	sudo sed -i  '/access_log/c\	access_log off;' /etc/nginx/nginx.conf
-	NGINX_RESTART="yes"
 fi
 
 WHEEZY=7.8
@@ -241,7 +260,6 @@ then
 	sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 				s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
-	NGINX_RESTART="yes"
 fi
 
 NGINX_SITE=/etc/nginx/sites-available/pikrellcam
@@ -255,7 +273,6 @@ then
 		echo "Changing $NGINX_LINK link to pikrellcam"
 		sudo rm -f $NGINX_LINK
 		sudo ln -s $NGINX_SITE $NGINX_LINK
-		NGINX_RESTART="yes"
 	fi
 else
 	NGINX_LINK=/etc/nginx/sites-enabled/pikrellcam
@@ -265,14 +282,17 @@ if [ ! -h $NGINX_LINK 2>/dev/null ]
 then
 	echo "Adding $NGINX_LINK link to sites-available/pikrellcam."
 	sudo ln -s $NGINX_SITE $NGINX_LINK
-	NGINX_RESTART="yes"
 fi
 
-if [ "$NGINX_RESTART" == "yes" ]
+if [ "$PASSWORD" == "" ]
 then
-	echo "Restarting nginx"
-	sudo service nginx restart
+	sed -i 's/	auth_basic/ \# auth_basic/' $NGINX_SITE
+else
+	sed -i 's/	# auth_basic/	auth_basic/' $NGINX_SITE
 fi
+
+echo "Restarting nginx"
+sudo service nginx restart
 
 
 # =============== Setup FIFO  ===============
@@ -287,26 +307,6 @@ fi
 sudo chown $USER.www-data $fifo
 sudo chmod 664 $fifo
 
-
-# =============== Setup Password  ===============
-#
-OLD_SESSION_PATH=www/session
-if [ -d $OLD_SESSION_PATH ]
-then
-	sudo rm -rf $OLD_SESSION_PATH
-fi
-
-OLD_PASSWORD=www/password.php
-if [ -f $OLD_PASSWORD ]
-then
-	rm -f $OLD_PASSWORD
-fi
-
-if [ "$PASSWORD" != "" ]
-then
-	htpasswd -bc $HTPASSWD $USER $PASSWORD
-	sudo chown $USER.www-data $HTPASSWD
-fi
 
 
 # =============== copy scripts-dist into scripts  ===============
