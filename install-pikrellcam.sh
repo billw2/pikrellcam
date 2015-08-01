@@ -281,7 +281,7 @@ fi
 
 if [ "$PASSWORD" == "" ]
 then
-	sudo sed -i 's/	auth_basic/ \# auth_basic/' $NGINX_SITE
+	sudo sed -i 's/auth_basic/\# auth_basic/' $NGINX_SITE
 fi
 
 sudo service nginx restart
