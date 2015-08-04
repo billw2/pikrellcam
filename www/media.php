@@ -14,16 +14,25 @@ function eng_filesize($bytes, $decimals = 1)
 
 function media_file_array($dir)
 	{
+	$media_array = array();
 	$file_array = array_slice(scandir($dir), 2);
 	$n_files = count($file_array);
 
-	for ($i = 0; $i < $n_files; $i++)
+	foreach($file_array as $name)
 		{
-		if (!is_file($dir . "/" . $file_array[$i]))
-			unset($file_array[$i]);
+		$mtime = filemtime($dir.'/'.$name);
+		$ymd = date("Y_m_d", $mtime);
+		$media_array[] = array('name'  => $name,
+		                       'mtime' => $mtime,
+		                       'date'  => $ymd);
 		}
-	$file_array = array_values($file_array);
-	return $file_array;
+
+	usort($media_array, create_function('$a, $b',
+				'return strcmp($a["mtime"], $b["mtime"]);'));
+	krsort($media_array);
+	$media_array = array_values($media_array);
+
+	return $media_array;
 	}
 
 function next_select($dir, $cur_file)
@@ -34,51 +43,59 @@ function next_select($dir, $cur_file)
 
 	if ($n_files > 0)
 		{
-		$next_file = $file_array[0];
-		if ($cur_file != "")
+		if ($cur_file == "")
+			$i = 0;
+		else
 			{
 			for ($i = 0; $i < $n_files; $i++)
 				{
-				if ($cur_file != $file_array[$i])
-					continue;
-				if ($i == $n_files - 1 && $i > 0)
-					$next_file = $file_array[$i - 1];
-				else
-					{
-					$i++;
-					while ($i < $n_files)
-						{
-						if (is_file("$dir" . "/" . $file_array[$i]))
-							{
-							$next_file = $file_array[$i];
-							break;
-							}
-						$i++;
-						}
+				if ($cur_file == $file_array[$i]['name'])
 					break;
-					}
 				}
+			if ($i == $n_files)
+				$i = 0;
+			else if ($i > 0)
+				--$i;
 			}
+		$next_file = $file_array[$i]['name'];
 		}
 	return $next_file;
 	}
 ?>
 
+<script>
+function scroll_to_selected()
+	{
+	document.getElementById("selected").scrollIntoView(true);
+	}
+</script>
+
+<style type="text/css">
+a.anchor
+	{
+	display: block; position: relative; top: -250px; visibility: hidden;
+	}
+</style>
+
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PiKrellCam Download Media</title>
+    <title>PiKrellCam Media</title>
     <link rel="stylesheet" href="js-css/pikrellcam.css" />
   </head>
 
-  <body background="images/paper1.png">
+  <body onload="scroll_to_selected()" background="images/paper1.png">
     <div>
 		<?php
-
 		echo "<div class='text-center'>";
-		echo   "<div><a class='text-shadow-large' style='text-decoration: none' href='index.php'>";
+		// Offset TITLE_STRING to left of center 120px (compensate for 150px thumb)
+		echo "<div style='margin: auto; overflow: visible;'>";
+		echo   "<div style='margin-right:120px;'>";
+		echo "<a class='text-shadow-large'
+				style='text-decoration: none;'
+				href='index.php'>";
 		echo     TITLE_STRING;
-		echo   "</a>";
+		echo   "</a></div>";
 		echo   "</div>";
 
 		$media_dir = $_GET["dir"];
@@ -88,13 +105,41 @@ function next_select($dir, $cur_file)
 		else if (isset($_GET["delete"]))
 			{
 			$del_file = $_GET["delete"];
-			$selected = next_select($media_dir, $del_file);
 //			echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
+			$selected = next_select($media_dir, $del_file);
 			unlink("$media_dir" . "/" . $del_file);
+			if ($selected == $del_file)
+				$selected = next_select($media_dir, "");
 			if ("$media_dir" == "media/videos")
 				{
 				$base = str_replace(".mp4", "", $del_file);
 				unlink("media/thumbs/" . "$base" . ".th.jpg");
+				}
+			}
+		else if (isset($_GET["delete_day"]))
+			{
+			$ymd = $_GET["day"];
+			$file_array = media_file_array($media_dir);
+			$n_files = count($file_array);
+			$selected = "";
+			$searching = 1;
+			for ($i = 0; $i < $n_files; $i++)
+				{
+				if ($ymd != $file_array[$i]['date'])
+					{
+					if ($searching == 1 || "$selected" == "")
+						$selected = $file_array[$i]['name'];
+					continue;
+					}
+				$searching = 0;
+				$del_file = $file_array[$i]['name'];
+//	echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
+				unlink("$media_dir" . "/" . $del_file);
+				if ("$media_dir" == "media/videos")
+					{
+					$base = str_replace(".mp4", "", $del_file);
+					unlink("media/thumbs/" . "$base" . ".th.jpg");
+					}
 				}
 			}
 		else if (isset($_GET["delete_all"]))
@@ -121,22 +166,37 @@ function next_select($dir, $cur_file)
 					    style='border:6px groove silver;'>
 				      </a>";
 			else
+				{
 				echo "<video controls width='640' style='border:6px groove silver;'>
 					    <source src='$media_dir" . '/' . $selected . "' type='video/mp4'>
 					    Your browser does not support the video tag.
 					  </video>";
-			echo "<div>
-                    <input type='button' value='Delete'
-                      class='btn-control alert-control'
-				      onclick='window.location=\"media.php?dir=$media_dir&delete=" . $selected . "\";'
-                  > &nbsp;";
-            $wopen = "download.php?file=" . $media_dir . "/". $selected;
-			echo "<input type='button' value='Download'
+				$base = str_replace(".mp4", "", $selected);
+				$thumb = "media/thumbs/" . "$base" . ".th.jpg";
+				if (is_file($thumb))
+					echo "<img src='$thumb'
+						style='border:6px groove silver;'>";
+				else
+                   echo "<img src='images/paper1.png'
+						style='width:150px; height:150px; border:6px groove silver;'>";
+				}
+			// Offset to left of center 120px (compensate for 150px thumb)
+			echo "<div style='margin: auto; overflow: visible;'>";
+			echo   "<div style='margin-right:120px;'>";
+			  echo "<selected>&nbsp; $selected</selected>";
+              $wopen = "download.php?file=" . $media_dir . "/". $selected;
+			  echo "<input type='button' value='Download'
                     class='btn-control'
+                    style='margin-left: 12px;'
 					onclick='window.open(\"$wopen\", \"_blank\");'
                   > ";
-			echo "<selected>&nbsp; $selected</selected>
-                  </div>";
+              echo "<input type='button' value='Delete'
+                      class='btn-control alert-control'
+                      style='margin-left: 32px;'
+				      onclick='window.location=\"media.php?dir=$media_dir&delete=" . $selected . "\";'
+                  > &nbsp;";
+            echo "</div>";
+            echo "</div>";
 			}
 		else
 			{
@@ -145,10 +205,12 @@ function next_select($dir, $cur_file)
 				  </p>";
 			}
 		echo "</div>";
-		?>
 
-      <h3>Files in <?php echo "$media_dir" ?></h3>
-      <?php
+		echo "<div style='margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
+		echo "<span style='font-size: 1.2em; font-weight: bold;'>
+				$media_dir</span>";
+		echo "</div>";
+
 		$file_array = media_file_array($media_dir);
 		$n_files = count($file_array);
 
@@ -156,56 +218,80 @@ function next_select($dir, $cur_file)
 			echo "<p>No files.</p>";
 		else
 			{
-			if ($n_files < 11)
-				$columns = 1;
-			else
-				$columns = 2;
-			$rows = ceil($n_files / $columns);
-
-			echo "<table width='95%' cellpadding='2'>";
-			for ($row = 0; $row < $rows; $row++)
+			$ymd_header = "";
+			echo '<div id="" style="overflow-y: scroll; height:380px; overflow-x: auto; border:4px groove silver">';
+			echo "<table width='98%' cellpadding='2'>";
+			for ($k = 0; $k < $n_files; $k = $last)
 				{
-				echo "<tr>";
-				foreach ($file_array as $k => $file)
+				$ymd = $file_array[$k]['date'];
+				if ("$ymd_header" != "$ymd")
 					{
-					if (($k % $rows) == $row)
-						{
-						echo "<td>";
-						if(is_file("$media_dir" . "/" . $file))
-							{
-							$fsize = eng_filesize(filesize("$media_dir" . "/" . $file));
-							if ($file == $selected)
-								echo "<a href='media.php?dir=$media_dir&file=$file' style='color: #400808; text-decoration: none'>$file</a> ($fsize)";
-							else
-								echo "<a href='media.php?dir=$media_dir&file=$file' style='text-decoration: none'>$file</a> ($fsize)";
-							}
-						echo "</td>";
-						}
+					$date_string = date('D - M j Y', $file_array[$k]['mtime']);
+					echo "<tr><td><span style='margin-left: 8px; font-size: 1.1em; font-weight: bold;'>
+							$date_string</span>";
+					$ymd_header = $ymd;
+
+					echo "<input type='button' value='Delete Day'
+						class='btn-control alert-control'
+						style='margin-left: 32px; margin-bottom:6px; margin-top:24px;'
+						onclick='if (confirm(\"Delete day $ymd?\"))
+						{window.location=\"media.php?dir=$media_dir&delete_day&day=$ymd\";}'>";
+					echo "</td></tr><br>";
+
+					$n_rows = 1;
+					for ($last = $k; $file_array[$last]['date'] == $ymd; ++$last)
+						;
+					$n_rows = intval(($last - $k) / 2 + 1);
+//					echo "<br><tr><td>rows=$n_rows last=$last</td></tr><br>";
 					}
-				echo "</tr>";
+				for ($row = 0; $row < $n_rows; ++$row)
+					{
+					echo "<tr>";
+					for ($col = 0; $col < 2; ++$col)
+						{
+						$idx = $k + $row + $col * $n_rows;
+						if ($idx < $last)
+							{
+							echo "<td style='font-size: 0.95em;'>";
+							$fname = $file_array[$idx]['name'];
+							$path = "$media_dir" . "/" . "$fname";
+							$fsize = eng_filesize(filesize("$path"));
+							if ($fname == $selected)
+								{
+								echo "<a id='selected' class='anchor'></a>";
+								echo "<a href='media.php?dir=$media_dir&file=$fname' style='color: #400808; text-decoration: none'>$fname</a> ($fsize)";
+								}
+							else
+								{
+								echo "<a href='media.php?dir=$media_dir&file=$fname' style='text-decoration: none'>$fname</a> ($fsize)";
+								}
+							echo "</td>";
+							}
+						}
+					echo "</tr>";
+					}
 				}
+
 			echo "</table>";
-			echo "<p><input type='button' value='Delete All'
-					class='btn-control alert-control'
-					onclick='if (confirm(\"Delete all?\"))
-							{window.location=\"media.php?dir=$media_dir&delete_all\";}'>
-				  </p>";
+			echo "</div>";
+
+			echo "<div style='margin-top:12px;'>";
+			$title = TITLE_STRING;
+			echo "<a href='index.php' class='btn-control'
+				style='margin-left:8px;'>
+				$title</a>";
+			echo "<a href='thumbs.php' class='btn-control'
+				style='margin-left:8px;'>
+				Thumbs</a>";
+			echo "<input type='button' value='Delete All'
+				class='btn-control alert-control'
+				style='margin-left:32px;'
+				onclick='if (confirm(\"Delete all?\"))
+				 {window.location=\"media.php?dir=$media_dir&delete_all\";}'>";
+			echo "</div>";
 			}
 	  ?>
-	  <p style="margin-top:20px;">
-		<span>
-			<a href="index.php">
-			Back to <?php echo TITLE_STRING; ?>
-		</span>
-		<?php
-		if ("$media_dir" == "media/videos")
-			{
-			echo '<a href="thumbs.php">
-				<span style="margin-left: 16px;">Thumbs </span>';
-			}
-		?>
-		</a>
-      </p>
+
     </div>
   </body>
 </html>
