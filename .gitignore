@@ -2,4 +2,5 @@ scripts
 www/.htpasswd
 www/FIFO
 www/media
+www/config-media.php
 media

@@ -1,10 +1,35 @@
-<!DOCTYPE html>
+<script>
+function scroll_to_selected()
+	{
+	document.getElementById("selected").scrollIntoView(true);
+	}
+</script>
+
+<style type="text/css">
+a.anchor
+	{
+	display: block; position: relative; top: -250px; visibility: hidden;
+	}
+</style>
+
 
 <?php
-	require_once(dirname(__FILE__) . '/config.php');
-?>
+require_once(dirname(__FILE__) . '/config.php');
 
-<?php
+include_once(dirname(__FILE__) . '/config-media.php');
+
+function config_media_save($name_style, $n_columns)
+	{
+	$file = fopen("config-media.php", "w");
+	fwrite($file, "<?php\n");
+	fwrite($file, "define(\"NAME_STYLE\", \"$name_style\");\n");
+	fwrite($file, "define(\"N_COLUMNS\", \"$n_columns\");\n");
+	fwrite($file, "?>\n");
+	fclose($file);
+	chmod("config-media.php", 0666);
+	}
+
+
 function eng_filesize($bytes, $decimals = 1)
 	{
 	$sz = 'BKMGTP';
@@ -35,6 +60,33 @@ function media_file_array($dir)
 	return $media_array;
 	}
 
+function prev_select($dir, $cur_file)
+	{
+	$prev_file = "";
+	$file_array = media_file_array($dir);
+	$n_files = count($file_array);
+
+	if ($n_files > 0)
+		{
+		if ($cur_file == "")
+			$i = 0;
+		else
+			{
+			for ($i = 0; $i < $n_files; $i++)
+				{
+				if ($cur_file == $file_array[$i]['name'])
+					break;
+				}
+			if ($i == $n_files)
+				$i = 0;
+			else if ($i < $n_files - 1)
+				++$i;
+			}
+		$prev_file = $file_array[$i]['name'];
+		}
+	return $prev_file;
+	}
+
 function next_select($dir, $cur_file)
 	{
 	$next_file = "";
@@ -61,22 +113,21 @@ function next_select($dir, $cur_file)
 		}
 	return $next_file;
 	}
+
+if (defined('N_COLUMNS'))
+    $n_columns = N_COLUMNS;
+else
+	$n_columns = 4;
+
+if (defined('NAME_STYLE'))
+    $name_style = NAME_STYLE;
+else
+	$name_style = "short";
+
+//echo "<script type='text/javascript'>alert('$name_style $n_columns');</script>";
 ?>
 
-<script>
-function scroll_to_selected()
-	{
-	document.getElementById("selected").scrollIntoView(true);
-	}
-</script>
-
-<style type="text/css">
-a.anchor
-	{
-	display: block; position: relative; top: -250px; visibility: hidden;
-	}
-</style>
-
+<!DOCTYPE html>
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -102,6 +153,27 @@ a.anchor
 
 		if (isset($_GET["file"]))
 			$selected = $_GET["file"];
+		else if (isset($_GET["name_style"]))
+			{
+			$name_style = $_GET["name_style"];
+			$selected = $_GET["selected"];
+			config_media_save($name_style, $n_columns);
+			}
+		else if (isset($_GET["n_columns"]))
+			{
+			$n_columns = $_GET["n_columns"];
+			$selected = $_GET["selected"];
+			config_media_save($name_style, $n_columns);
+			}
+		else if (isset($_GET["direction"]))
+			{
+			$direction = $_GET["direction"];
+			$cur_select = $_GET["selected"];
+			if ($direction == "next")
+				$selected = next_select($media_dir, $cur_select);
+			else
+				$selected = prev_select($media_dir, $cur_select);
+			}
 		else if (isset($_GET["delete"]))
 			{
 			$del_file = $_GET["delete"];
@@ -182,17 +254,25 @@ a.anchor
 				}
 			// Offset to left of center 120px (compensate for 150px thumb)
 			echo "<div style='margin: auto; overflow: visible;'>";
-			echo   "<div style='margin-right:120px;'>";
+			echo   "<div style='margin-right:130px;'>";
 			  echo "<selected>&nbsp; $selected</selected>";
+
+			echo "<input type='button' value='<'
+					class='btn-control' style='margin-left:16px;'
+					onclick='window.location=\"media.php?dir=$media_dir&direction=prev&selected=$selected\";'>";
+			echo "<input type='button' value='>'
+					class='btn-control' style='margin-left:3px;'
+					onclick='window.location=\"media.php?dir=$media_dir&direction=next&selected=$selected\";'>";
+
               $wopen = "download.php?file=" . $media_dir . "/". $selected;
 			  echo "<input type='button' value='Download'
                     class='btn-control'
-                    style='margin-left: 12px;'
+                    style='margin-left: 16px;'
 					onclick='window.open(\"$wopen\", \"_blank\");'
                   > ";
               echo "<input type='button' value='Delete'
                       class='btn-control alert-control'
-                      style='margin-left: 32px;'
+                      style='margin-left: 28px;'
 				      onclick='window.location=\"media.php?dir=$media_dir&delete=" . $selected . "\";'
                   > &nbsp;";
             echo "</div>";
@@ -209,6 +289,14 @@ a.anchor
 		echo "<div style='margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
 		echo "<span style='font-size: 1.2em; font-weight: bold;'>
 				$media_dir</span>";
+		$disk_total = disk_total_space($media_dir);
+		$disk_free = disk_free_space($media_dir);
+		$used_percent = sprintf('%.1f',(($disk_total - $disk_free) / $disk_total) * 100);
+		$total = eng_filesize($disk_total);
+		$free = eng_filesize($disk_free);
+		$used = eng_filesize($disk_total - $disk_free);
+		echo "<span style='margin-left: 30px; font-size: 1.0em;'>
+			Total: ${total}B &nbsp &nbsp Free: ${free}B &nbsp &nbsp Used: ${used}B ($used_percent %)</span>";
 		echo "</div>";
 
 		$file_array = media_file_array($media_dir);
@@ -219,59 +307,82 @@ a.anchor
 		else
 			{
 			$ymd_header = "";
+
 			echo '<div id="" style="overflow-y: scroll; height:380px; overflow-x: auto; border:4px groove silver">';
-			echo "<table width='98%' cellpadding='2'>";
+			echo "<table width='100%' cellpadding='2'>";
 			for ($k = 0; $k < $n_files; $k = $last)
 				{
 				$ymd = $file_array[$k]['date'];
 				if ("$ymd_header" != "$ymd")
 					{
+					echo "<td style='vertical-align: bottom; padding-bottom:6px;'>";
 					$date_string = date('D - M j Y', $file_array[$k]['mtime']);
-					echo "<tr><td><span style='margin-left: 8px; font-size: 1.1em; font-weight: bold;'>
+					echo "<span style='margin-left: 4px; font-size: 0.94em; font-weight: bold;'>
 							$date_string</span>";
 					$ymd_header = $ymd;
-
+					if ($n_columns > 2)
+						echo "</td><td>";
 					echo "<input type='button' value='Delete Day'
 						class='btn-control alert-control'
-						style='margin-left: 32px; margin-bottom:6px; margin-top:24px;'
+						style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
 						onclick='if (confirm(\"Delete day $ymd?\"))
 						{window.location=\"media.php?dir=$media_dir&delete_day&day=$ymd\";}'>";
-					echo "</td></tr><br>";
+					echo "</td>";
 
-					$n_rows = 1;
+//					$n_rows = 1;
 					for ($last = $k; $file_array[$last]['date'] == $ymd; ++$last)
 						;
-					$n_rows = intval(($last - $k) / 2 + 1);
-//					echo "<br><tr><td>rows=$n_rows last=$last</td></tr><br>";
+					$n_rows = ceil(($last - $k) / $n_columns);
+//					echo "<br><tr><td>k=$k rows=$n_rows last=$last</td></tr><br>";
 					}
 				for ($row = 0; $row < $n_rows; ++$row)
 					{
 					echo "<tr>";
-					for ($col = 0; $col < 2; ++$col)
+					for ($col = 0; $col < $n_columns; ++$col)
 						{
+						echo "<td style='font-size: 0.92em;'>";
 						$idx = $k + $row + $col * $n_rows;
 						if ($idx < $last)
 							{
-							echo "<td style='font-size: 0.95em;'>";
 							$fname = $file_array[$idx]['name'];
 							$path = "$media_dir" . "/" . "$fname";
 							$fsize = eng_filesize(filesize("$path"));
+							$extension = substr(strrchr($fname, "."), 0);
+							if ($name_style == "short")
+								{
+								$parts = explode("_", $fname);
+								if (count($parts) == 4)
+									$display_name = strtr($parts[2], ".", ":") . $extension;
+								else
+									$display_name = date('H:i:s', $file_array[$idx]['mtime']) . $extension;
+								}
+							else
+								$display_name = $fname;
+
 							if ($fname == $selected)
 								{
 								echo "<a id='selected' class='anchor'></a>";
-								echo "<a href='media.php?dir=$media_dir&file=$fname' style='color: #400808; text-decoration: none'>$fname</a> ($fsize)";
+								echo "<a href='media.php?dir=$media_dir&file=$fname'
+									style='color: #500808; text-decoration: none;'>$display_name</a>
+									<span style='font-size: 0.85em;'>($fsize)</span>";
 								}
 							else
 								{
-								echo "<a href='media.php?dir=$media_dir&file=$fname' style='text-decoration: none'>$fname</a> ($fsize)";
+								if (substr($fname, 0, 3) == "man")
+									$color = "#085008";
+								else
+									$color = "#0000EE";
+								echo "<a href='media.php?dir=$media_dir&file=$fname'
+									style='color: $color; text-decoration: none;'>$display_name</a>
+									<span style='font-size: 0.86em;'>($fsize)</span>";
 								}
-							echo "</td>";
 							}
+
+						echo "</td>";
 						}
 					echo "</tr>";
 					}
 				}
-
 			echo "</table>";
 			echo "</div>";
 
@@ -288,6 +399,30 @@ a.anchor
 				style='margin-left:32px;'
 				onclick='if (confirm(\"Delete all?\"))
 				 {window.location=\"media.php?dir=$media_dir&delete_all\";}'>";
+
+			echo "<div style='float: right;'>Columns:";
+			$inc_column = $n_columns + 1;
+			$dec_column = $n_columns - 1;
+			if ($n_columns > 2)
+				echo "<input type='button' value='-'
+					class='btn-control' style='margin-left:6px;'
+					onclick='window.location=\"media.php?dir=$media_dir&n_columns=$dec_column&selected=$selected\";'>";
+			if ($n_columns < 10)
+				echo "<input type='button' value='+'
+					class='btn-control' style='margin-left:6px;'
+					onclick='window.location=\"media.php?dir=$media_dir&n_columns=$inc_column&selected=$selected\";'>";
+
+			echo "<span style='margin-left:12px;'>Names:</span>";
+
+			if ($name_style == "short")
+				$name_change = "full";
+			else
+				$name_change = "short";
+
+			echo "<input type='button' value='$name_change'
+				class='btn-control' style='margin-left:6px;'
+				onclick='window.location=\"media.php?dir=$media_dir&name_style=$name_change&selected=$selected\";'>";
+			echo "</div>";
 			echo "</div>";
 			}
 	  ?>

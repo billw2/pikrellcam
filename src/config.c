@@ -649,7 +649,7 @@ static Config  config[] =
 	"motion_preview_clean",  "off", FALSE, {.value = &pikrellcam.motion_preview_clean}, config_value_bool_set },
 
 	{ "# Minimum width and height in pixels for the substitution width and height\n"
-	  "# variables for motion detect areas in the preview jpeg.  These variables\n"
+	  "# variables for motion detect areas in the preview jpeg.\n"
 	  "# This minimum helps with possible frame skew for smaller relatively\n"
 	  "# faster moving objects.\n"
 	  "#",
@@ -659,6 +659,11 @@ static Config  config[] =
 	{ "\n# --------------------- Video Record Options -----------------------\n"
 	  "#\n"
 	  "# Motion and manual record video filename format.\n"
+	  "# NOTE: PHP code on the web page tries to extract a video time from\n"
+	  "#     the video name so there is restricted flexibility for changing\n"
+	  "#     this format.  In particular, the PHP code expects at least:\n"
+	  "#       xxx_xxx_%H.%M.%S_xxx.mp4\n"
+	  "#     where the '_' chars are required and '.mp4' may be '.h264'\n"
 	  "# You can use strftime() % time specifiers.\n"
 	  "#     Note: only a recent gpac release can handle ':' in the filename.\n"
 	  "#     So, the time format may not be able to use %T specifier.\n"
@@ -744,6 +749,11 @@ static Config  config[] =
 	{ "\n# ------------------ Still Capture Options -----------------------\n"
 	  "#\n"
 	  "# Still filename format.  See comments about strftime() above.\n"
+	  "# NOTE: PHP code on the web page tries to extract a still time from\n"
+	  "#     the still name so there is restricted flexibility for changing\n"
+	  "#     this format.  In particular, the PHP code expects at least:\n"
+	  "#       xxx_xxx_%H.%M.%S_xxx.jpg\n"
+	  "#     where the '_' chars are required.\n"
 	  "# A still_filename may use this pikrellcam substitution variable:\n"
 	  "#     $N - The still capture sequence number\n"
 	  "#",
