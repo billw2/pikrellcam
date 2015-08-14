@@ -676,12 +676,16 @@ apply_adjustment(void)
 		return;
 	if (adjustments == &motion_time_adjustment[0])
 		{
+		pikrellcam.motion_times.confirm_gap = motion_times_temp.confirm_gap;
+		pikrellcam.motion_times.post_capture = motion_times_temp.post_capture;
+
 		if (   motion_times_temp.pre_capture != pikrellcam.motion_times.pre_capture
 		    || motion_times_temp.event_gap != pikrellcam.motion_times.event_gap
 		   )
 			{
 			pthread_mutex_lock(&vcb->mutex);
-			pikrellcam.motion_times  = motion_times_temp;
+			pikrellcam.motion_times.pre_capture = motion_times_temp.pre_capture;
+			pikrellcam.motion_times.event_gap = motion_times_temp.event_gap;
 			circular_buffer_init();
 			pthread_mutex_unlock(&vcb->mutex);
 			}		
@@ -818,6 +822,7 @@ display_adjustment(uint8_t *i420)
 		else
 			*(cur_adj->config_value) = cur_adj->value;
 		}
+	cur_adj->prev_value = cur_adj->value;
 
 	bar_y0 = font->char_height * 3 / 2;
 	bar_dy = font->char_height / 2;
