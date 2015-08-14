@@ -540,7 +540,8 @@ event_process(void)
 			tmp_link;
 	int		minute_tick, five_minute_tick, ten_minute_tick,
 			fifteen_minute_tick, thirty_minute_tick, hour_tick, day_tick;
-	struct tm		*tm_now, *tm_prev;
+	struct tm		*tm_now;
+	static struct tm tm_prev;
 	static time_t	t_prev;
 
 	time(&pikrellcam.t_now);
@@ -549,9 +550,9 @@ event_process(void)
 
 	if (pikrellcam.second_tick)
 		{
-		tm_prev = &pikrellcam.tm_local;
+		tm_prev = pikrellcam.tm_local;
 		tm_now = localtime(&pikrellcam.t_now);
-		minute_tick = (tm_now->tm_min != tm_prev->tm_min)  ? TRUE : FALSE;
+		minute_tick = (tm_now->tm_min != tm_prev.tm_min)  ? TRUE : FALSE;
 		pikrellcam.tm_local = *tm_now;
 		}
 	else
@@ -649,8 +650,8 @@ event_process(void)
 		ten_minute_tick = ((tm_now->tm_min % 10) == 0) ? TRUE : FALSE;
 		fifteen_minute_tick = ((tm_now->tm_min % 15) == 0) ? TRUE : FALSE;
 		thirty_minute_tick = ((tm_now->tm_min % 10) == 0) ? TRUE : FALSE;
-		hour_tick = (tm_now->tm_hour  != tm_prev->tm_hour)  ? TRUE : FALSE;
-		day_tick =  (tm_now->tm_mday  != tm_prev->tm_mday)  ? TRUE : FALSE;
+		hour_tick = (tm_now->tm_hour  != tm_prev.tm_hour)  ? TRUE : FALSE;
+		day_tick =  (tm_now->tm_mday  != tm_prev.tm_mday)  ? TRUE : FALSE;
 
 		for (list = at_command_list; list; list = list->next)
 			{

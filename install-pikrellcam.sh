@@ -97,7 +97,7 @@ DEB_VERSION=`cat /etc/debian_version`
 PACKAGE_LIST=""
 for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack imagemagick apache2-utils
 do
-	if ! dpkg-query -l $PACKAGE &> /dev/null
+	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
 	then
 		PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
 	fi
@@ -318,3 +318,19 @@ do
 	fi
 done
 
+echo ""
+echo "Install finished."
+echo "This install script does not automatically start pikrellcam."
+echo "To start pikrellcam, open a browser page to:"
+if [ "$PORT" == "80" ]
+then
+	echo "    http://your_pi"
+else
+	echo "    http://your_pi:$PORT"
+fi
+echo "and click on the System panel and then the Start PiKrellCam button."
+echo "PiKrellCam can also be run from a Pi terminal for testing purposes."
+if [ "$AUTOSTART" == "yes" ]
+then
+	echo "Automatic pikrellcam starting at boot is enabled."
+fi
