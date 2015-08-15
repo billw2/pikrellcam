@@ -67,6 +67,7 @@ then
 	if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
 	then
 		SET_PASSWORD=yes
+		rm -f $HTPASSWD
 	else
 		SET_PASSWORD=no
 	fi
@@ -76,7 +77,6 @@ fi
 
 if [ "$SET_PASSWORD" == "yes" ]
 then
-	rm -f $HTPASSWD
 	echo "Enter a password for a web page login for user: $USER"
 	echo "Enter a blank entry if you do not want the password login."
 	echo -n "Enter password: "
@@ -279,8 +279,9 @@ then
 	sudo ln -s $NGINX_SITE $NGINX_LINK
 fi
 
-if [ "$PASSWORD" == "" ]
+if [ ! -f $HTPASSWD ]
 then
+	echo "A password for the web page is not set."
 	sudo sed -i 's/auth_basic/\# auth_basic/' $NGINX_SITE
 fi
 
@@ -328,9 +329,10 @@ then
 else
 	echo "    http://your_pi:$PORT"
 fi
-echo "and click on the System panel and then the Start PiKrellCam button."
+echo "and click on the \"System\" panel and then the \"Start PiKrellCam\" button."
 echo "PiKrellCam can also be run from a Pi terminal for testing purposes."
 if [ "$AUTOSTART" == "yes" ]
 then
 	echo "Automatic pikrellcam starting at boot is enabled."
 fi
+echo ""
