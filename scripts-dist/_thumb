@@ -39,7 +39,7 @@ YO=`expr $Y - $YT`
 if [ "$XO" -lt 0 ]; then
   XO=0
 fi
-if [ "YO" -lt 0 ]; then
+if [ "$YO" -lt 0 ]; then
   YO=0
 fi
 
