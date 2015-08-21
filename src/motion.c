@@ -448,6 +448,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				motion_preview_area_fixup();
 				mf->do_preview_save_cmd = TRUE;
 				}
+			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
+				printf("***Motion record start: %s\n", pikrellcam.video_pathname);
 			}
 		else if (vcb->state == VCB_STATE_MOTION_RECORD)
 			{
@@ -468,6 +470,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				|  in video_record_stop().
 				*/
 				}
+			if (pikrellcam.verbose_motion)
+				printf("==>Motion record bump: %s\n", pikrellcam.video_pathname);
 			}
 		}
 	}
@@ -689,7 +693,7 @@ motion_command(char *cmd_line)
 		if (!strcmp(mcmd->name, cmd))
 			{
 			if (mcmd->n_args == n - 1)
-				id = mcmd->id;;
+				id = mcmd->id;
 			break;
 			}
 		}

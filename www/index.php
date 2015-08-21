@@ -389,8 +389,14 @@
             onclick="pikrellcam('stop');"
             class="btn-control alert-control"
           >
+
           <input id="start_button" type="button" value="Start PiKrellCam"
             onclick="pikrellcam('start');"
+            class="btn-control"
+          >
+
+          <input id="log_button" type="button" value="Log"
+            onclick="window.location='log.php';"
             class="btn-control"
           >
         </div>

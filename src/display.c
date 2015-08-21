@@ -777,7 +777,7 @@ display_adjustment(uint8_t *i420)
 		{
 		if (*(cur_adj->config_value) != cur_adj->revert_value)
 			{
-			cur_adj->value = *(cur_adj->config_value);;
+			cur_adj->value = *(cur_adj->config_value);
 			cur_adj->revert_value = cur_adj->value;
 			}
 		}

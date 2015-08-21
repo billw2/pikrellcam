@@ -515,13 +515,13 @@ sun_times_init(void)
 		sun.d_nautical_dusk = TMOD(sun.d_nautical_dusk + tm->tm_gmtoff / 3600);
 		sun.nautical_dusk = sun.d_nautical_dusk * 60;
 
-		log_printf("sunrise/sunset times: %s  dawn/dusk times: %s\n",
+		log_printf_no_timestamp("sunrise/sunset times: %s  dawn/dusk times: %s\n",
 			sun.sun_valid ? "invalid" : "valid",
 			sun.civil_valid ? "invalid" : "valid");
-		log_printf("dawn:    %d:%02d\n", sun.dawn / 60, sun.dawn % 60);
-		log_printf("sunrise: %d:%02d\n", sun.sunrise / 60, sun.sunrise % 60);
-		log_printf("sunset:  %d:%02d\n", sun.sunset / 60, sun.sunset % 60);
-		log_printf("dusk:    %d:%02d\n", sun.dusk / 60, sun.dusk % 60);
+		log_printf_no_timestamp("  dawn:    %d:%02d\n", sun.dawn / 60, sun.dawn % 60);
+		log_printf_no_timestamp("  sunrise: %d:%02d\n", sun.sunrise / 60, sun.sunrise % 60);
+		log_printf_no_timestamp("  sunset:  %d:%02d\n", sun.sunset / 60, sun.sunset % 60);
+		log_printf_no_timestamp("  dusk:    %d:%02d\n", sun.dusk / 60, sun.dusk % 60);
 		}
 	}
 
@@ -722,6 +722,17 @@ event_process(void)
 		start = FALSE;
 		if (day_tick || !sun.initialized)
 			{
+			if (sun.initialized)
+				{
+				char	tbuf[32];
+
+				log_printf_no_timestamp("\n========================================================\n");
+				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
+				log_printf_no_timestamp("%s ================== New Day ==================\n", tbuf);
+				log_printf_no_timestamp("========================================================\n");
+
+				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
+				}
 			sun_times_init();
 			sun.initialized = TRUE;
 			}
@@ -742,7 +753,7 @@ at_command_add(char *at_line)
 		return;
 	if (n != 3)
 		{
-		log_printf("Bad at command: %s\n", at_line);
+		log_printf_no_timestamp("Bad at command: %s\n", at_line);
 		return;
 		}
 	at = (AtCommand *) calloc(1, sizeof(AtCommand));
@@ -751,7 +762,7 @@ at_command_add(char *at_line)
 	at->command = strdup(cmd);
 	at_command_list = slist_append(at_command_list, at);
 
-	log_printf("at_command_add [%s] at: %s  command: [%s]\n",
+	log_printf_no_timestamp("at_command_add [%s] at: %s  command: [%s]\n",
 				at->frequency, at->at_time, at->command);
 	}
 

@@ -316,11 +316,15 @@ vcb_video_write(VideoCircularBuffer *vcb)
 		return;
 
 	if (vcb->tail < vcb->head)
+		{
 		fwrite(vcb->data + vcb->tail, vcb->head - vcb->tail, 1, vcb->file);
+		pikrellcam.video_size += vcb->head - vcb->tail;
+		}
 	else
 		{
 		fwrite(vcb->data + vcb->tail, vcb->size - vcb->tail, 1, vcb->file);
 		fwrite(vcb->data, vcb->head, 1, vcb->file);
+		pikrellcam.video_size += vcb->head + vcb->size - vcb->tail;
 		}
 	vcb->tail = vcb->head;
 	}
@@ -434,6 +438,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  video data close to the pre_capture time we want.
 			*/
 			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
+			pikrellcam.video_header_size = vcb->h264_header_position;
+			pikrellcam.video_size = vcb->h264_header_position;
 			vcb->tail = vcb->key_frame[vcb->pre_frame_index].position;
 			vcb_video_write(vcb);
 			vcb->record_start = t_cur - pikrellcam.motion_times.pre_capture;
@@ -451,6 +457,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  So manual records may have up to about a sec pre_capture.
 			*/
 			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
+			pikrellcam.video_header_size = vcb->h264_header_position;
+			pikrellcam.video_size = vcb->h264_header_position;
 			vcb->tail = vcb->key_frame[vcb->cur_frame_index].position;
 			vcb->record_start = t_cur;
 			vcb->state = VCB_STATE_MANUAL_RECORD;

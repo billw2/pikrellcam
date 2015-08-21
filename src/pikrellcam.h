@@ -241,7 +241,7 @@ typedef struct
 	MotionVector	*vectors;
 	CompositeVector	frame_vector,
 					preview_frame_vector,
-					final_preview_vector;;
+					final_preview_vector;
 	CompositeVector	best_region_vector,
 					best_motion_vector;
 	int16_t			*trigger;
@@ -424,7 +424,9 @@ typedef struct
 			*video_manual_tag,
 			*video_motion_tag;
 	int		video_manual_sequence,
-			video_motion_sequence;
+			video_motion_sequence,
+			video_header_size,
+			video_size;
 	FILE	*video_file;
 	
 	boolean	video_mp4box;
@@ -440,7 +442,7 @@ typedef struct
 	char	*still_filename,
 			*still_last_save;
 	int		still_sequence;
-	boolean	still_capture_event;;
+	boolean	still_capture_event;
 	char	*on_still_capture_cmd;
 
 	char	*timelapse_video_name,
@@ -602,6 +604,7 @@ void			config_timelapse_save_status(void);
 void			config_timelapse_load_status(void);
 
 char		*fname_base(char *path);
+void		log_printf_no_timestamp(char *fmt, ...);
 void		log_printf(char *fmt, ...);
 void		video_record_start(VideoCircularBuffer *vcb, int);
 void		video_record_stop(VideoCircularBuffer *vcb);

@@ -28,7 +28,7 @@ PiKrellCam	pikrellcam;
 TimeLapse	time_lapse;
 
 static char	*pgm_name;
-
+static boolean	quit_flag;
 
   /* Substitute fmt_arg into str to replace a "$V" substitution variable. 
   |  "str" argument must be allocated memory.
@@ -90,7 +90,7 @@ fname_base(char *path)
 	}
 
 void
-log_printf(char *fmt, ...)
+log_printf_no_timestamp(char *fmt, ...)
 	{
 	va_list	args;
 	FILE	*f;
@@ -100,6 +100,29 @@ log_printf(char *fmt, ...)
 		vfprintf(stderr, fmt, args);
 	if ((f = fopen(pikrellcam.log_file, "a")) != NULL)
 		{
+		vfprintf(f, fmt, args);
+		fclose(f);
+		}
+	va_end(args);
+	}
+
+void
+log_printf(char *fmt, ...)
+	{
+	va_list	args;
+	FILE	*f;
+	char	tbuf[32];
+
+	va_start(args, fmt);
+	strftime(tbuf, sizeof(tbuf), "%T", localtime(&pikrellcam.t_now));
+	if (pikrellcam.verbose)
+		{
+		fprintf(stderr, "%s : ", tbuf);
+		vfprintf(stderr, fmt, args);
+		}
+	if ((f = fopen(pikrellcam.log_file, "a")) != NULL)
+		{
+		fprintf(f, "%s : ", tbuf);
 		vfprintf(f, fmt, args);
 		fclose(f);
 		}
@@ -409,12 +432,15 @@ video_record_stop(VideoCircularBuffer *vcb)
 	fclose(vcb->file);
 	vcb->file = NULL;
 
-	log_printf("Video %s record stopped.\n",
-			(vcb->state & VCB_STATE_MOTION_RECORD) ? "motion" : "manual");
+	log_printf("Video %s record stopped. Header size: %d  h264 file size: %d\n",
+			(vcb->state & VCB_STATE_MOTION_RECORD) ? "motion" : "manual",
+			pikrellcam.video_header_size, pikrellcam.video_size);
+	if (pikrellcam.verbose_motion && !pikrellcam.verbose)
+		printf("***Motion record stop: %s\n", pikrellcam.video_pathname);
 
 	if (pikrellcam.video_mp4box)
 		{
-		asprintf(&cmd, "(MP4Box %s -fps %d -add %s %s %s ; rm %s)",
+		asprintf(&cmd, "(MP4Box %s -fps %d -add %s %s %s && rm %s)",
 				pikrellcam.verbose ? "" : "-quiet",
 				pikrellcam.camera_adjust.video_mp4box_fps,
 				pikrellcam.video_h264, pikrellcam.video_pathname,
@@ -463,6 +489,9 @@ video_record_stop(VideoCircularBuffer *vcb)
 static boolean
 get_arg_pass1(char *arg)
 	{
+	if (!strcmp(arg, "-quit"))
+		quit_flag = TRUE;
+
 	if (!strcmp(arg, "-V") || !strcmp(arg, "--version"))
 		{
 		printf("%s Version %d.%d\n", pgm_name, 1, 0);
@@ -516,6 +545,7 @@ typedef enum
 	video_fps,
 	video_mp4box_fps,
 	save_config,
+	delete_log,
 	quit
 	}
 	CommandCode;
@@ -553,6 +583,7 @@ static Command commands[] =
 	{ "video_fps", video_fps,  1 },
 	{ "video_mp4box_fps", video_mp4box_fps,  1 },
 	{ "save_config", save_config,    0 },
+	{ "delete_log", delete_log,    0 },
 	{ "quit",        quit,    0 },
 	};
 
@@ -748,6 +779,10 @@ command_process(char *command_line)
 			config_save(pikrellcam.config_file);
 			break;
 
+		case delete_log:
+			unlink(pikrellcam.log_file);
+			break;
+
 		case quit:
 			config_timelapse_save_status();
 			if (pikrellcam.config_modified)
@@ -757,7 +792,7 @@ command_process(char *command_line)
 			break;
 
 		default:
-			log_printf("command in table with no action!\n");
+			log_printf_no_timestamp("command in table with no action!\n");
 			break;
 		}
 	}
@@ -801,7 +836,7 @@ make_fifo(char *fifo_path)
 	if ((fifo_exists = isfifo(fifo_path)) == FALSE)
 		{
         if (mkfifo(fifo_path, 0664) < 0)
-		    log_printf("Make fifo %s failed: %m\n", fifo_path);
+		    log_printf_no_timestamp("Make fifo %s failed: %m\n", fifo_path);
 		else
 			fifo_exists = TRUE;
 		}
@@ -819,7 +854,7 @@ make_dir(char *dir)
 		{
 		exec_wait("sudo mkdir -p $F", dir);
 		if ((dir_exists = isdir(dir)) == FALSE)
-			log_printf("Make directory failed: %s\n", dir);
+			log_printf_no_timestamp("Make directory failed: %s\n", dir);
 		else
 			dir_exists = TRUE;
 		}
@@ -862,6 +897,20 @@ main(int argc, char *argv[])
 		config_save(pikrellcam.config_file);
 	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file))
 		motion_regions_config_save(pikrellcam.motion_regions_config_file);
+
+	if (*pikrellcam.log_file != '/')
+		{
+		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, pikrellcam.log_file);
+		dup_string(&pikrellcam.log_file, buf);
+		}
+	if (!quit_flag)
+		{
+		log_printf_no_timestamp("\n========================================================\n");
+		strftime(buf, sizeof(buf), "%F %T", localtime(&pikrellcam.t_now));
+		log_printf_no_timestamp("%s ======== PiKrellCam started ========\n", buf);
+		log_printf_no_timestamp("========================================================\n");
+		}
+
 	if (!at_commands_config_load(pikrellcam.at_commands_config_file))
 		at_commands_config_save(pikrellcam.at_commands_config_file);
 
@@ -897,7 +946,7 @@ main(int argc, char *argv[])
 		    && !mmalcam_config_parameter_set(opt, arg, FALSE)
 		   )
 			{
-			log_printf("Bad arg: %s\n", opt);
+			log_printf_no_timestamp("Bad arg: %s\n", opt);
 			exit(1);
 			}
 		}
@@ -906,18 +955,11 @@ main(int argc, char *argv[])
 	user = strrchr(homedir, '/');
 	pikrellcam.effective_user = strdup(user ? user + 1 : "pi");
 
-	if (*pikrellcam.log_file != '/')
-		{
-		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, pikrellcam.log_file);
-		dup_string(&pikrellcam.log_file, buf);
-		}
 	if (*pikrellcam.media_dir != '/')
 		{
 		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, pikrellcam.media_dir);
 		dup_string(&pikrellcam.media_dir, buf);
 		}
-	strftime(buf, sizeof(buf), "%F %T", localtime(&pikrellcam.t_now));
-	log_printf("\n%s ==== PiKrellCam started ====\n", buf);
 
 	snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, "www");
 	check_modes(buf, 0775);
@@ -926,8 +968,8 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.script_dir, "%s/scripts", pikrellcam.install_dir);
 	asprintf(&pikrellcam.mjpeg_filename, "%s/mjpeg.jpg", pikrellcam.mjpeg_dir);
 
-	log_printf("using FIFO: %s\n", pikrellcam.command_fifo);
-	log_printf("using mjpeg: %s\n", pikrellcam.mjpeg_filename);
+	log_printf_no_timestamp("using FIFO: %s\n", pikrellcam.command_fifo);
+	log_printf_no_timestamp("using mjpeg: %s\n", pikrellcam.mjpeg_filename);
 
 
 	/* Subdirs must match www/config.php and the init script is supposed
@@ -949,6 +991,7 @@ main(int argc, char *argv[])
 	*/
 	exec_wait(pikrellcam.on_startup_cmd, NULL);
 	check_modes(pikrellcam.media_dir, 0775);
+	check_modes(pikrellcam.log_file, 0664);
 
 	if (   !make_dir(pikrellcam.mjpeg_dir)
 	    || !make_dir(pikrellcam.video_dir)

@@ -47,6 +47,15 @@ else
 	fi
 fi
 
+if ! grep -q $LOG_FILE $WWW_CONFIG
+then
+	CMD="/LOG_FILE/c\	define\(\"LOG_FILE\", \"LOG_FILE\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: LOG_FILE updated to: $LOG_FILE" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: LOG_FILE not changed." >> $LOG_FILE
+fi
+
 if ! grep -q $MJPEG_FILE $WWW_CONFIG
 then
 	CMD="/MJPEG_FILE/c\	define\(\"MJPEG_FILE\", \"$MJPEG_FILE\"\);"

@@ -17,6 +17,7 @@
 // The others are fixed by the install and enforced by the startup script.
 // It is no use to change these here.
 //
+	define("LOG_FILE", "/tmp/pikrellcam.log");
 	define("MJPEG_FILE", "/run/pikrellcam/mjpeg.jpg");
 	define("PIKRELLCAM", "/home/pi/pikrellcam/pikrellcam");
 	define("FIFO_FILE", "/home/pi/pikrellcam/www/FIFO");
