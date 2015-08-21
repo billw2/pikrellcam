@@ -421,8 +421,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
 		printf("%s motion count:%d fail:%d window:%d  %s\n",
 			tbuf, motion_count, fail_count, mf->frame_window,
-			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "");
-		printf("\n");
+			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "\n");
 		}
 
 	if (mf->motion_status == MOTION_DETECTED  && mf->motion_enable)
@@ -449,7 +448,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				mf->do_preview_save_cmd = TRUE;
 				}
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
-				printf("***Motion record start: %s\n", pikrellcam.video_pathname);
+				printf("***Motion record start: %s\n\n", pikrellcam.video_pathname);
 			}
 		else if (vcb->state == VCB_STATE_MOTION_RECORD)
 			{
@@ -471,7 +470,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				*/
 				}
 			if (pikrellcam.verbose_motion)
-				printf("==>Motion record bump: %s\n", pikrellcam.video_pathname);
+				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
 			}
 		}
 	}
