@@ -252,9 +252,9 @@ else
                    echo "<img src='images/paper1.png'
 						style='width:150px; height:150px; border:6px groove silver;'>";
 				}
-			// Offset to left of center 120px (compensate for 150px thumb)
+			// Offset to left of center 30px (compensate for 150px thumb)
 			echo "<div style='margin: auto; overflow: visible;'>";
-			echo   "<div style='margin-right:130px;'>";
+			echo   "<div style='margin-right:30px;'>";
 			  echo "<selected>&nbsp; $selected</selected>";
 
 			echo "<input type='button' value='<'
@@ -272,7 +272,7 @@ else
                   > ";
               echo "<input type='button' value='Delete'
                       class='btn-control alert-control'
-                      style='margin-left: 28px;'
+                      style='margin-left: 80px;'
 				      onclick='window.location=\"media.php?dir=$media_dir&delete=" . $selected . "\";'
                   > &nbsp;";
             echo "</div>";
