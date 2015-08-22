@@ -69,12 +69,14 @@ function dump_log()
 //			unlink("$log_file");
 			}
 
-		echo "<div style='margin-top:16px;'>";
+		echo '<div id="" style="overflow-y: scroll; height:770px; overflow-x: auto; border:4px groove silver">';
+//		echo "<div style='margin-top:16px;'>";
 		dump_log();
+		echo "<a id='anchor'></a>";
 		echo   "</div>";
 
 		echo "<div style='margin-top:16px;'>";
-		echo "<a href='index.php' id='anchor' class='btn-control'
+		echo "<a href='index.php' class='btn-control'
 			style='margin-left:8px;'>
 			$title</a>";
 
