@@ -1,3 +1,18 @@
+<script>
+function scroll_to_anchor()
+    {
+    document.getElementById("anchor").scrollIntoView(true);
+    }
+</script>
+
+<style type="text/css">
+a.anchor
+    {
+    display: block; position: relative; top: -250px; visibility: hidden;
+    }
+</style>
+
+
 <?php
 require_once(dirname(__FILE__) . '/config.php');
 
@@ -25,7 +40,7 @@ function dump_log()
     <link rel="stylesheet" href="js-css/pikrellcam.css" />
   </head>
 
-  <body background="images/paper1.png">
+  <body onload="scroll_to_anchor()" background="images/paper1.png">
     <div>
 		<?php
 //ini_set('display_errors',1);
@@ -59,7 +74,7 @@ function dump_log()
 		echo   "</div>";
 
 		echo "<div style='margin-top:16px;'>";
-		echo "<a href='index.php' class='btn-control'
+		echo "<a href='index.php' id='anchor' class='btn-control'
 			style='margin-left:8px;'>
 			$title</a>";
 
