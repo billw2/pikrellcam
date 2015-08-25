@@ -67,6 +67,7 @@ static Sun	sun;
 static int
 exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 	{
+	struct tm *tm_now;
 	CompositeVector *frame_vec = &motion_frame.final_preview_vector;
 	char	specifier, *fmt, *fmt_arg, *copy, *cmd_line, *name, buf[BUFSIZ];
 	int		t, i, status = 0;
@@ -176,11 +177,23 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				snprintf(buf, sizeof(buf), "%d", t);
 				fmt_arg = buf;
 				break;
+			case 'D':	/* curtime dawn sunrise sunset dusk */
+				tm_now = localtime(&pikrellcam.t_now);
+				snprintf(buf, sizeof(buf), "%d %d %d %d %d",
+						tm_now->tm_hour * 60 + tm_now->tm_min,
+						sun.dawn, sun.sunrise, sun.sunset, sun.dusk);
+				fmt_arg = buf;
+				break;
+			case 'Z':
+				fmt_arg = pikrellcam.version;
+				break;
 
 			default:
 				fmt_arg = "?";
 				break;
 			}
+		if (!fmt_arg || !fmt_arg)
+			log_printf("  Bad fmt_arg %p for specifier %c\n", fmt_arg, specifier);
 		asprintf(&cmd_line, copy, fmt_arg);
 		free(copy);
 		copy = cmd_line;
@@ -615,8 +628,6 @@ event_process(void)
 		static int	at_notify_fd, at_notify_wd;
 		struct inotify_event *event;
 
-		if (pikrellcam.config_modified)
-			config_save(pikrellcam.config_file);
 		if (at_notify_fd == 0)
 			{
 			at_notify_fd = inotify_init();
@@ -643,6 +654,7 @@ event_process(void)
 					}
 				}
 			}
+
 		tm_now = &pikrellcam.tm_local;
 		minute_now = tm_now->tm_hour * 60 + tm_now->tm_min;
 
@@ -653,6 +665,23 @@ event_process(void)
 		hour_tick = (tm_now->tm_hour  != tm_prev.tm_hour)  ? TRUE : FALSE;
 		day_tick =  (tm_now->tm_mday  != tm_prev.tm_mday)  ? TRUE : FALSE;
 
+		if (day_tick || !sun.initialized)
+			{
+			if (sun.initialized)
+				{
+				char	tbuf[32];
+
+				log_printf_no_timestamp("\n========================================================\n");
+				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
+				log_printf_no_timestamp("%s ================== New Day ==================\n", tbuf);
+				log_printf_no_timestamp("========================================================\n");
+
+				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
+				}
+			sun_times_init();
+			sun.initialized = TRUE;
+			}
+
 		for (list = at_command_list; list; list = list->next)
 			{
 			at = (AtCommand *) list->data;
@@ -662,20 +691,20 @@ event_process(void)
 			else if ((p = strchr(at->at_time, '-')) != NULL)
 				minute_offset = -atoi(p + 1);
 
-			if (!strcmp(at->at_time, "start")  && start == TRUE)
-				minute_at = minute_now;
+			if (!strcmp(at->at_time, "start"))
+				minute_at = start ? minute_now : 0;
 			else if (!strcmp(at->at_time, "minute"))
 				minute_at = minute_now;
-			else if (!strcmp(at->at_time, "5minute") && five_minute_tick)
-				minute_at = minute_now;
-			else if (!strcmp(at->at_time, "10minute") && ten_minute_tick)
-				minute_at = minute_now;
-			else if (!strcmp(at->at_time, "15minute") && fifteen_minute_tick)
-				minute_at = minute_now;
-			else if (!strcmp(at->at_time, "30minute") && thirty_minute_tick)
-				minute_at = minute_now;
-			else if (!strcmp(at->at_time, "hour") && hour_tick)
-				minute_at = minute_now;
+			else if (!strcmp(at->at_time, "5minute"))
+				minute_at = five_minute_tick ? minute_now : 0;
+			else if (!strcmp(at->at_time, "10minute"))
+				minute_at = ten_minute_tick ? minute_now : 0;
+			else if (!strcmp(at->at_time, "15minute"))
+				minute_at = fifteen_minute_tick ? minute_now : 0;
+			else if (!strcmp(at->at_time, "30minute"))
+				minute_at = thirty_minute_tick ? minute_now : 0;
+			else if (!strcmp(at->at_time, "hour"))
+				minute_at = hour_tick ? minute_now : 0;
 			else if (!strncmp(at->at_time, "dawn", 4))
 				minute_at = sun.dawn + minute_offset;
 			else if (!strncmp(at->at_time, "dusk", 4))
@@ -694,7 +723,11 @@ event_process(void)
 				if (*p == ':')
 					minute_at += strtol(p + 1, NULL, 10);
 				else
+					{
 					minute_at = 0;	/* error in at_time string */
+					log_printf("Error in at_command: [%s] bad at_time: [%s]\n",
+							at->command, at->at_time);
+					}
 				}
 			if (minute_now != minute_at)
 				continue;
@@ -720,22 +753,8 @@ event_process(void)
 				}
 			}
 		start = FALSE;
-		if (day_tick || !sun.initialized)
-			{
-			if (sun.initialized)
-				{
-				char	tbuf[32];
-
-				log_printf_no_timestamp("\n========================================================\n");
-				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
-				log_printf_no_timestamp("%s ================== New Day ==================\n", tbuf);
-				log_printf_no_timestamp("========================================================\n");
-
-				strftime(tbuf, sizeof(tbuf), "%F", localtime(&pikrellcam.t_now));
-				}
-			sun_times_init();
-			sun.initialized = TRUE;
-			}
+		if (pikrellcam.config_modified)
+			config_save(pikrellcam.config_file);
 		}
 	}
 
@@ -808,7 +827,8 @@ at_commands_config_save(char *config_file)
 	"#                     arg list, $l must be the last argument.\n"
 	"#                $T - timelapse video full path filename in video sub directory\n"
 	"#                $N - timelapse sequence last number\n"
-	"#                $n - timelapse series number\n"
+	"#                $D - current_time dawn sunrise sunset dusk\n"
+	"#                $Z - pikrellcam version\n"
 	"# \n"
 	"# Commands must be enclosed in quotes.\n"
 	"# Frequency and time strings must not contain any spaces.\n"

@@ -21,4 +21,6 @@
 	define("MJPEG_FILE", "/run/pikrellcam/mjpeg.jpg");
 	define("PIKRELLCAM", "/home/pi/pikrellcam/pikrellcam");
 	define("FIFO_FILE", "/home/pi/pikrellcam/www/FIFO");
+
+	define("VERSION", "1.0");
 ?>

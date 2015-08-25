@@ -50,4 +50,4 @@ BASE=`basename $PREVIEW_JPEG`
 THUMB_JPEG=${BASE%.jpg}.th.jpg
 
 convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG
-echo "convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE
+echo "  convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE

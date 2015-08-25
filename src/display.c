@@ -81,6 +81,22 @@ static DisplayCommand display_commands[] =
 
 #define N_DISPLAY_COMMANDS    (sizeof(display_commands) / sizeof(DisplayCommand))
 
+typedef struct
+	{
+	char		*string;
+	GlcdFont	*font;
+	int			row,
+				justify,
+				xs,
+				ys;
+	}
+	InformLine;
+
+#define	N_INFORM_LINES	10
+
+InformLine	inform_line[N_INFORM_LINES];
+
+
 static int	display_state;
 static int	display_menu;
 static int	display_action;
@@ -210,8 +226,9 @@ motion_draw(uint8_t *i420)
 	SList 			*mrlist;
 	char			*msg, info[100], status[100];
 	int16_t			color;			/* just B&W */
-	int				x, y, dx, dy, r_unit;
+	int				i, x, y, dx, dy, r_unit;
 	int				t_record, t_hold;
+	boolean			inform_shown = FALSE;
 
 	if (!glcd)
 		return;
@@ -224,7 +241,17 @@ motion_draw(uint8_t *i420)
 					JUSTIFY_RIGHT(0), "Vectors ON");
 		}
 
-	if (mf->show_regions)
+	for (i = 0; i < N_INFORM_LINES; ++i)
+		{
+		if (!inform_line[i].string)
+			continue;
+		inform_shown = TRUE;
+		i420_print(&inform_area, inform_line[i].font, 0xff,
+				inform_line[i].row, inform_line[i].xs, inform_line[i].ys,
+				inform_line[i].justify, inform_line[i].string);
+		}
+
+	if (!inform_shown && mf->show_regions)
 		{
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 			{
@@ -306,7 +333,7 @@ motion_draw(uint8_t *i420)
 		else
 			msg = "quiet";
 
-		snprintf(info, sizeof(info), "cnt:%d rej:%d spkl:%d %.1f",
+		snprintf(info, sizeof(info), "cnt:%-3d rej:%-3d spkl:%-3d %.1f",
 					mf->trigger_count, mf->reject_count,
 					mf->sparkle_count, mf->sparkle_expma);
 		i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
@@ -1194,6 +1221,50 @@ display_command(char *cmd)
 				*display_menu_index = i;
 				break;
 				}
+			}
+		}
+	}
+
+static void
+display_inform_expire(void)
+	{
+	int		i;
+
+	for (i = 0; i < N_INFORM_LINES; ++i)
+		{
+		if (!inform_line[i].string)
+			continue;
+		free(inform_line[i].string);
+		inform_line[i].string = NULL;
+		}
+	}
+
+void
+display_inform(char *args)
+	{
+	InformLine *iline;
+	char       str[128];
+	int        n = 0, font = 0, row = 0, xs = 0, ys = 0, justify = 4;
+
+	if (sscanf(args, "timeout %d\n", &n) == 1)
+		{
+		n = (n <= 0 || n > 30) ? pikrellcam.notify_duration : n;
+		event_count_down_add("display inform expire",
+				n * EVENT_LOOP_FREQUENCY, display_inform_expire, NULL);
+		}
+	else
+		{
+		n = sscanf(args, "\"%127[^\"]\" %d %d %d %d %d",
+				str, &row, &justify, &font, &xs, &ys);
+		if (n > 0 && row >= 0 && row < N_INFORM_LINES)
+			{
+			iline = &inform_line[row];
+			dup_string(&iline->string, str);
+			iline->row = row;
+			iline->justify = justify;
+			iline->font = (font == 0) ? normal_font : large_font;
+			iline->xs = xs;
+			iline->ys = ys;
 			}
 		}
 	}

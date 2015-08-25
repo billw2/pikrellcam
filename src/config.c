@@ -155,9 +155,9 @@ ParameterTable image_fx_table[] =
 	{ MMAL_PARAM_IMAGEFX_NONE,          "none" },
 	{ MMAL_PARAM_IMAGEFX_NEGATIVE,      "negative" },
 	{ MMAL_PARAM_IMAGEFX_SOLARIZE,      "solarize" },
-	{ MMAL_PARAM_IMAGEFX_POSTERIZE,     "posterize" },
-	{ MMAL_PARAM_IMAGEFX_WHITEBOARD,    "whiteboard" },
-	{ MMAL_PARAM_IMAGEFX_BLACKBOARD,    "blackboard" },
+//	{ MMAL_PARAM_IMAGEFX_POSTERIZE,     "posterize" },
+//	{ MMAL_PARAM_IMAGEFX_WHITEBOARD,    "whiteboard" },
+//	{ MMAL_PARAM_IMAGEFX_BLACKBOARD,    "blackboard" },
 	{ MMAL_PARAM_IMAGEFX_SKETCH,        "sketch" },
 	{ MMAL_PARAM_IMAGEFX_DENOISE,       "denoise" },
 	{ MMAL_PARAM_IMAGEFX_EMBOSS,        "emboss" },
@@ -172,8 +172,8 @@ ParameterTable image_fx_table[] =
 	{ MMAL_PARAM_IMAGEFX_COLOURSWAP,    "colorswap" },
 	{ MMAL_PARAM_IMAGEFX_WASHEDOUT,     "washedout" },
 	{ MMAL_PARAM_IMAGEFX_POSTERISE,     "posterise" },
-	{ MMAL_PARAM_IMAGEFX_COLOURPOINT,   "colorpoint" },
-	{ MMAL_PARAM_IMAGEFX_COLOURBALANCE, "colourbalance" },
+//	{ MMAL_PARAM_IMAGEFX_COLOURPOINT,   "colorpoint" },
+//	{ MMAL_PARAM_IMAGEFX_COLOURBALANCE, "colourbalance" },
 	{ MMAL_PARAM_IMAGEFX_CARTOON,       "cartoon" }
 	};
 
@@ -456,8 +456,8 @@ mmalcam_config_parameter_set(char *name, char *arg, boolean set_camera)
 			break;
 			}
 		}
-	if (status != MMAL_SUCCESS || (found && pikrellcam.verbose))
-		printf("mmalcam_config_parameter_set: %s %s [%s]\n", name, arg,
+	if (status != MMAL_SUCCESS)
+		log_printf("mmalcam_config_parameter_set: %s %s [%s]\n", name, arg,
 				!found ? "not found" :
 					(set_camera ? mmal_status[status] : "config set (not camera)"));
 	return (found && (status == MMAL_SUCCESS));
@@ -476,7 +476,7 @@ mmalcam_config_parameters_set_camera(void)
 			{
 			status = (param->func)(param->name, param->arg);
 			if (status != MMAL_SUCCESS)
-				printf("mmalcam_all_parameter_set: %s %s  \t[%s]\n",
+				log_printf("mmalcam_all_parameter_set: %s %s  \t[%s]\n",
 							param->name, param->arg, mmal_status[status]);
 			}
 		}
@@ -892,6 +892,7 @@ config_set_defaults(void)
 							cfg->option, cfg->arg);
 		}
 
+	pikrellcam.version = strdup(PIKRELLCAM_VERSION);
 	pikrellcam.timelapse_format = strdup("tl_$n_$N.jpg");
 	pikrellcam.preview_filename = strdup("");
 	gethostname(pikrellcam.hostname, HOST_NAME_MAX);	

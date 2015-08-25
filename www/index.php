@@ -1,5 +1,7 @@
 <?php
 	require_once(dirname(__FILE__) . '/config.php');
+	include_once(dirname(__FILE__) . '/config-user.php');
+	include_once(dirname(__FILE__) . '/config-defaults.php');	
 ?>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -16,13 +18,13 @@
   <link rel="stylesheet" href="js-css/expandable-panels.css" />
 </head>
 
-<body background="images/paper1.png" onload="mjpeg_start();">
-    <div class="text-center">
-      <?php
+<?php
+echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
+    echo "<div class=\"text-center\">";
         echo "<div class='text-shadow-large'>";
         echo TITLE_STRING;
         echo "</div>";
-      ?>
+?>
     </div>
       <div class="text-center">
         <img id="mjpeg_image"
@@ -52,7 +54,7 @@
     </div>
 
 	<div id="container" class="top-margin">
-      Files:
+      <?php echo "<span style=\"color: $default_text_color\"> Files:</span>"; ?>
       <a href="media.php?dir=<?php echo VIDEO_DIR; ?>"
         class="btn-control"
       >Videos</a>
@@ -63,13 +65,13 @@
         class="btn-control"
         style="margin-right:20px;"
       >Stills</a>
-      Enable:
+
+      <?php echo "<span style=\"color: $default_text_color\"> Enable:</span>"; ?>
       <input type="button" id="motion_button" value="Motion"
          onclick="fifo_command('motion_enable toggle')"
          class="btn-control motion-control"
       >
-      <span style="float: right;">
-        Show:
+      <?php echo "<span style=\"float: right; color: $default_text_color\"> Show:"; ?>
         <input id="timelapse_button" type="button" value="Timelapse"
 						onclick="fifo_command('tl_show_status toggle')"
 						class="btn-control motion-control"
@@ -280,9 +282,7 @@
               <table class="table-container">
                 <tr>
                   <td>
-                    <span style="font-weight:600;">
-                    Camera Config
-                    </span>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Camera Config </span>"; ?>
                     <div class="text-center">
                       <input type="button" value="Video Presets"
                         class="btn-menu"
@@ -301,9 +301,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <span style="font-weight:600;">
-                    Camera Params
-                    </span>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Camera Params </span>"; ?>
                     <div class="text-center">
                       <input type="button" value="Picture"
                         class="btn-menu"
@@ -330,9 +328,7 @@
                 </tr>
                 <tr>
                   <td>
-                    <span style="font-weight:600;">
-                    Motion
-                    </span>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Motion </span>"; ?>
                     <div class="text-center" >
                       <input type="button" value="Vector Limits"
                         class="btn-menu"
@@ -351,13 +347,12 @@
                 </tr>
                 <tr>
                   <td>
-                    <span style="font-weight:600;">Time Lapse</span>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Time Lapse </span>"; ?>
                     <div>
-                      <span style="margin-left:40px;">
-                        Period
-                      </span>
+                    <?php echo "<span style=\"margin-left:40px; font-weight:600; color: $default_text_color\"> Period </span>"; ?>
                       <input type="text" id="tl_period" value="0" size="3"
-                      >sec
+                      >
+                    <?php echo "<span style=\"margin-left:4px; color: $default_text_color\"> sec </span>"; ?>
                       <input type="button" value="Start"
                         class="btn-menu"
                         onclick="tl_start();"
@@ -385,18 +380,29 @@
             <h3>System<span class="icon-close-open"></span></h3>
       </div>
         <div class="expandable-panel-content text-center">
-          <input id="stop_button" type="button" value="Stop PiKrellCam"
+          <?php
+            $version = VERSION;
+            echo "<span style=\"font-weight:600; color: $default_text_color\">
+             PiKrellCam V${version}: </span>";
+          ?>
+          <input id="stop_button" type="button" value="Stop"
             onclick="pikrellcam('stop');"
             class="btn-control alert-control"
           >
 
-          <input id="start_button" type="button" value="Start PiKrellCam"
+          <input id="start_button" type="button" value="Start"
             onclick="pikrellcam('start');"
             class="btn-control"
           >
 
           <input id="log_button" type="button" value="Log"
+            style="margin-left:32px;"
             onclick="window.location='log.php';"
+            class="btn-control"
+          >
+          <input id="upgrade_button" type="button" value="Upgrade"
+            style="margin-left:16px;"
+            onclick="fifo_command('upgrade')"
             class="btn-control"
           >
         </div>

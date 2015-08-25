@@ -50,10 +50,14 @@
 
 #include "utils.h"
 
+#define	PIKRELLCAM_VERSION	"1.1.0"
+
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))
 #define MIN(a,b)	(((a) < (b)) ? (a) : (b))
 #endif
+
+#define	EVENT_LOOP_FREQUENCY	10
 
 #define PIKRELLCAM_CONFIG_DIR					".pikrellcam"
 #define PIKRELLCAM_CONFIG						"pikrellcam.conf"
@@ -189,7 +193,8 @@ typedef struct
 
 	int		box_w,			/* A box around the composite center for testing */
 			box_h,			/*  the vector concentration composing the cvec  */
-			in_box_count;	/* Count of motion vectors inside of box */
+			in_box_count,	/* Count of motion vectors inside of box */
+			in_box_rejects;
 	boolean	vertical;
 	}
 	CompositeVector;
@@ -371,6 +376,7 @@ typedef struct
 	int		second_tick;
 
 	char	*install_dir,
+			*version,
 			*media_dir,
 			*video_dir,
 			*thumb_dir,
@@ -633,6 +639,8 @@ boolean	display_is_default();
 void	display_set_default(void);
 void	display_command(char *cmd_line);
 void	display_draw(uint8_t *i420);
+void	display_inform(char *args);
+
 void	display_quit(void);
 
 /* Events */

@@ -16,18 +16,8 @@ a.anchor
 <?php
 require_once(dirname(__FILE__) . '/config.php');
 
-include_once(dirname(__FILE__) . '/config-media.php');
-
-function config_media_save($name_style, $n_columns)
-	{
-	$file = fopen("config-media.php", "w");
-	fwrite($file, "<?php\n");
-	fwrite($file, "define(\"NAME_STYLE\", \"$name_style\");\n");
-	fwrite($file, "define(\"N_COLUMNS\", \"$n_columns\");\n");
-	fwrite($file, "?>\n");
-	fclose($file);
-	chmod("config-media.php", 0666);
-	}
+include_once(dirname(__FILE__) . '/config-user.php');
+include_once(dirname(__FILE__) . '/config-defaults.php');
 
 
 function eng_filesize($bytes, $decimals = 1)
@@ -114,15 +104,6 @@ function next_select($dir, $cur_file)
 	return $next_file;
 	}
 
-if (defined('N_COLUMNS'))
-    $n_columns = N_COLUMNS;
-else
-	$n_columns = 4;
-
-if (defined('NAME_STYLE'))
-    $name_style = NAME_STYLE;
-else
-	$name_style = "short";
 
 //echo "<script type='text/javascript'>alert('$name_style $n_columns');</script>";
 ?>
@@ -135,9 +116,9 @@ else
     <link rel="stylesheet" href="js-css/pikrellcam.css" />
   </head>
 
-  <body onload="scroll_to_selected()" background="images/paper1.png">
-    <div>
-		<?php
+  <?php
+  echo "<body onload=\"scroll_to_selected()\" background=\"$background_image\">";
+    echo "<div>";
 		echo "<div class='text-center'>";
 		// Offset TITLE_STRING to left of center 120px (compensate for 150px thumb)
 		echo "<div style='margin: auto; overflow: visible;'>";
@@ -287,7 +268,7 @@ else
 		echo "</div>";
 
 		echo "<div style='margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
-		echo "<span style='font-size: 1.2em; font-weight: bold;'>
+		echo "<span style=\"font-size: 1.2em; font-weight: bold; color: $default_text_color\">
 				$media_dir</span>";
 		$disk_total = disk_total_space($media_dir);
 		$disk_free = disk_free_space($media_dir);
@@ -295,7 +276,8 @@ else
 		$total = eng_filesize($disk_total);
 		$free = eng_filesize($disk_free);
 		$used = eng_filesize($disk_total - $disk_free);
-		echo "<span style='margin-left: 30px; font-size: 1.0em;'>
+
+		echo "<span style=\"margin-left: 30px; font-size: 1.0em; color: $default_text_color\">
 			Total: ${total}B &nbsp &nbsp Free: ${free}B &nbsp &nbsp Used: ${used}B ($used_percent %)</span>";
 		echo "</div>";
 
@@ -308,7 +290,13 @@ else
 			{
 			$ymd_header = "";
 
-			echo '<div id="" style="overflow-y: scroll; height:380px; overflow-x: auto; border:4px groove silver">';
+			if ("$media_dir" == "media/videos")
+				$div_style = "overflow-y: scroll; height:${n_video_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+			else
+				$div_style = "overflow-y: scroll; height:${n_still_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+
+//			echo '<div id="" style="overflow-y: scroll; height:380px; overflow-x: auto; border:4px groove silver">';
+			echo "<div style=\"$div_style\">";
 			echo "<table width='100%' cellpadding='2'>";
 			for ($k = 0; $k < $n_files; $k = $last)
 				{
@@ -363,15 +351,15 @@ else
 								{
 								echo "<a id='selected' class='anchor'></a>";
 								echo "<a href='media.php?dir=$media_dir&file=$fname'
-									style='color: #500808; text-decoration: none;'>$display_name</a>
+									style=\"color: $selected_text_color; text-decoration: none;\">$display_name</a>
 									<span style='font-size: 0.85em;'>($fsize)</span>";
 								}
 							else
 								{
 								if (substr($fname, 0, 3) == "man")
-									$color = "#085008";
+									$color = $manual_video_text_color;
 								else
-									$color = "#0000EE";
+									$color = $media_text_color;
 								echo "<a href='media.php?dir=$media_dir&file=$fname'
 									style='color: $color; text-decoration: none;'>$display_name</a>
 									<span style='font-size: 0.86em;'>($fsize)</span>";
@@ -391,16 +379,33 @@ else
 			echo "<a href='index.php' class='btn-control'
 				style='margin-left:8px;'>
 				$title</a>";
-			echo "<a href='thumbs.php' class='btn-control'
-				style='margin-left:8px;'>
-				Thumbs</a>";
+			if ("$media_dir" == "media/videos")
+				{
+				echo "<a href='thumbs.php' class='btn-control'
+					style='margin-left:8px;'>
+					Thumbs</a>";
+
+				$still_dir = STILL_DIR;
+				echo "<a href=\"media.php?dir=${still_dir}\"
+						class='btn-control' style='margin-left:8px;'> Stills</a>";
+				}
+			else
+				{
+				$video_dir = VIDEO_DIR;
+				echo "<a href=\"media.php?dir=${video_dir}\"
+						class='btn-control' style='margin-left:8px;'> Videos</a>";
+
+				echo "<a href='thumbs.php' class='btn-control'
+					style='margin-left:8px;'>
+					Thumbs</a>";
+				}
 			echo "<input type='button' value='Delete All'
 				class='btn-control alert-control'
 				style='margin-left:32px;'
 				onclick='if (confirm(\"Delete all?\"))
 				 {window.location=\"media.php?dir=$media_dir&delete_all\";}'>";
 
-			echo "<div style='float: right;'>Columns:";
+			echo "<div style=\"float: right; color: $default_text_color\">Columns:";
 			$inc_column = $n_columns + 1;
 			$dec_column = $n_columns - 1;
 			if ($n_columns > 2)
@@ -412,7 +417,7 @@ else
 					class='btn-control' style='margin-left:6px;'
 					onclick='window.location=\"media.php?dir=$media_dir&n_columns=$inc_column&selected=$selected\";'>";
 
-			echo "<span style='margin-left:12px;'>Names:</span>";
+			echo "<span style=\"margin-left:12px; color: $default_text_color\">Names:</span>";
 
 			if ($name_style == "short")
 				$name_change = "full";

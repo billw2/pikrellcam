@@ -22,7 +22,6 @@
 #include <signal.h>
 #include <locale.h>
 
-#define	EVENT_LOOP_FREQUENCY	10
 
 PiKrellCam	pikrellcam;
 TimeLapse	time_lapse;
@@ -494,7 +493,7 @@ get_arg_pass1(char *arg)
 
 	if (!strcmp(arg, "-V") || !strcmp(arg, "--version"))
 		{
-		printf("%s Version %d.%d\n", pgm_name, 1, 0);
+		printf("%s\n", pikrellcam.version);
 		exit(0);
 		}
 	else if (!strcmp(arg, "-h") || !strcmp(arg, "--help"))
@@ -544,8 +543,10 @@ typedef enum
 	                    /* to cancel the menu or adjustment. */
 	video_fps,
 	video_mp4box_fps,
+	inform,
 	save_config,
 	delete_log,
+	upgrade,
 	quit
 	}
 	CommandCode;
@@ -582,8 +583,10 @@ static Command commands[] =
 
 	{ "video_fps", video_fps,  1 },
 	{ "video_mp4box_fps", video_mp4box_fps,  1 },
+	{ "inform", inform,    1 },
 	{ "save_config", save_config,    0 },
 	{ "delete_log", delete_log,    0 },
+	{ "upgrade", upgrade,    0 },
 	{ "quit",        quit,    0 },
 	};
 
@@ -594,7 +597,7 @@ command_process(char *command_line)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	Command	*cmd;
-	char	command[64], args[128], buf[32], *path;
+	char	command[64], args[128], buf[128], *path;
 	int		i, n;
 
 	if (!command_line || *command_line == '\0')
@@ -616,6 +619,8 @@ command_process(char *command_line)
 			break;
 			}
 		}
+	if (!cmd || (cmd->code != display_cmd && cmd->code != inform))
+		log_printf("command_process: %s\n", command_line);
 	if (!cmd)
 		{
 		if (   !config_set_option(command, args, FALSE)
@@ -626,8 +631,6 @@ command_process(char *command_line)
 			pikrellcam.config_modified = TRUE;
 		return;
 		}
-	if (cmd->code != display_cmd)
-		log_printf("command_process: %s\n", command_line);
 
 	if (cmd->code < display_cmd && !display_is_default())
 		{
@@ -775,12 +778,22 @@ command_process(char *command_line)
 			pikrellcam.config_modified = TRUE;
 			break;
 
+		case inform:
+			display_inform(args);
+			break;
+
 		case save_config:
 			config_save(pikrellcam.config_file);
 			break;
 
 		case delete_log:
 			unlink(pikrellcam.log_file);
+			break;
+
+		case upgrade:
+			snprintf(buf, sizeof(buf), "%s/scripts-dist/_upgrade $I $P $G $Z",
+						pikrellcam.install_dir);
+			exec_no_wait(buf, NULL);
 			break;
 
 		case quit:
@@ -907,7 +920,7 @@ main(int argc, char *argv[])
 		{
 		log_printf_no_timestamp("\n========================================================\n");
 		strftime(buf, sizeof(buf), "%F %T", localtime(&pikrellcam.t_now));
-		log_printf_no_timestamp("%s ======== PiKrellCam started ========\n", buf);
+		log_printf_no_timestamp("%s ===== PiKrellCam %s started =====\n", buf, pikrellcam.version);
 		log_printf_no_timestamp("========================================================\n");
 		}
 

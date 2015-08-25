@@ -22,6 +22,8 @@
 
 #define EXPMA_SMOOTHING	0.01
 
+#define SMALL_OBJECT_COUNT	15
+
 
 MotionFrame		motion_frame;
 
@@ -131,6 +133,20 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			}
 		}
 
+	/* If sparkle noise, override configured limit_count (for dusk/dawn times).
+	|  In regions with no motion, this reduces chances of a spurious reject.
+	|  In regions with motion, this tries to raise limit_count above the noise
+	|  background, but sensitivity is reduced.
+	*/
+	x = (pikrellcam.motion_times.confirm_gap == 0)
+				? 2 * SMALL_OBJECT_COUNT / 3 : SMALL_OBJECT_COUNT;
+	if (mf->mag2_limit_count < x)
+		{
+		mf->mag2_limit_count += 2 * mreg->sparkle_count / 3;
+		if (mf->mag2_limit_count > x)
+			mf->mag2_limit_count = x;
+		}
+
 	/* If we are left with enough counts for a composite vector, filter out
 	|  motion vectors not pointing in the composite directon.
 	|  Vectors of sufficient mag2 but not pointing in the right direction
@@ -141,7 +157,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	|  cos(a) = (v1 dot v2) / mag(v1) * mag(v2))	# cos(25) = 0.906
 	|  100 * cos(25)^2 = 82 = 100 * (v1 dot v2)^2 / mag(v1)^2 * mag(v2)^2)
 	*/
-	if (tvec.mag2_count > mf->mag2_limit_count)
+	if (tvec.mag2_count >= mf->mag2_limit_count)
 		{
 		tvec.vx /= tvec.mag2_count;
 		tvec.vy /= tvec.mag2_count;
@@ -229,12 +245,17 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			}
 
 		cvec->in_box_count = 0;
+		cvec->in_box_rejects = 0;
 		for (y = cvec->y - cvec->box_h / 2; y <= cvec->y + cvec->box_h / 2; ++y)
 			{
 			for (x = cvec->x - cvec->box_w / 2; x <= cvec->x + cvec->box_w / 2; ++x)
 				{
-				if (*(mf->trigger + mf->width * y + x) > 2)
+				int  trig = *(mf->trigger + mf->width * y + x);
+
+				if (trig > 2)
 					cvec->in_box_count += 1;
+				else if (trig == 2)
+					cvec->in_box_rejects += 1;
 				}
 			}
 
@@ -249,7 +270,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		    || !pikrellcam.motion_vertical_filter
 		   )
 			{
-			if (cvec->mag2_count < 15)	/* Small object size could be configurable */
+			if (cvec->mag2_count < SMALL_OBJECT_COUNT)
 				{
 				if (   cvec->in_box_count > cvec->mag2_count * 8 / 10
 				    && cvec->mag2 < 5 * mf->mag2_limit
@@ -280,9 +301,9 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 				cvec->mag2_count, mreg->reject_count,
 				cvec->box_w, cvec->box_h);
 			printf(
-"   in_box_count:%d motion:%d vetical: %d sparkle:%d\n",
-				cvec->in_box_count, mreg->motion,
-				cvec->vertical, mreg->sparkle_count);
+"   in_box[count:%d rej:%d] motion:%d vetical:%d sparkle:%d limit_count:%d\n",
+				cvec->in_box_count, cvec->in_box_rejects, mreg->motion,
+				cvec->vertical, mreg->sparkle_count, mf->mag2_limit_count);
 			}
 		}
 	else
@@ -316,18 +337,20 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	cvec_count = 0;
 	mf->best_region_vector = zero_cvec;
 	mf->motion_area.x0 = mf->motion_area.y0 = mf->motion_area.x1 = mf->motion_area.y1 = 0;
+	mf->mag2_limit  = pikrellcam.motion_magnitude_limit * pikrellcam.motion_magnitude_limit;
+	mf->mag2_limit_count = pikrellcam.motion_magnitude_limit_count;
 
 	pthread_mutex_lock(&mf->region_list_mutex);
 	for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 		{
 		mreg = (MotionRegion *) mrlist->data;
 
-		/* Reset mag2 values at each call in case later I do some kind of
-		|  mag2_limit auto adjust in get_composite_vector().
+		get_composite_vector(mf, mreg);
+
+		/* Revert any dynamic mag2 adjust done in get_composite_vector().
 		*/
 		mf->mag2_limit  = pikrellcam.motion_magnitude_limit * pikrellcam.motion_magnitude_limit;
 		mf->mag2_limit_count = pikrellcam.motion_magnitude_limit_count;
-		get_composite_vector(mf, mreg);
 		}
 
 	motion_count = 0;
@@ -340,9 +363,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		mreg = (MotionRegion *) mrlist->data;
 		reg_vec = &mreg->vector;
 
-		if (   (   mreg->vector.mag2_count > 0
-		        || mreg->sparkle_count > 3   /* Look more at this */
-		       )
+		if (   mreg->vector.mag2_count > 0
 		    && mreg->motion == 0
 		   )
 			fail_count += 1;
@@ -413,15 +434,18 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	if (mf->frame_window > 0)
 		mf->frame_window -= 1;
 
-	if (pikrellcam.verbose_motion && any_count > 3)
+	if (pikrellcam.verbose_motion && (fail_count > 0 || motion_count > 0))
 		{
+		char	*motion_str;
+
 		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
 			any_count, mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
 
+		motion_str = mf->motion_enable ? "***MOTION***" : "***MOTION***\n";
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
 		printf("%s motion count:%d fail:%d window:%d  %s\n",
 			tbuf, motion_count, fail_count, mf->frame_window,
-			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "\n");
+			(mf->motion_status == MOTION_DETECTED) ? motion_str : "\n");
 		}
 
 	if (mf->motion_status == MOTION_DETECTED  && mf->motion_enable)
@@ -821,7 +845,8 @@ motion_command(char *cmd_line)
 
 		case LOAD_REGIONS:		/* load_regions config-name */
 			path = regions_custom_config(arg1);
-			motion_regions_config_load(path);
+			if (motion_regions_config_load(path))
+				mf->show_regions = TRUE;
 			free(path);
 			break;
 
@@ -953,7 +978,14 @@ motion_regions_config_load(char *config_file)
 	if (   !config_file
 	    || (f = fopen(config_file, "r")) == NULL
 	   )
+		{
+		snprintf(buf, sizeof(buf), "\"%s\" 4 3 1", fname_base(config_file));
+		display_inform("\"Cannot open motion regions file:\" 3 3 1");
+		display_inform(buf);
+		display_inform("timeout 6");
+		log_printf("Failed to open motion regions file: %s\n", config_file);
 		return FALSE;
+		}
 
 	save_show = motion_frame.show_regions;
 

@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Argument substitution done by PiKrellCam before running this script:
+#   $I - install directory full path
+#   $P - the fifo command file full path
+#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $Z - pikrellcam version number.
+# 
+
+INSTALL_DIR=$1
+FIFO=$2
+LOG_FILE=$3
+CURRENT_VERSION=$4
+
+cd $INSTALL_DIR
+
+CURRENT_COMMIT=`git log -1 --format=%cd`
+
+# echo "inform \"inform string\" row justify font xs ys" > $FIFO
+# row: 0 - 9  of the inform area.  10 large font rows may not fit.
+# justify: 4=left  3=center 2=left at x  1=center at x  0=right <0=right in field
+# font: 0=normal  1=large
+# xs, ys offsets in pixels
+#
+
+echo "inform \"PiKrellCam V$CURRENT_VERSION current commit:\" 1 3 1" > $FIFO
+echo "inform \"$CURRENT_COMMIT\" 2 3 1" > $FIFO
+echo "inform \"Checking for upgrade...\" 3 3 1" > $FIFO
+
+git fetch  &> /dev/null
+git reset --hard origin/master 2>> $LOG_FILE
+
+NEW_VERSION=`./pikrellcam --version`
+NEW_COMMIT=`git log -1 --format=%cd`
+COMMIT_SUBJECT=`git log -1 --format=%s`
+
+echo "inform \" \" 3 3 1" > $FIFO
+if [ "$NEW_COMMIT" != "$CURRENT_COMMIT" ]
+then
+	echo "inform \"New commit: $NEW_COMMIT\" 4 4 1" > $FIFO
+	echo "  Upgraded to commit $NEW_COMMIT  Latest changes: $COMMIT_SUBJECT" >> $LOG_FILE
+	if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]
+	then
+		echo "inform \"New version: $NEW_VERSION - restart needed.\" 5 4 1" > $FIFO
+		echo "  Upgrade from $CURRENT_VERSION to $NEW_VERSION" >> $LOG_FILE
+	else
+		echo "inform \"Version number is unchanged.\" 5 4 1" > $FIFO
+		echo "  Version number is unchanged." >> $LOG_FILE
+	fi
+	echo "inform \"Latest changes:\" 6 4 1" > $FIFO
+	echo "inform \"$COMMIT_SUBJECT\" 7 4 1" > $FIFO
+	TIMEOUT=20
+else
+	echo "inform \"No new upgrade is available.\" 4 4 1" > $FIFO
+	echo "  No upgrade is available." >> $LOG_FILE
+	if [ "$NEW_VERSION" == "$CURRENT_VERSION" ]
+	then
+		echo "inform \"PiKrellCam is already up to date.\" 5 4 1" > $FIFO
+		TIMEOUT=6
+	else
+		echo "inform \"But the latest version is not running.\" 5 4 1" > $FIFO
+		echo "inform \"Did you restart after the last upgrade?\" 6 4 1" > $FIFO
+		TIMEOUT=10
+	fi
+fi
+
+echo "inform timeout $TIMEOUT" > $FIFO

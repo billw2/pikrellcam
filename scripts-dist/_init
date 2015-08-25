@@ -30,6 +30,7 @@ cd $INSTALL_DIR
 WWW_CONFIG=$INSTALL_DIR/www/config.php
 PIKRELLCAM=$INSTALL_DIR/pikrellcam
 MEDIA_LINK=www/media
+VERSION=`pikrellcam --version`
 
 if [ ! -h $MEDIA_LINK ]
 then
@@ -49,7 +50,7 @@ fi
 
 if ! grep -q $LOG_FILE $WWW_CONFIG
 then
-	CMD="/LOG_FILE/c\	define\(\"LOG_FILE\", \"LOG_FILE\"\);"
+	CMD="/LOG_FILE/c\	define\(\"LOG_FILE\", \"$LOG_FILE\"\);"
 	sed -i "$CMD" $WWW_CONFIG
 	echo "  $WWW_CONFIG: LOG_FILE updated to: $LOG_FILE" >> $LOG_FILE
 else
@@ -76,9 +77,18 @@ fi
 
 if ! grep -q $PIKRELLCAM $WWW_CONFIG
 then
-	CMD="/PIKELLCAM/c\	define\(\"PIKRELLCAM\", \"$PIKRELLCAM\"\);"
+	CMD="/PIKRELLCAM/c\	define\(\"PIKRELLCAM\", \"$PIKRELLCAM\"\);"
 	sed -i "$CMD" $WWW_CONFIG
-	echo "  $WWW_CONFIG: PIKELLCAM updated to: $PIKELLCAM" >> $LOG_FILE
+	echo "  $WWW_CONFIG: PIKRELLCAM updated to: $PIKRELLCAM" >> $LOG_FILE
 else
 	echo "  $WWW_CONFIG: PIKRELLCAM not changed." >> $LOG_FILE
+fi
+
+if ! fgrep -q $VERSION $WWW_CONFIG
+then
+	CMD="/VERSION/c\	define\(\"VERSION\", \"$VERSION\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: VERSION updated to: $VERSION" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: VERSION not changed." >> $LOG_FILE
 fi

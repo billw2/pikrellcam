@@ -15,15 +15,20 @@ a.anchor
 
 <?php
 require_once(dirname(__FILE__) . '/config.php');
+include_once(dirname(__FILE__) . '/config-user.php');
+include_once(dirname(__FILE__) . '/config-defaults.php');	
 
 $log_file = LOG_FILE;
 
+
 function dump_log()
 	{
+	global $log_text_color;
+
 	$file = fopen(LOG_FILE, "r");
 	if ($file)
 		{
-		echo "<pre>";
+		echo "<pre style=\"color:${log_text_color}\">";
 		while (($line = fgets($file, 1024)) !== false)
 			echo "$line";
 		fclose($file);
@@ -40,9 +45,9 @@ function dump_log()
     <link rel="stylesheet" href="js-css/pikrellcam.css" />
   </head>
 
-  <body onload="scroll_to_anchor()" background="images/paper1.png">
-    <div>
-		<?php
+  <?php
+  echo "<body onload=\"scroll_to_anchor()\" background=\"$background_image\">";
+    echo "<div>";
 //ini_set('display_errors',1);
 //ini_set('display_startup_errors',1);
 //error_reporting(-1);
@@ -69,8 +74,10 @@ function dump_log()
 //			unlink("$log_file");
 			}
 
-		echo '<div id="" style="overflow-y: scroll; height:770px; overflow-x: auto; border:4px groove silver">';
-//		echo "<div style='margin-top:16px;'>";
+		$div_style = "overflow-y: scroll; height:${n_log_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+		echo "<div style=\"$div_style\">";
+//		echo '<div id="" style="overflow-y: scroll; height:770px; overflow-x: auto; border:4px groove silver">';
+
 		dump_log();
 		echo "<a id='anchor'></a>";
 		echo   "</div>";

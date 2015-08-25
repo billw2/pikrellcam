@@ -2,5 +2,6 @@ scripts
 www/.htpasswd
 www/FIFO
 www/media
-www/config-media.php
+www/config-user*
+www/images/bg_*
 media
