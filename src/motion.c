@@ -612,11 +612,12 @@ atof_range(float *result, char *value, double low, double high)
 #define ASSIGN_REGION	4
 #define	SAVE_REGIONS	5
 #define LOAD_REGIONS	6
-#define DELETE_REGIONS	7
-#define	SET_LIMITS		8
-#define	SELECT_REGION	9
-#define	SHOW_REGIONS	10
-#define	SHOW_VECTORS	11
+#define LOAD_REGIONS_SHOW	7
+#define DELETE_REGIONS	8
+#define	SET_LIMITS		9
+#define	SELECT_REGION	10
+#define	SHOW_REGIONS	11
+#define	SHOW_VECTORS	12
 
 
 typedef struct
@@ -638,6 +639,7 @@ static MotionCommand motion_commands[] =
 	{ "assign_region", ASSIGN_REGION, 5 },
 	{ "save_regions",   SAVE_REGIONS,  1 },
 	{ "load_regions",   LOAD_REGIONS,  1 },
+	{ "load_regions_show", LOAD_REGIONS_SHOW,  1 },
 	{ "delete_regions", DELETE_REGIONS, 1 },
 	{ "select_region", SELECT_REGION,    1 },
 	{ "limits", SET_LIMITS,    2 }
@@ -843,10 +845,11 @@ motion_command(char *cmd_line)
 			free(path);
 			break;
 
+		case LOAD_REGIONS_SHOW:		/* load_regions and show */
+			mf->show_regions = TRUE;
 		case LOAD_REGIONS:		/* load_regions config-name */
 			path = regions_custom_config(arg1);
-			if (motion_regions_config_load(path))
-				mf->show_regions = TRUE;
+			motion_regions_config_load(path);
 			free(path);
 			break;
 

@@ -897,7 +897,7 @@ main(int argc, char *argv[])
 
 	pgm_name = argv[0];
 	bcm_host_init();
-	setlocale (LC_ALL, "");
+	setlocale(LC_TIME, "");
 
 	time(&pikrellcam.t_now);
 

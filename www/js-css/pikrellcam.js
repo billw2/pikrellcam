@@ -42,7 +42,7 @@ function new_region()
 
 function load_regions()
 	{
-	fifo_command('motion load_regions ' + document.getElementById('load_regions').value);
+	fifo_command('motion load_regions_show ' + document.getElementById('load_regions').value);
 	document.getElementById('load_regions').value = "";
 	}
 
