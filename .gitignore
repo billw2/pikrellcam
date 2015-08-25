@@ -4,4 +4,6 @@ www/FIFO
 www/media
 www/config-user*
 www/images/bg_*
+www/custom
+www/custom.php
 media

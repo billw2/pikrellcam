@@ -407,6 +407,12 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
           >
         </div>
     </div>
+<?php
+if (file_exists("custom.php"))
+	{
+	include 'custom.php';
+	}
+?>
 </div>
 </body>
 </html>
