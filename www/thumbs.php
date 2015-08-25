@@ -55,17 +55,18 @@ function showGallery( $pathToVideo, $pathToThumbs )
   echo   "</div>";
   echo   "</div>";
 
-//  echo "<fieldset> ";
+  echo "<fieldset> ";
   diskSpace($pathToVideo);  // print disk usage
   echo "<span style=\"margin-top: 16px; font-size: 1.2em; color: $default_text_color\">&nbsp &nbsp {$counter} in {$hours} hr</span>";
 
-  echo "<div style=\"float:right; font-size: 1.2em; color: $default_text_color;\">{$tString}</div>";
+  echo "<div style=\"float:right; font-size: 1.2em; color: $default_text_color;\">{$tString}</div><hr>";
 
-  $div_style = "overflow-y: scroll; height:${n_thumb_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+//  $div_style = "overflow-y: scroll; height:${n_thumb_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+//  $div_style = "overflow-y: scroll; height:${n_thumb_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
   echo "<div style=\"$div_style\">";
   echo $output;  // send out the completed HTML web page
   echo "</div>";
-//  echo "</fieldset>";
+  echo "</fieldset>";
 
   echo "<div style='margin-top:12px;'>";
   $title = TITLE_STRING;
