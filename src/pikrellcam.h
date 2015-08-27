@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"1.1.1"
+#define	PIKRELLCAM_VERSION	"1.1.2"
 
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))

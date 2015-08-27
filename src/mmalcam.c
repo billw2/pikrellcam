@@ -296,7 +296,6 @@ circular_buffer_init()
 		}
 	vcb->size = size;
 	vcb->head = 0;
-	vcb->h264_header_position = 0;
 	vcb->cur_frame_index = 0;
 	vcb->pre_frame_index = 0;
 	vcb->in_keyframe = FALSE;
@@ -723,6 +722,7 @@ camera_create(void)
 			mmal_component_destroy(camera.component);
 		return FALSE;
 		}
+	video_circular_buffer.h264_header_position = 0;
 
 	MMAL_PARAMETER_CAMERA_CONFIG_T camera_config =
 		{

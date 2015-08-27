@@ -124,7 +124,8 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                        </td>
                        <td style="border: 0;" align="right">
                          <input type="checkbox" name="move_mode"
-                           onclick='move_region_mode(this);' checked> Coarse
+                           onclick='move_region_mode(this);' checked>
+                       <?php echo "<span style=\"color: $default_text_color\">Coarse</span>"; ?>
                        </td>
                     </tr>
  
@@ -135,7 +136,8 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                            class="btn-control alert-control"
                          >
                        </td>
-                       <td style="border: 0;" align="right">Select
+                       <td style="border: 0;" align="right">
+                       <?php echo "<span style=\"color: $default_text_color\">Select</span>"; ?>
                          <input type="button" value="<"
                            onclick="fifo_command('motion select_region <');"
                            class="btn-control"
@@ -179,7 +181,9 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                            class="btn-control"
                          >
                        </td>
-                       <td style="border: 0;">Move</td>
+                       <td style="border: 0;">
+                       <?php echo "<span style=\"color: $default_text_color\">Move</span>"; ?>
+                       </td>
                        <td style="border: 0;">
                          <input type="button" value="+X"
                            onclick="move_region(' x p');"
@@ -193,7 +197,9 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                            class="btn-control"
                          >
                        </td>
-                       <td style="border: 0;" align="center">Size</td>
+                       <td style="border: 0;" align="center">
+                       <?php echo "<span style=\"color: $default_text_color\">Size</span>"; ?>
+                       </td>
                        <td style="border: 0;">
                          <input type="button" value="+DX"
                            onclick="move_region(' dx p');"

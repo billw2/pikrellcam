@@ -235,7 +235,7 @@ function next_select($dir, $cur_file)
 				}
 			// Offset to left of center 30px (compensate for 150px thumb)
 			echo "<div style='margin: auto; overflow: visible;'>";
-			echo   "<div style='margin-right:30px;'>";
+			echo   "<div style='margin-right:30px; margin-top:6px'>";
 			  echo "<selected>&nbsp; $selected</selected>";
 
 			echo "<input type='button' value='<'
@@ -305,7 +305,7 @@ function next_select($dir, $cur_file)
 					{
 					echo "<td style='vertical-align: bottom; padding-bottom:6px;'>";
 					$date_string = date('D - M j Y', $file_array[$k]['mtime']);
-					echo "<span style='margin-left: 4px; font-size: 0.94em; font-weight: bold;'>
+					echo "<span style='margin-left: 4px; font-size: 0.94em; font-weight: bold; color: $default_text_color;'>
 							$date_string</span>";
 					$ymd_header = $ymd;
 					if ($n_columns > 2)
@@ -362,7 +362,7 @@ function next_select($dir, $cur_file)
 									$color = $media_text_color;
 								echo "<a href='media.php?dir=$media_dir&file=$fname'
 									style='color: $color; text-decoration: none;'>$display_name</a>
-									<span style='font-size: 0.86em;'>($fsize)</span>";
+									<span style='font-size: 0.86em; color: $default_text_color;'>($fsize)</span>";
 								}
 							}
 

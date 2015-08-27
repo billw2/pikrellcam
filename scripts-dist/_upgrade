@@ -12,6 +12,8 @@ FIFO=$2
 LOG_FILE=$3
 CURRENT_VERSION=$4
 
+WWW_CONFIG=$INSTALL_DIR/www/config.php
+
 cd $INSTALL_DIR
 
 CURRENT_COMMIT=`git log -1 --format=%cd`
@@ -41,10 +43,16 @@ then
 	echo "  Upgraded to commit $NEW_COMMIT  Latest changes: $COMMIT_SUBJECT" >> $LOG_FILE
 	if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]
 	then
-		echo "inform \"New version: $NEW_VERSION - restart needed.\" 5 4 1" > $FIFO
+		echo "inform \"New version: $NEW_VERSION - need restart/reload.\" 5 4 1" > $FIFO
 		echo "  Upgrade from $CURRENT_VERSION to $NEW_VERSION" >> $LOG_FILE
+
+		if ! fgrep -q $NEW_VERSION $WWW_CONFIG
+		then
+			CMD="/VERSION/c\	define\(\"VERSION\", \"$NEW_VERSION\"\);"
+			sed -i "$CMD" $WWW_CONFIG
+		fi
 	else
-		echo "inform \"Version number is unchanged.\" 5 4 1" > $FIFO
+		echo "inform \"Version is unchanged - recommend reload.\" 5 4 1" > $FIFO
 		echo "  Version number is unchanged." >> $LOG_FILE
 	fi
 	echo "inform \"Latest changes:\" 6 4 1" > $FIFO
