@@ -61,10 +61,6 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
       >
 
 <?php
-if (file_exists("custom.php"))
-	{
-	include 'custom.php';
-	}
 if (defined('INCLUDE_CONTROL'))
 	{
 	if ($include_control == "yes")
