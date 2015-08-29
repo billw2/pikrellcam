@@ -571,9 +571,8 @@ static char	*image_effect_entry[] =
 	"none",
 	"negative",
 	"solarize",
-	"posterize",
-	"whiteboard",
-	"blackboard",
+//	"whiteboard",
+//	"blackboard",
 	"sketch",
 	"denoise",
 	"emboss",
@@ -587,9 +586,9 @@ static char	*image_effect_entry[] =
 	"saturation",
 	"colorswap",
 	"washedout",
-	"posterise",
-	"colorpoint",
-	"colourbalance",
+//	"posterise",
+//	"colorpoint",
+//	"colourbalance",
 	"cartoon"
 	};
 

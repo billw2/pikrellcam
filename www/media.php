@@ -14,6 +14,10 @@ a.anchor
 
 
 <?php
+//ini_set('display_errors',1);
+//ini_set('display_startup_errors',1);
+//error_reporting(-1);
+
 require_once(dirname(__FILE__) . '/config.php');
 
 include_once(dirname(__FILE__) . '/config-user.php');
@@ -138,13 +142,13 @@ function next_select($dir, $cur_file)
 			{
 			$name_style = $_GET["name_style"];
 			$selected = $_GET["selected"];
-			config_media_save($name_style, $n_columns);
+			config_user_save($name_style, $n_columns);
 			}
 		else if (isset($_GET["n_columns"]))
 			{
 			$n_columns = $_GET["n_columns"];
 			$selected = $_GET["selected"];
-			config_media_save($name_style, $n_columns);
+			config_user_save($name_style, $n_columns);
 			}
 		else if (isset($_GET["direction"]))
 			{
@@ -235,14 +239,14 @@ function next_select($dir, $cur_file)
 				}
 			// Offset to left of center 30px (compensate for 150px thumb)
 			echo "<div style='margin: auto; overflow: visible;'>";
-			echo   "<div style='margin-right:30px; margin-top:6px'>";
+			echo   "<div style='margin-right:30px; margin-top: 6px'>";
 			  echo "<selected>&nbsp; $selected</selected>";
 
-			echo "<input type='button' value='<'
-					class='btn-control' style='margin-left:16px;'
+			echo "<input type='image' src='images/arrow-left.png'
+					style='margin-left:16px; vertical-align: bottom;'
 					onclick='window.location=\"media.php?dir=$media_dir&direction=prev&selected=$selected\";'>";
-			echo "<input type='button' value='>'
-					class='btn-control' style='margin-left:3px;'
+			echo "<input type='image' src='images/arrow-right.png'
+					style='margin-left:3px; vertical-align: bottom;'
 					onclick='window.location=\"media.php?dir=$media_dir&direction=next&selected=$selected\";'>";
 
               $wopen = "download.php?file=" . $media_dir . "/". $selected;
@@ -318,7 +322,7 @@ function next_select($dir, $cur_file)
 					echo "</td>";
 
 //					$n_rows = 1;
-					for ($last = $k; $file_array[$last]['date'] == $ymd; ++$last)
+					for ($last = $k; $last < $n_files && $file_array[$last]['date'] == $ymd; ++$last)
 						;
 					$n_rows = ceil(($last - $k) / $n_columns);
 //					echo "<br><tr><td>k=$k rows=$n_rows last=$last</td></tr><br>";

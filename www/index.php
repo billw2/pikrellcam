@@ -1,4 +1,9 @@
 <?php
+//ini_set('display_errors',1);
+//ini_set('display_startup_errors',1);
+//error_reporting(-1);
+
+
 	require_once(dirname(__FILE__) . '/config.php');
 	include_once(dirname(__FILE__) . '/config-user.php');
 	include_once(dirname(__FILE__) . '/config-defaults.php');	
@@ -35,22 +40,44 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
 
     <div class="text-center top-margin">
       <input type="image" src="images/stop.png"
+		style="vertical-align: bottom;"
         onclick="fifo_command('record off')"
         width="30" height="30"
       >
       <input type="image" src="images/pause.png"
+		style="vertical-align: bottom;"
         onclick="fifo_command('pause')"
         width="30" height="30"
       >
       <input type="image" src="images/record.png"
+		style="vertical-align: bottom;"
         onclick="fifo_command('record on')"
         width="30" height="30"
       >
       <input type="image" src="images/shutter.png"
         width="30" height="30"
         onclick="fifo_command('still')"
-        style="margin-left:40px;"
+        style="margin-left:20px; vertical-align: bottom;"
       >
+
+<?php
+if (file_exists("custom.php"))
+	{
+	include 'custom.php';
+	}
+if (defined('INCLUDE_CONTROL'))
+	{
+	if ($include_control == "yes")
+		{
+		include 'control.php';
+		}
+	}
+
+if (file_exists("custom-control.php"))
+	{
+	include 'custom-control.php';
+	}
+?>
     </div>
 
 	<div id="container" class="top-margin">
@@ -123,9 +150,10 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                          >
                        </td>
                        <td style="border: 0;" align="right">
+                         <?php echo "<span style=\"color: $default_text_color\">
+                           Coarse Move</span>"; ?>
                          <input type="checkbox" name="move_mode"
                            onclick='move_region_mode(this);' checked>
-                       <?php echo "<span style=\"color: $default_text_color\">Coarse</span>"; ?>
                        </td>
                     </tr>
  
@@ -156,18 +184,16 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                     <tr>
                        <td style="border: 0;"> </td>
                        <td style="border: 0;" align="center">
-                         <input type="button" value="+Y"
+                         <input type="image" src="images/arrow-up.png"
                            onclick="move_region(' y m');"
-                           class="btn-control"
                          >
                        </td>
                        <td style="border: 0;"> </td>
 
                        <td style="border: 0;"> </td>
                        <td style="border: 0;" align="center">
-                         <input type="button" value="-DY"
-                           onclick="move_region(' dy m');"
-                           class="btn-control"
+                         <input type="image" src="images/arrow-up.png"
+                           onclick="move_region(' dy p');"
                          >
                        </td>
                        <td style="border: 0;" align="right">
@@ -176,34 +202,30 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
 
                     <tr>
                        <td style="border: 0;">
-                         <input type="button" value="-X"
+                         <input type="image" src="images/arrow-left.png"
                            onclick="move_region(' x m');"
-                           class="btn-control"
                          >
                        </td>
                        <td style="border: 0;">
                        <?php echo "<span style=\"color: $default_text_color\">Move</span>"; ?>
                        </td>
                        <td style="border: 0;">
-                         <input type="button" value="+X"
+                         <input type="image" src="images/arrow-right.png"
                            onclick="move_region(' x p');"
-                           class="btn-control"
                          >
                        </td>
 
                        <td style="border: 0;">
-                         <input type="button" value="-DX"
+                         <input type="image" src="images/arrow-left.png"
                            onclick="move_region(' dx m');"
-                           class="btn-control"
                          >
                        </td>
                        <td style="border: 0;" align="center">
                        <?php echo "<span style=\"color: $default_text_color\">Size</span>"; ?>
                        </td>
                        <td style="border: 0;">
-                         <input type="button" value="+DX"
+                         <input type="image" src="images/arrow-right.png"
                            onclick="move_region(' dx p');"
-                           class="btn-control"
                          >
                        </td>
                     </tr>
@@ -211,18 +233,16 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
                     <tr>
                        <td style="border: 0;"> </td>
                        <td style="border: 0;" align="center">
-                         <input type="button" value="-Y" align="center"
+                         <input type="image" src="images/arrow-down.png"
                            onclick="move_region(' y p');"
-                           class="btn-control"
                          >
                        </td>
                        <td style="border: 0;"> </td>
 
                        <td style="border: 0;"> </td>
                        <td style="border: 0;" align="center">
-                         <input type="button" value="+DY"
-                           onclick="move_region(' dy p');"
-                           class="btn-control"
+                         <input type="image" src="images/arrow-down.png"
+                           onclick="move_region(' dy m');"
                          >
                        </td>
                        <td style="border: 0;"> </td>
@@ -243,29 +263,30 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
               <table class="table-container">
                 <tr>
                   <td style="border: 0;" align="right">
-                    <input type="button" value="<<"
+                    <input type="image" src="images/arrow2-left.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
                       onclick="fifo_command('display <<');"
-                      class="btn-control"
                     >
-                    <input type="button" value="< "
+                    <input type="image" src="images/arrow-left.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
                       onclick="fifo_command('display <');"
-                      class="btn-control"
                     >
                   </td>
                   <td style="border: 0;" align="center">
                     <input type="button" value="SEL"
-                      onclick="fifo_command('display sel');"
                       class="btn-control"
+                      onclick="fifo_command('display sel');"
                     >
                   </td>
                   <td style="border: 0;" align="left">
-                    <input type="button" value=" >"
+                    <input type="image" src="images/arrow-right.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
                       onclick="fifo_command('display >');"
                       class="btn-control"
                     >
-                    <input type="button" value=">>"
+                    <input type="image" src="images/arrow2-right.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
                       onclick="fifo_command('display >>');"
-                      class="btn-control"
                     >
                   </td>
                 </tr>
