@@ -137,81 +137,89 @@ function next_select($dir, $cur_file)
 		$media_dir = $_GET["dir"];
 
 		if (isset($_GET["file"]))
+			{
 			$selected = $_GET["file"];
-		else if (isset($_GET["name_style"]))
-			{
-			$name_style = $_GET["name_style"];
-			$selected = $_GET["selected"];
-			config_user_save($name_style, $n_columns);
-			}
-		else if (isset($_GET["n_columns"]))
-			{
-			$n_columns = $_GET["n_columns"];
-			$selected = $_GET["selected"];
-			config_user_save($name_style, $n_columns);
-			}
-		else if (isset($_GET["direction"]))
-			{
-			$direction = $_GET["direction"];
-			$cur_select = $_GET["selected"];
-			if ($direction == "next")
-				$selected = next_select($media_dir, $cur_select);
-			else
-				$selected = prev_select($media_dir, $cur_select);
-			}
-		else if (isset($_GET["delete"]))
-			{
-			$del_file = $_GET["delete"];
-//			echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
-			$selected = next_select($media_dir, $del_file);
-			unlink("$media_dir" . "/" . $del_file);
-			if ($selected == $del_file)
+			if ($selected == "")
 				$selected = next_select($media_dir, "");
-			if ("$media_dir" == "media/videos")
-				{
-				$base = str_replace(".mp4", "", $del_file);
-				unlink("media/thumbs/" . "$base" . ".th.jpg");
-				}
 			}
-		else if (isset($_GET["delete_day"]))
+		else
 			{
-			$ymd = $_GET["day"];
-			$file_array = media_file_array($media_dir);
-			$n_files = count($file_array);
-			$selected = "";
-			$searching = 1;
-			for ($i = 0; $i < $n_files; $i++)
+			if (isset($_GET["name_style"]))
 				{
-				if ($ymd != $file_array[$i]['date'])
-					{
-					if ($searching == 1 || "$selected" == "")
-						$selected = $file_array[$i]['name'];
-					continue;
-					}
-				$searching = 0;
-				$del_file = $file_array[$i]['name'];
-//	echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
+				$name_style = $_GET["name_style"];
+				$selected = $_GET["selected"];
+				config_user_save($name_style, $n_columns);
+				}
+			else if (isset($_GET["n_columns"]))
+				{
+				$n_columns = $_GET["n_columns"];
+				$selected = $_GET["selected"];
+				config_user_save($name_style, $n_columns);
+				}
+			else if (isset($_GET["direction"]))
+				{
+				$direction = $_GET["direction"];
+				$cur_select = $_GET["selected"];
+				if ($direction == "next")
+					$selected = next_select($media_dir, $cur_select);
+				else
+					$selected = prev_select($media_dir, $cur_select);
+				}
+			else if (isset($_GET["delete"]))
+				{
+				$del_file = $_GET["delete"];
+//				echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
+				$selected = next_select($media_dir, $del_file);
 				unlink("$media_dir" . "/" . $del_file);
+				if ($selected == $del_file)
+					$selected = next_select($media_dir, "");
 				if ("$media_dir" == "media/videos")
 					{
 					$base = str_replace(".mp4", "", $del_file);
 					unlink("media/thumbs/" . "$base" . ".th.jpg");
 					}
 				}
-			}
-		else if (isset($_GET["delete_all"]))
-			{
-			array_map('unlink', glob("$media_dir" . "/*.mp4"));
-			array_map('unlink', glob("$media_dir" . "/*.h264"));
-			array_map('unlink', glob("$media_dir" . "/*.jpg"));
-			$selected = "";
-			if ("$media_dir" == "media/videos")
+			else if (isset($_GET["delete_day"]))
 				{
-				array_map('unlink', glob("media/thumbs" . "/*.th.jpg"));
+				$ymd = $_GET["day"];
+				$file_array = media_file_array($media_dir);
+				$n_files = count($file_array);
+				$selected = "";
+				$searching = 1;
+				for ($i = 0; $i < $n_files; $i++)
+					{
+					if ($ymd != $file_array[$i]['date'])
+						{
+						if ($searching == 1 || "$selected" == "")
+							$selected = $file_array[$i]['name'];
+						continue;
+						}
+					$searching = 0;
+					$del_file = $file_array[$i]['name'];
+//	echo "<script type='text/javascript'>alert('$media_dir . \"/\" . $del_file');</script>";
+					unlink("$media_dir" . "/" . $del_file);
+					if ("$media_dir" == "media/videos")
+						{
+						$base = str_replace(".mp4", "", $del_file);
+						unlink("media/thumbs/" . "$base" . ".th.jpg");
+						}
+					}
 				}
+			else if (isset($_GET["delete_all"]))
+				{
+				array_map('unlink', glob("$media_dir" . "/*.mp4"));
+				array_map('unlink', glob("$media_dir" . "/*.h264"));
+				array_map('unlink', glob("$media_dir" . "/*.jpg"));
+				$selected = "";
+				if ("$media_dir" == "media/videos")
+					{
+					array_map('unlink', glob("media/thumbs" . "/*.th.jpg"));
+					}
+				}
+			else
+				$selected = next_select($media_dir, "");
+			echo "<script>window.location=\"media.php?dir=$media_dir&file=$selected\";</script>";
 			}
-		else
-			$selected = next_select($media_dir, "");
 
 		if ($selected != "" && is_file("$media_dir" . "/" . $selected))
 			{
