@@ -277,14 +277,31 @@ function delete_archive_range($year, $month0, $day0, $month1, $day1)
 //
 function wait_files_gone($key, $pat)
 	{
+	global $media_dir, $media_type;
+
 	for ($i = 0; $i < 16; ++$i)
 		{
-		usleep(200000);
+		usleep(100000);
 		if ("$key" == "file" && !file_exists($pat))
 			break;
-		else if ("$key" == "day" && count(glob("$media_dir/videos/*$pat*") == 0))
+		else if ("$key" == "day")
+			{
+			if ("$media_type" == "videos" || "$media_type" == "thumbs")
+				{
+				if (   count(glob("$media_dir/videos/*$pat*")) == 0
+				    && count(glob("$media_dir/thumbs/*$pat*")) == 0
+				   )
+					break;
+				}
+			else if ("$media_type" == "stills")
+				{
+				if (count(glob("$media_dir/stills/*$pat*")) == 0)
+					break;
+				}
+			}
 			break;
 		}
+	usleep(400000);
 	if ($i == 16)
 		echo "<script type='text/javascript'>alert('Archive may have failed. Is pikrellcam running?');</script>";
 	}
