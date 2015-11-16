@@ -99,13 +99,13 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				fmt_arg = pikrellcam.install_dir;
 				break;
 			case 's':
-				fmt_arg = pikrellcam.still_last_save;
+				fmt_arg = pikrellcam.still_last;
 				break;
 			case 'S':
 				fmt_arg = pikrellcam.still_dir;
 				break;
 			case 'v':
-				fmt_arg = pikrellcam.video_last_save;
+				fmt_arg = pikrellcam.video_last;
 				break;
 			case 'V':
 				fmt_arg = pikrellcam.video_dir;
@@ -133,6 +133,9 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				break;
 			case 'L':
 				fmt_arg = pikrellcam.timelapse_dir;
+				break;
+			case 'a':
+				fmt_arg = pikrellcam.archive_dir;
 				break;
 			case 'm':
 				fmt_arg = pikrellcam.media_dir;
@@ -321,7 +324,7 @@ event_preview_save(void)
 			if (pikrellcam.preview_filename)
 				free(pikrellcam.preview_filename);
 			asprintf(&pikrellcam.preview_filename, "%s/%s",
-							pikrellcam.mjpeg_dir, base);
+							pikrellcam.tmpfs_dir, base);
 
 			log_printf("event preview save: copy %s -> %s\n",
 								pikrellcam.mjpeg_filename,
@@ -339,6 +342,10 @@ event_preview_save(void)
 			}
 		}
 	free(path);
+
+	/* Let mmalcam.c mjpeg_callback() continue renaming the mjpeg file.
+	*/
+	pikrellcam.mjpeg_rename_holdoff = FALSE;
 	}
 
   /* Generate a motion area thumb.
@@ -398,6 +405,59 @@ event_still_capture_cmd(char *cmd)
 		return;
 
 	exec_wait(cmd, NULL);
+	}
+
+void
+log_lines(void)
+	{
+	char	buf[128];
+
+	if (pikrellcam.log_lines > 0)
+		{
+		snprintf(buf, sizeof(buf), "%s/scripts-dist/_log-lines %d $G",
+					pikrellcam.install_dir, pikrellcam.log_lines);
+		exec_wait(buf, NULL); 
+		}
+	}
+
+void
+state_file_write(void)
+	{
+	static char         *fname_part;
+	FILE                *f;
+	VideoCircularBuffer *vcb = &video_circular_buffer;
+	char                *state;
+
+	if (!fname_part)
+		asprintf(&fname_part, "%s.part", pikrellcam.state_filename);
+	f = fopen(fname_part, "w");
+
+	fprintf(f, "motion_enable %s\n",
+			motion_frame.motion_enable ? "on" : "off");
+
+	if (vcb->state & VCB_STATE_MOTION)
+		state = "motion";
+	if (vcb->state & VCB_STATE_MANUAL)
+		state = "manual";
+	else
+		state = "stop";
+	fprintf(f, "video_record_state %s\n", state);
+
+	fprintf(f, "video_last %s\n",
+			pikrellcam.video_last ? pikrellcam.video_last : "none");
+	fprintf(f, "still_last %s\n",
+			pikrellcam.still_last ? pikrellcam.still_last : "none");
+
+	fprintf(f, "timelapse_active %s\n",
+			time_lapse.activated ? "on" : "off");
+	fprintf(f, "timelapse_converting %s\n",
+			(time_lapse.convert_name && *time_lapse.convert_name)
+					? time_lapse.convert_name : "none");
+	fprintf(f, "timelapse_last %s\n",
+			pikrellcam.timelapse_last ? pikrellcam.timelapse_last : "none");
+
+	fclose(f);
+	rename(fname_part, pikrellcam.state_filename);
 	}
 
   /* Add an event to trigger once after counting down the time to zero.
@@ -571,6 +631,12 @@ event_process(void)
 	else
 		minute_tick = FALSE;
 
+	if (pikrellcam.state_modified)
+		{
+		pikrellcam.state_modified = FALSE;
+		state_file_write();
+		}
+
 	tmp_link.next = NULL;
 	for (list = event_list; list; prev_link = list, list = list->next)
 		{
@@ -680,6 +746,7 @@ event_process(void)
 				}
 			sun_times_init();
 			sun.initialized = TRUE;
+			log_lines();
 			}
 
 		for (list = at_command_list; list; list = list->next)
@@ -810,6 +877,7 @@ at_commands_config_save(char *config_file)
 	"#     command:   a command with possible substitution variables:\n"
 	"#                $C - script commands directory full path\n"
 	"#                $I - the PiKrellCam install directory\n"
+	"#                $a - archive directory full path\n"
 	"#                $m - media directory full path\n"
 	"#                $M - mjpeg file full path\n"
 	"#                $P - command FIFO full path\n"

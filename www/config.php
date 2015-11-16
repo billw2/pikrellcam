@@ -13,6 +13,8 @@
 	define("STILL_DIR", "media/stills");
 	define("TIMELAPSE_DIR", "media/timelapse");
 
+	define("ARCHIVE_DIR", "archive");
+
 // The mjpeg file can be changed by editing ~/.pikrellcam/pikrellcam.conf
 // The others are fixed by the install and enforced by the startup script.
 // It is no use to change these here.
@@ -22,5 +24,5 @@
 	define("PIKRELLCAM", "/home/pi/pikrellcam/pikrellcam");
 	define("FIFO_FILE", "/home/pi/pikrellcam/www/FIFO");
 
-	define("VERSION", "1.1.3");
+	define("VERSION", "2.0.0");
 ?>

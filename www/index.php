@@ -77,16 +77,20 @@ if (file_exists("custom-control.php"))
     </div>
 
 	<div id="container" class="top-margin">
-      <?php echo "<span style=\"color: $default_text_color\"> Files:</span>"; ?>
-      <a href="media.php?dir=<?php echo VIDEO_DIR; ?>"
-        class="btn-control"
-      >Videos</a>
-      <a href="thumbs.php"
-        class="btn-control"
-      >Thumbs</a>
-      <a href="media.php?dir=<?php echo STILL_DIR; ?>"
+      <a href="archive.php?year=<?php echo date('Y'); ?>"
         class="btn-control"
         style="margin-right:20px;"
+      >Archive Calendar</a>
+      <?php echo "<span style=\"color: $default_text_color\"> Media:</span>"; ?>
+      <a href="media-archive.php?mode=media&type=videos"
+        class="btn-control"
+      >Videos</a>
+      <a href="media-archive.php?mode=media&type=thumbs"
+        class="btn-control"
+      >Thumbs</a>
+      <a href="media-archive.php?mode=media&type=stills"
+        class="btn-control"
+        style="margin-right:30px;"
       >Stills</a>
 
       <?php echo "<span style=\"color: $default_text_color\"> Enable:</span>"; ?>
@@ -428,6 +432,8 @@ if (file_exists("custom-control.php"))
             onclick="fifo_command('upgrade')"
             class="btn-control"
           >
+          <a href="help.php"
+            class="btn-control" style="margin-left:16px;">Help</a>
         </div>
     </div>
 <?php

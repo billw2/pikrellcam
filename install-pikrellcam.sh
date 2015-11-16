@@ -179,6 +179,11 @@ then
 		fi
 		echo "Adding a pikrellcam autostart command to /etc/rc.local:"
         sudo sed -i "s|^exit.*|$CMD\n&|" /etc/rc.local
+		if ! [ -x /etc/rc.local ]
+		then
+			echo "Added execute permission to /etc/rc.local"
+			sudo chmod a+x /etc/rc.local
+		fi
 		grep pikrellcam /etc/rc.local
     fi
 else

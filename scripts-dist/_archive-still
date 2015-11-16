@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Move stills into an archive directory.
+# Calling format from pikrellcam or a at-commands script:
+#    archive-still [day|still.jpg] yyyy-mm-dd $a $m $P $G
+#
+# Which pikrellcam expands into:
+#    archive-still day       yyyy-mm-dd archive-dir media-dir FIFO LOG
+# or
+#    archive-still still.jpg yyyy-mm-dd archive-dir media-dir FIFO LOG
+
+# If $1 is the string "day", move all stills for the day yyyy-mm-dd into
+#   the archive directory archive-dir/yyyy/mm/dd/stills
+# Otherwise, $1 should be a jpg still and it
+#   is moved into the archive directory.
+
+
+DAY=$1
+STILL=$1
+DATE=$2
+ARCHIVE_DIR=$3
+MEDIA_DIR=$4
+FIFO=$5
+LOG_FILE=$6
+
+# From DATE arg: yyyy-mm-dd  Get the DATE_PATH: yyyy/mm/dd
+DATE_PATH=${DATE//[-]/\/}
+
+ARCHIVE_STILLS_PATH=$ARCHIVE_DIR/$DATE_PATH/stills
+
+if [ ! -d $ARCHIVE_STILLS_PATH ]
+then
+	mkdir -p $ARCHIVE_STILLS_PATH
+	# %%-* strips longest match of -* from end of string ie the -mm-dd
+	sudo chown -R :www-data $ARCHIVE_DIR/${DATE%%-*}
+	sudo chmod -R 775  $ARCHIVE_DIR/${DATE%%-*}
+fi
+
+
+if [ "$DAY" == "day" ]
+then
+	echo "  archive-still day $DATE to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
+	mv $MEDIA_DIR/stills/*${DATE}*.jpg $ARCHIVE_STILLS_PATH
+else
+	echo "  archive-still $STILL to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
+	mv $MEDIA_DIR/stills/$STILL $ARCHIVE_STILLS_PATH
+fi
+
+# Cleanup in case no files were moved so archive page won't show dangling links
+#
+find $ARCHIVE_STILLS_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_STILLS_PATH \;
+
+ARCHIVE_DATE_PATH=$ARCHIVE_DIR/$DATE_PATH
+find $ARCHIVE_DATE_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_DATE_PATH \;

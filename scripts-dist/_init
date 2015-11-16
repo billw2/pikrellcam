@@ -6,6 +6,7 @@
 #
 # Argument substitution done by PiKrellCam before running this script:
 #   $I - install directory full path
+#   $a - the archive directory full path
 #   $m - the media directory full path
 #   $M - the mjpeg_file PiKrellCam writes and the web page reads.
 #   $P - the fifo command file full path
@@ -13,10 +14,11 @@
 #
 
 INSTALL_DIR=$1
-MEDIA_DIR=$2
-MJPEG_FILE=$3
-FIFO_FILE=$4
-LOG_FILE=$5
+ARCHIVE_DIR=$2
+MEDIA_DIR=$3
+MJPEG_FILE=$4
+FIFO_FILE=$5
+LOG_FILE=$6
 
 if [ "$LOG_FILE" == "" ]
 then
@@ -29,6 +31,7 @@ cd $INSTALL_DIR
 #
 WWW_CONFIG=$INSTALL_DIR/www/config.php
 PIKRELLCAM=$INSTALL_DIR/pikrellcam
+ARCHIVE_LINK=www/archive
 MEDIA_LINK=www/media
 VERSION=`pikrellcam --version`
 
@@ -45,6 +48,22 @@ else
 		ln -s $MEDIA_DIR $MEDIA_LINK
 	else
 		echo "  $MEDIA_LINK link is already set to $MEDIA_DIR" >> $LOG_FILE
+	fi
+fi
+
+if [ ! -h $ARCHIVE_LINK ]
+then
+	echo "  making $ARCHIVE_LINK link to $ARCHIVE_DIR" >> $LOG_FILE
+	ln -s $ARCHIVE_DIR $ARCHIVE_LINK
+else
+	CURRENT_ARCHIVE=`realpath $ARCHIVE_LINK`
+	if [ "$CURRENT_ARCHIVE" != "$ARCHIVE_DIR" ]
+	then
+		echo "  replacing $ARCHIVE_LINK link from $CURRENT_ARCHIVE to $ARCHIVE_DIR" >> $LOG_FILE
+		rm $ARCHIVE_LINK
+		ln -s $ARCHIVE_DIR $ARCHIVE_LINK
+	else
+		echo "  $ARCHIVE_LINK link is already set to $ARCHIVE_DIR" >> $LOG_FILE
 	fi
 fi
 

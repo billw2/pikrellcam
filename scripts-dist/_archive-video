@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Move videos and corresponding thumbs into an archive directory.
+# Calling format from pikrellcam or a at-commands script:
+#    archive-video [day|video.mp4] yyyy-mm-dd $a $m $P $G
+#
+# Which pikrellcam expands into:
+#    archive-video day       yyyy-mm-dd archive-dir media-dir FIFO LOG
+# or
+#    archive-video video.mp4 yyyy-mm-dd archive-dir media-dir FIFO LOG
+
+# If $1 is the string "day", move all videos for the day yyyy-mm-dd into
+#   the archive directory archive-dir/yyyy/mm/dd/videos and all thumbs for
+#   the day into archive-dir/yyyy/mm/dd/thumbs.
+# Otherwise, $1 should be a mp4 video and it and its corresponding thumb
+#   are moved into the archive directory.
+
+
+DAY=$1
+VIDEO=$1
+DATE=$2
+ARCHIVE_DIR=$3
+MEDIA_DIR=$4
+FIFO=$5
+LOG_FILE=$6
+
+# From DATE arg: yyyy-mm-dd  Get the DATE_PATH: yyyy/mm/dd
+DATE_PATH=${DATE//[-]/\/}
+
+ARCHIVE_VIDEOS_PATH=$ARCHIVE_DIR/$DATE_PATH/videos
+ARCHIVE_THUMBS_PATH=$ARCHIVE_DIR/$DATE_PATH/thumbs
+
+if [ ! -d $ARCHIVE_VIDEOS_PATH ]
+then
+	mkdir -p $ARCHIVE_VIDEOS_PATH
+	mkdir -p $ARCHIVE_THUMBS_PATH
+	# %%-* strips longest match of -* from end of string ie the -mm-dd
+	sudo chown -R :www-data $ARCHIVE_DIR/${DATE%%-*}
+	sudo chmod -R 775  $ARCHIVE_DIR/${DATE%%-*}
+fi
+
+
+if [ "$DAY" == "day" ]
+then
+	echo "  archive day $DATE to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
+	mv $MEDIA_DIR/videos/*${DATE}*.mp4 $ARCHIVE_VIDEOS_PATH
+	mv $MEDIA_DIR/thumbs/*${DATE}*.th.jpg $ARCHIVE_THUMBS_PATH
+else
+	echo "  archive $VIDEO to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
+	mv $MEDIA_DIR/videos/$VIDEO $ARCHIVE_VIDEOS_PATH
+	THUMB_JPEG=${VIDEO%.mp4}.th.jpg
+	mv $MEDIA_DIR/thumbs/$THUMB_JPEG $ARCHIVE_THUMBS_PATH
+fi
+
+# Cleanup in case no files were moved so archive page won't show dangling links
+#
+find $ARCHIVE_VIDEOS_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_VIDEOS_PATH \;
+find $ARCHIVE_THUMBS_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_THUMBS_PATH \;
+
+ARCHIVE_DATE_PATH=$ARCHIVE_DIR/$DATE_PATH
+find $ARCHIVE_DATE_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_DATE_PATH \;

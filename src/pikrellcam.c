@@ -21,6 +21,7 @@
 #include "pikrellcam.h"
 #include <signal.h>
 #include <locale.h>
+#include <sys/statvfs.h>
 
 
 PiKrellCam	pikrellcam;
@@ -194,6 +195,7 @@ camera_start(void)
 	display_init();
 	video_circular_buffer.state = VCB_STATE_NONE;
 	video_circular_buffer.pause = FALSE;
+	pikrellcam.state_modified = TRUE;
 	}
 
 
@@ -265,7 +267,8 @@ still_capture(char *fname)
 			{
 			result = TRUE;
 			log_printf("Still: %s\n", fname);
-			dup_string(&pikrellcam.still_last_save, fname);
+			dup_string(&pikrellcam.still_last, fname);
+			pikrellcam.state_modified = TRUE;
 			n = pikrellcam.notify_duration * EVENT_LOOP_FREQUENCY;
 
 			if ((event = event_find("still saved")) != NULL)
@@ -328,7 +331,8 @@ timelapse_capture(void)
 		else
 			{
 			log_printf("Timelapse still: %s\n", path);
-			dup_string(&pikrellcam.timelapse_last_save, path);
+			dup_string(&pikrellcam.timelapse_last, path);
+			pikrellcam.state_modified = TRUE;
 
 			/* timelapse_capture() is an event call (inside the event loop)
 			|  and we here add an event to the list.
@@ -414,6 +418,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 		{
 		log_printf("Video record: %s ...\n", path);
 		vcb->state = start_state;
+		pikrellcam.state_modified = TRUE;
 		}
 	}
 
@@ -422,8 +427,11 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 void
 video_record_stop(VideoCircularBuffer *vcb)
 	{
-	Event	*event = NULL;
-	char	*cmd;
+	struct statvfs st;
+	struct stat    st_h264;
+	unsigned long  tmp_space;
+	Event          *event = NULL;
+	char           *cmd, *tmp_dir;
 
 	if (!vcb->file)
 		return;
@@ -439,8 +447,20 @@ video_record_stop(VideoCircularBuffer *vcb)
 
 	if (pikrellcam.video_mp4box)
 		{
-		asprintf(&cmd, "(MP4Box %s -fps %d -add %s %s %s && rm %s)",
+		statvfs("/tmp", &st);
+		tmp_space = st.f_bfree * st.f_frsize;
+
+		st_h264.st_size = 0;
+		stat(pikrellcam.video_h264, &st_h264);
+
+		if (tmp_space > 4 * (unsigned long) st_h264.st_size / 3)
+			tmp_dir = "/tmp";
+		else
+			tmp_dir = pikrellcam.video_dir;
+
+		asprintf(&cmd, "(MP4Box %s -tmp %s -fps %d -add %s %s %s && rm %s)",
 				pikrellcam.verbose ? "" : "-quiet",
+				tmp_dir,
 				pikrellcam.camera_adjust.video_mp4box_fps,
 				pikrellcam.video_h264, pikrellcam.video_pathname,
 				pikrellcam.verbose ? "" : "2> /dev/null",
@@ -453,7 +473,8 @@ video_record_stop(VideoCircularBuffer *vcb)
 			exec_no_wait(cmd, NULL);
 		free(cmd);
 		}
-	dup_string(&pikrellcam.video_last_save, pikrellcam.video_pathname);
+	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
+	pikrellcam.state_modified = TRUE;
 
 	pikrellcam.video_notify = TRUE;
 	event_count_down_add("video saved notify",
@@ -482,6 +503,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	event_add("preview dispose", pikrellcam.t_now, 0,
 					event_preview_dispose, NULL);
 	vcb->state = VCB_STATE_NONE;
+	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;
 	}
 
@@ -545,6 +567,8 @@ typedef enum
 	video_mp4box_fps,
 	inform,
 	save_config,
+	archive_video,
+	archive_still,
 	delete_log,
 	upgrade,
 	quit
@@ -585,6 +609,8 @@ static Command commands[] =
 	{ "video_mp4box_fps", video_mp4box_fps,  1 },
 	{ "inform", inform,    1 },
 	{ "save_config", save_config,    0 },
+	{ "archive_video", archive_video,    1 },
+	{ "archive_still", archive_still,    1 },
 	{ "delete_log", delete_log,    0 },
 	{ "upgrade", upgrade,    0 },
 	{ "quit",        quit,    0 },
@@ -597,13 +623,13 @@ command_process(char *command_line)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	Command	*cmd;
-	char	command[64], args[128], buf[128], *path;
+	char	command[64], args[128], arg1[128], arg2[64], buf[128], *path;
 	int		i, n;
 
 	if (!command_line || *command_line == '\0')
 		return;
 
-	n = sscanf(command_line, "%63s %[^\n]", command, args);
+	n = sscanf(command_line, "%63s %127[^\n]", command, args);
 	if (n < 1 || command[0] == '#')
 		return;
 	for (cmd = NULL, i = 0; i < COMMAND_SIZE; cmd = NULL, ++i)
@@ -686,6 +712,7 @@ command_process(char *command_line)
 				n = 0;
 			time_lapse.activated = TRUE;
 			time_lapse.on_hold = FALSE;
+			pikrellcam.state_modified = TRUE;
 			if (!time_lapse.event && n > 0)
 				{
 				time_lapse.sequence = 0;
@@ -715,6 +742,7 @@ command_process(char *command_line)
 				time_lapse.event = NULL;
 				time_lapse.activated = FALSE;
 				time_lapse.on_hold = FALSE;
+				pikrellcam.state_modified = TRUE;
 				config_timelapse_save_status();
 				exec_no_wait(pikrellcam.on_timelapse_end_cmd, NULL);
 				}
@@ -725,11 +753,13 @@ command_process(char *command_line)
 				{
 				event_remove(time_lapse.inform_event);
 				dup_string(&time_lapse.convert_name, "");
+				pikrellcam.state_modified = TRUE;
 				time_lapse.convert_size = 0;
 				}
 			else
 				{
 				dup_string(&time_lapse.convert_name, args);
+				pikrellcam.state_modified = TRUE;
 				time_lapse.inform_event = event_add("tl_inform_convert",
 						pikrellcam.t_now, 5, timelapse_inform_convert, NULL);
 				}
@@ -750,6 +780,7 @@ command_process(char *command_line)
 		case motion_enable:
 			n = motion_frame.motion_enable;
 			config_set_boolean(&motion_frame.motion_enable, args);
+			pikrellcam.state_modified = TRUE;
 
 			if (n && !motion_frame.motion_enable)
 				{
@@ -784,6 +815,30 @@ command_process(char *command_line)
 
 		case save_config:
 			config_save(pikrellcam.config_file);
+			break;
+
+		case archive_video:		/* ["day"|video.mp4] yyyy-mm-dd */
+			if (sscanf(args, "%127s %63s", arg1, arg2) == 2)
+				{
+				snprintf(buf, sizeof(buf),
+						"%s/scripts-dist/_archive-video %s %s $a $m $P $G",
+						pikrellcam.install_dir, arg1, arg2);
+				exec_no_wait(buf, NULL);
+				}
+			else
+				log_printf("Wrong number of args for command: %s\n", command);
+			break;
+
+		case archive_still:		/* ["day"|still.jpg] yyyy-mm-dd */
+			if (sscanf(args, "%127s %63s", arg1, arg2) == 2)
+				{
+				snprintf(buf, sizeof(buf),
+						"%s/scripts-dist/_archive-still %s %s $a $m $P $G",
+						pikrellcam.install_dir, arg1, arg2);
+				exec_no_wait(buf, NULL);
+				}
+			else
+				log_printf("Wrong number of args for command: %s\n", command);
 			break;
 
 		case delete_log:
@@ -973,13 +1028,19 @@ main(int argc, char *argv[])
 		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, pikrellcam.media_dir);
 		dup_string(&pikrellcam.media_dir, buf);
 		}
+	if (*pikrellcam.archive_dir != '/')
+		{
+		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.media_dir, pikrellcam.archive_dir);
+		dup_string(&pikrellcam.archive_dir, buf);
+		}
 
 	snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, "www");
 	check_modes(buf, 0775);
 
 	asprintf(&pikrellcam.command_fifo, "%s/www/FIFO", pikrellcam.install_dir);
 	asprintf(&pikrellcam.script_dir, "%s/scripts", pikrellcam.install_dir);
-	asprintf(&pikrellcam.mjpeg_filename, "%s/mjpeg.jpg", pikrellcam.mjpeg_dir);
+	asprintf(&pikrellcam.mjpeg_filename, "%s/mjpeg.jpg", pikrellcam.tmpfs_dir);
+	asprintf(&pikrellcam.state_filename, "%s/state", pikrellcam.tmpfs_dir);
 
 	log_printf_no_timestamp("using FIFO: %s\n", pikrellcam.command_fifo);
 	log_printf_no_timestamp("using mjpeg: %s\n", pikrellcam.mjpeg_filename);
@@ -993,10 +1054,12 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
 	asprintf(&pikrellcam.timelapse_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_TIMELAPSE_SUBDIR);
 
-	if (!make_dir(pikrellcam.media_dir))
+	if (   !make_dir(pikrellcam.media_dir)
+		|| !make_dir(pikrellcam.archive_dir)
+	   )
 		exit(1);
 
-	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $m $M $P $G",
+	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G",
 								pikrellcam.install_dir);
 	exec_wait(buf, NULL);
 
@@ -1004,9 +1067,10 @@ main(int argc, char *argv[])
 	*/
 	exec_wait(pikrellcam.on_startup_cmd, NULL);
 	check_modes(pikrellcam.media_dir, 0775);
+	check_modes(pikrellcam.archive_dir, 0775);
 	check_modes(pikrellcam.log_file, 0664);
 
-	if (   !make_dir(pikrellcam.mjpeg_dir)
+	if (   !make_dir(pikrellcam.tmpfs_dir)
 	    || !make_dir(pikrellcam.video_dir)
 	    || !make_dir(pikrellcam.thumb_dir)
 	    || !make_dir(pikrellcam.still_dir)
@@ -1026,6 +1090,7 @@ main(int argc, char *argv[])
 	
 	camera_start();
 	config_timelapse_load_status();
+	pikrellcam.state_modified = TRUE;
 
 	signal(SIGINT, signal_quit);
 	signal(SIGTERM, signal_quit);

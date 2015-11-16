@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# This is the default motion event preview_save script.
-# It generates a jpeg of the motion area in the motion preview jpeg
-# and stores it in the media_dir/thumbs directory.
+# Generate a jpeg of the motion area in the motion preview jpeg
+# and store it in the media_dir/thumbs directory.
 # Substitute ".th.jpg" for ".jpg" in the PREVIEW_JPEG name.
 #
 # Argument substitution done by PiKrellCam before running this script:

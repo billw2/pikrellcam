@@ -436,16 +436,13 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 
 	if (pikrellcam.verbose_motion && (fail_count > 0 || motion_count > 0))
 		{
-		char	*motion_str;
-
 		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
 			any_count, mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
 
-		motion_str = mf->motion_enable ? "***MOTION***" : "***MOTION***\n";
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
 		printf("%s motion count:%d fail:%d window:%d  %s\n",
 			tbuf, motion_count, fail_count, mf->frame_window,
-			(mf->motion_status == MOTION_DETECTED) ? motion_str : "\n");
+			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "\n");
 		}
 
 	if (mf->motion_status == MOTION_DETECTED  && mf->motion_enable)

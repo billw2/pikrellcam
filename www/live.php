@@ -21,6 +21,6 @@
 <?php
 echo "<body background='' onload=\"mjpeg_start();\">";
 ?>
-<img id="mjpeg_image" style="width:100%">
+<img id="mjpeg_image" style="width:100%" onclick='window.open("index.php","_blank");'>
 </body>
 </html>

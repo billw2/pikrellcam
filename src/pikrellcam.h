@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"1.1.3"
+#define	PIKRELLCAM_VERSION	"2.0.0"
 
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))
@@ -283,6 +283,9 @@ typedef struct
 #define	VCB_STATE_MANUAL_RECORD			8
 #define VCB_STATE_RESTARTING			0x100
 
+#define	VCB_STATE_MOTION  (VCB_STATE_MOTION_RECORD_START | VCB_STATE_MOTION_RECORD)
+#define	VCB_STATE_MANUAL  (VCB_STATE_MANUAL_RECORD_START | VCB_STATE_MANUAL_RECORD)
+
 typedef struct
 	{
 	int		position;
@@ -377,20 +380,25 @@ typedef struct
 
 	char	*install_dir,
 			*version,
+			*tmpfs_dir,		/* for mjpeg and info files */
+			*archive_dir,
 			*media_dir,
 			*video_dir,
 			*thumb_dir,
 			*still_dir,
 			*timelapse_dir,
 			*script_dir,
-			*command_fifo;
+			*command_fifo,
+			*state_filename;
 
 	char	*config_dir,
 			*config_file,
 			*motion_regions_config_file,
 			*at_commands_config_file,
-			*log_file,
 			*on_startup_cmd;
+
+	char	*log_file;
+	int		log_lines;
 
 	int		verbose,
 			verbose_motion;
@@ -402,7 +410,11 @@ typedef struct
 			*longitude;
 
 	boolean	motion_enable,
+			state_modified,
 			config_modified;
+
+	int		config_sequence,
+			config_sequence_new;
 
 	MotionTimes
 			motion_times;
@@ -425,7 +437,7 @@ typedef struct
 
 	char	*video_filename,
 			*video_h264,
-			*video_last_save,
+			*video_last,
 			*video_pathname,
 			*video_manual_tag,
 			*video_motion_tag;
@@ -438,22 +450,22 @@ typedef struct
 	boolean	video_mp4box;
 
 
-	char	*mjpeg_dir,
-			*mjpeg_filename;
+	char	*mjpeg_filename;
 	int		mjpeg_width,
 			mjpeg_height,
 			mjpeg_quality,
 			mjpeg_divider;
+	boolean	mjpeg_rename_holdoff;
 
 	char	*still_filename,
-			*still_last_save;
+			*still_last;
 	int		still_sequence;
 	boolean	still_capture_event;
 	char	*on_still_capture_cmd;
 
 	char	*timelapse_video_name,
 			*timelapse_format,
-			*timelapse_last_save,
+			*timelapse_last,
 			*timelapse_status_file;
 	char	*on_timelapse_end_cmd;
 

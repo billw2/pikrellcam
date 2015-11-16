@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Limit the log file to a number of lines.  This is run at pikrellcam startup
+# and at the start of each day.  Run from log_lines() in event.c
+
+N_LINES=$1
+LOG_FILE=$2
+
+TMP_LOG_FILE=${LOG_FILE}.part
+
+if tail -$N_LINES $LOG_FILE 2>/dev/null > $TMP_LOG_FILE
+then
+	mv $TMP_LOG_FILE $LOG_FILE
+else
+	rm -f $TMP_LOG_FILE
+fi

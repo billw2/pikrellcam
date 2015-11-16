@@ -525,7 +525,7 @@ config_value_int_set(char *arg, ConfigResult *result)
 
 static Config  config[] =
 	{
-	{ "# ---------------------- Directories ----------------------\n"
+	{ "# ----------------------------------------------------------\n"
 	  "#\n"
 	  "# The PiKrellCam installation directory.\n"
 	  "# This must match where PiKrellCam is installed and it is checked by\n"
@@ -533,18 +533,42 @@ static Config  config[] =
 	  "#",
 	"install_dir", "/home/pi/pikrellcam", TRUE, { .string = &pikrellcam.install_dir }, config_string_set },
 
+	{ "# Directory for the stream mjpeg file and info file. These files\n"
+	  "# are frequently updated so this directory should be in a tmpfs.\n"
+	  "# This could be a directory in /tmp if your /tmp is a tmpfs.\n"
+	  "# Avoid putting this directory under /run/shm or /dev/shm because these\n"
+	  "# directories are subject to automatic cleanups which could delete the\n"
+	  "# tmpfs_dir out from under a running pikrellcam if running headless.\n"
+	  "#",
+	"tmpfs_dir",  "/run/pikrellcam", TRUE, { .string = &pikrellcam.tmpfs_dir }, config_string_set },
+
 	{ "# If media_dir has no leading '/' it will be a sub directory in install_dir.\n"
 	  "# Otherwise it is a full pathname to the media directory.\n"
 	  "# So the default media dir is /home/pi/pikrellcam/media.\n"
 	  "# An alternate choice could be /home/pi/media if you set the full path.\n"
 	  "# Even /tmp/media with /tmp a tmpfs can be an option for a setup that\n"
 	  "# will manage by hand or script the limited space available.\n"
+	  "# A file system may be mounted on the media dir in the startup script.\n"
 	  "#",
 	"media_dir", "media", TRUE, { .string = &pikrellcam.media_dir }, config_string_set },
+
+	{ "# If archive_dir has no leading '/' it will be a sub directory under media_dir.\n"
+	  "# Otherwise it is a full pathname to the archive directory.\n"
+	  "# So the default archive dir is /home/pi/pikrellcam/media/archive.\n"
+	  "# When media files are archived, they will be moved to sub directories:\n"
+	  "#     archive_dir/year/month/day/[videos|thumbs|stills]\n"
+	  "# A file system may be mounted on the archive dir in the startup script.\n"
+	  "#",
+	"archive_dir", "archive", TRUE, { .string = &pikrellcam.archive_dir }, config_string_set },
 
 	{ "# Log file.\n"
 	  "#",
 	"log_file",  "/tmp/pikrellcam.log", TRUE, { .string = &pikrellcam.log_file }, config_string_set },
+
+	{ "# At startup and at each new day, trim the log file number of lines\n"
+	  "# to log_lines.  If log_lines is 0 the log file is not trimmed.\n"
+	  "#",
+	"log_lines", "1000", FALSE, {.value = &pikrellcam.log_lines}, config_value_int_set},
 
 	{ "# Command to run at PiKrellCam startup.  This is run after the config\n"
 	  "# files are loaded but before the camera is started or directories\n"
@@ -721,14 +745,6 @@ static Config  config[] =
 	  "#",
 	"video_bitrate",  "6000000", TRUE, {.value = &pikrellcam.camera_adjust.video_bitrate},    config_value_int_set },
 
-	{ "# mjpeg_dir is the stream jpeg file directory which should be in a tmpfs.\n"
-	  "# You could configure this to be a directory in /tmp if your /tmp is a tmpfs.\n"
-	  "# Avoid putting this directory under /run/shm or /dev/shm because these\n"
-	  "# directories are subject to automatic cleanups which could delete the\n"
-	  "# mjpeg_dir out from under a running pikrellcam if running headless.\n"
-	  "#",
-	"mjpeg_dir",  "/run/pikrellcam", TRUE, { .string = &pikrellcam.mjpeg_dir }, config_string_set },
-
 	{ "# Pixel width of the stream jpeg file. Aspect ratio is determined by the video.\n"
 	  "#",
 	"mjpeg_width",    "640",  TRUE, {.value = &pikrellcam.mjpeg_width},      config_value_int_set },
@@ -812,6 +828,10 @@ static Config  config[] =
 	{ "# Your longitude used to calculate sun rise, set, dawn, and dusk times.\n"
 	  "#",
 	"longitude", "97.88W", FALSE, {.string = &pikrellcam.longitude },   config_string_set },
+
+	{ "# Do not edit.  Used internally to force startup config write if needed.\n"
+	  "#",
+	"config_sequence", "0", FALSE, {.value = &pikrellcam.config_sequence}, config_value_int_set },
 
 
 	{ "\n# ------------------- Annotate Text Options  -----------------------\n"
@@ -936,6 +956,8 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
+	pikrellcam.config_sequence_new = 10;
+
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
 		n = sscanf(linebuf, "%63s %[^\n]", opt, args);
@@ -968,6 +990,11 @@ config_load(char *config_file)
 	camera_adjust_temp = pikrellcam.camera_adjust;
 	motion_times_temp = pikrellcam.motion_times;
 
+	if (pikrellcam.config_sequence_new != pikrellcam.config_sequence)
+		{
+		pikrellcam.config_sequence = pikrellcam.config_sequence_new;
+		pikrellcam.config_modified = TRUE;
+		}
 	return TRUE;
 	}
 

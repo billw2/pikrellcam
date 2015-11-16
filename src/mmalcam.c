@@ -28,10 +28,13 @@ CameraObject	video_h264_encoder;
 CameraObject	stream_splitter;		/* Currently not used in PiKrellCam */
 CameraObject	stream_resizer;
 
-VideoCircularBuffer	video_circular_buffer;
+VideoCircularBuffer video_circular_buffer;
 
-static boolean		motion_frame_event,
-					mjpeg_do_preview_save;
+static boolean      motion_frame_event,
+                    mjpeg_do_preview_save;
+
+static unsigned int	mjpeg_encoder_send_count,
+                    mjpeg_encoder_recv_count;
 
   /* TODO: handle annotateV3
   */
@@ -137,6 +140,7 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	static FILE				*file	= NULL;
 	static char				*fname_part;
 
+	++mjpeg_encoder_recv_count;
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.mjpeg_filename);
 
@@ -159,9 +163,20 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			{
 			fclose(file);
 			file = NULL;
-			rename(fname_part, pikrellcam.mjpeg_filename);
+
+			/* When adding an event_preview_save, set a rename holdoff that
+			|  will be reset when the preview_save is done.  Don't do
+			|  any renames until the holdoff reset to ensure the correct
+			|  mjpeg image is saved into the preview.  Otherwise there is
+			|  a race condition.  Could just directly run the preview save
+			|  function here, but we are inside a GPU callback and I don't
+			|  want to overload the time spent here.
+			*/
+			if (!pikrellcam.mjpeg_rename_holdoff)
+				rename(fname_part, pikrellcam.mjpeg_filename);
 			if (mjpeg_do_preview_save)
 				{
+				pikrellcam.mjpeg_rename_holdoff = TRUE;
 				event_add("motion preview save", pikrellcam.t_now, 0,
 						event_preview_save, NULL);
 				if (motion_frame.do_preview_save_cmd)
@@ -227,15 +242,20 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 void
 I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	{
-	CameraObject			*obj = (CameraObject *) port->userdata;
-	MMAL_BUFFER_HEADER_T	*buffer_in;
-	static struct timeval	timer;
-	int						utime;
+	CameraObject          *obj = (CameraObject *) port->userdata;
+	MMAL_BUFFER_HEADER_T  *buffer_in;
+	static struct timeval timer;
+	int                   utime;
 
 	if (   buffer->length > 0
 	    && motion_frame_event
 	   )
 		{
+		if (mjpeg_encoder_send_count != mjpeg_encoder_recv_count)
+			{
+			mjpeg_encoder_send_count = mjpeg_encoder_recv_count;
+//			printf("mjpeg encoder path not clear.\n");
+			}
 		motion_frame_event = FALSE;
 		if (obj->callback_port_in && obj->callback_pool_in)
 			{
@@ -252,6 +272,7 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 				if (motion_frame.do_preview_save)
 					mjpeg_do_preview_save = TRUE;	/* relay it */
 				motion_frame.do_preview_save = FALSE;
+				++mjpeg_encoder_send_count;
 				mmal_port_send_buffer(obj->callback_port_in, buffer_in);
 				}
 			}
