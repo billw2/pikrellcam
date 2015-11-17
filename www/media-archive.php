@@ -437,8 +437,9 @@ function restart_page($selected)
 				{
 				if ("$media_mode" == "archive")
 					$media_dir = archive_media_dir($date[0], $date[1], $date[2]);
-				$thumb = str_replace(".mp4", ".th.jpg", $vid);
-				delete_file($media_dir, $thumb);
+//				$thumb = str_replace(".mp4", ".th.jpg", $vid);
+//				delete_file($media_dir, $thumb);
+				delete_file($media_dir, $vid);
 				}
 			else if ($action == "archive_selected")
 				{
