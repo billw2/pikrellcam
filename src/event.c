@@ -121,6 +121,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				snprintf(buf, sizeof(buf), "%s", name);
 				free(name);
 				fmt_arg = buf;
+				dup_string(&pikrellcam.timelapse_video_pending, fmt_arg);
 				break;
 			case 'l':
 				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
@@ -180,7 +181,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				snprintf(buf, sizeof(buf), "%d", t);
 				fmt_arg = buf;
 				break;
-			case 'D':	/* curtime dawn sunrise sunset dusk */
+			case 'D':	/* current_minute dawn sunrise sunset dusk */
 				tm_now = localtime(&pikrellcam.t_now);
 				snprintf(buf, sizeof(buf), "%d %d %d %d %d",
 						tm_now->tm_hour * 60 + tm_now->tm_min,
@@ -448,13 +449,26 @@ state_file_write(void)
 	fprintf(f, "still_last %s\n",
 			pikrellcam.still_last ? pikrellcam.still_last : "none");
 
+	fprintf(f, "timelapse_period %d\n", time_lapse.period);
 	fprintf(f, "timelapse_active %s\n",
 			time_lapse.activated ? "on" : "off");
+	fprintf(f, "timelapse_hold %s\n",
+			time_lapse.on_hold ? "on" : "off");
+	fprintf(f, "timelapse_jpeg_last %s\n",
+			(pikrellcam.timelapse_jpeg_last && *pikrellcam.timelapse_jpeg_last)
+					? pikrellcam.timelapse_jpeg_last : "none");
 	fprintf(f, "timelapse_converting %s\n",
 			(time_lapse.convert_name && *time_lapse.convert_name)
 					? time_lapse.convert_name : "none");
-	fprintf(f, "timelapse_last %s\n",
-			pikrellcam.timelapse_last ? pikrellcam.timelapse_last : "none");
+	fprintf(f, "timelapse_video_last %s\n",
+			pikrellcam.timelapse_video_last ? pikrellcam.timelapse_video_last : "none");
+
+	fprintf(f, "current_minute %d\n",
+			pikrellcam.tm_local.tm_hour * 60 + pikrellcam.tm_local.tm_min);
+	fprintf(f, "dawn %d\n", sun.dawn);
+	fprintf(f, "sunrise %d\n", sun.sunrise);
+	fprintf(f, "sunset %d\n", sun.sunset);
+	fprintf(f, "dusk %d\n", sun.dusk);
 
 	fclose(f);
 	rename(fname_part, pikrellcam.state_filename);
@@ -631,7 +645,7 @@ event_process(void)
 	else
 		minute_tick = FALSE;
 
-	if (pikrellcam.state_modified)
+	if (pikrellcam.state_modified || minute_tick)
 		{
 		pikrellcam.state_modified = FALSE;
 		state_file_write();
@@ -747,6 +761,7 @@ event_process(void)
 			sun_times_init();
 			sun.initialized = TRUE;
 			log_lines();
+			state_file_write();
 			}
 
 		for (list = at_command_list; list; list = list->next)
@@ -895,7 +910,7 @@ at_commands_config_save(char *config_file)
 	"#                     arg list, $l must be the last argument.\n"
 	"#                $T - timelapse video full path filename in video sub directory\n"
 	"#                $N - timelapse sequence last number\n"
-	"#                $D - current_time dawn sunrise sunset dusk\n"
+	"#                $D - current_minute dawn sunrise sunset dusk\n"
 	"#                $Z - pikrellcam version\n"
 	"# \n"
 	"# Commands must be enclosed in quotes.\n"

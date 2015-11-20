@@ -393,10 +393,12 @@ motion_draw(uint8_t *i420)
 		if (!time_lapse.activated)
 			{
 			snprintf(info, sizeof(info), "Timelapse:  off ");
+			snprintf(tbuf, sizeof(tbuf), "   Period:  %-3d ", p);
 			}
 		else if (time_lapse.on_hold)
 			{
-			snprintf(info, sizeof(info), "Timelapse: hold ");
+			snprintf(info, sizeof(info), "Timelapse:  hold ");
+			snprintf(tbuf, sizeof(tbuf), "   Period:  %-4d ", p);
 			}
 		else if (p >= 3600)
 			{
@@ -442,7 +444,7 @@ motion_draw(uint8_t *i420)
 					fname_base(pikrellcam.still_last));
 	if (pikrellcam.timelapse_notify && time_lapse.show_status)
 		i420_print(&inform_area, normal_font, 0xff, 4, 0, 0, JUSTIFY_CENTER,
-					fname_base(pikrellcam.timelapse_last));
+					fname_base(pikrellcam.timelapse_jpeg_last));
 	}
 
 typedef struct
@@ -1273,13 +1275,21 @@ static int quit_flag;
 void
 display_draw(uint8_t *i420)
 	{
+	static int	clean_count;
+
 	/* If this frame will be a preview save jpeg and the user wants it clean,
 	|  do not draw.
 	*/
 	if (   motion_frame.do_preview_save			/* This frame will be preview */
 	    && pikrellcam.motion_preview_clean
 	   )
-		return;  /* User wants a clean preview jpeg */
+		clean_count = 2;	/* Failsafe maybe.  Try hard to get a clean. */
+
+	if (clean_count > 0)
+		{
+		--clean_count;
+		return;
+		}
 
 	glcd_set_frame_buffer(glcd, (uint16_t *) i420,
 				pikrellcam.mjpeg_width, pikrellcam.mjpeg_height);

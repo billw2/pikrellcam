@@ -331,7 +331,7 @@ timelapse_capture(void)
 		else
 			{
 			log_printf("Timelapse still: %s\n", path);
-			dup_string(&pikrellcam.timelapse_last, path);
+			dup_string(&pikrellcam.timelapse_jpeg_last, path);
 			pikrellcam.state_modified = TRUE;
 
 			/* timelapse_capture() is an event call (inside the event loop)
@@ -540,6 +540,8 @@ get_arg_pass1(char *arg)
 		pikrellcam.verbose = TRUE;
 	else if (!strcmp(arg, "-vm"))
 		pikrellcam.verbose_motion = TRUE;
+	else if (!strcmp(arg, "-debug"))
+		pikrellcam.debug = TRUE;
 	else
 		return FALSE;
 	return TRUE;
@@ -709,30 +711,66 @@ command_process(char *command_line)
 
 		case tl_start:
 			if ((n = atoi(args)) < 1)
-				n = 0;
+				{
+				/* display_inform("string row justify font") */
+				display_inform("\"Timelapse period must be > 0\" 3 3 1");
+				display_inform("timeout 2");
+				break;
+				}
 			time_lapse.activated = TRUE;
 			time_lapse.on_hold = FALSE;
 			pikrellcam.state_modified = TRUE;
-			if (!time_lapse.event && n > 0)
+			snprintf(arg1, sizeof(arg1), "%d", n);
+
+			if (!time_lapse.event)
 				{
 				time_lapse.sequence = 0;
 				++time_lapse.series;
 				time_lapse.event = event_add("timelapse",
 							pikrellcam.t_now, n, timelapse_capture, NULL);
+
+				display_inform("\"Timelapse Starting\" 3 3 1");
+				snprintf(buf, sizeof(buf), "\"Period: %d\" 4 3 1", n);
+				display_inform(buf);
+				display_inform("timeout 2");
 				}
-			else if (n > 0)		/* Change the period */
+			else			/* Change the period */
 				{
+				display_inform("\"Timelapse Already Running\" 3 3 1");
+				if (n != time_lapse.period)
+					{
+					snprintf(buf, sizeof(buf),
+						"\"Changing period from %d to %d\" 4 3 1",
+						time_lapse.period, n);
+					display_inform(buf);
+					}
+				display_inform("timeout 2");
 				time_lapse.event->time += (n - time_lapse.period);
 				time_lapse.event->period = n;
 				}
-			if (n > 0)
-				time_lapse.period = n;	/* n == 0 just sets on_hold FALSE */
-			config_timelapse_save_status();	
+			time_lapse.period = n;
+			config_timelapse_save_status();
+			config_set_boolean(&time_lapse.show_status, "on");
 			break;
 
 		case tl_hold:
-				config_set_boolean(&time_lapse.on_hold, args);
+			if (time_lapse.activated)
+				{
+				config_set_boolean(&time_lapse.on_hold, args); /* toggle */
 				config_timelapse_save_status();
+				pikrellcam.state_modified = TRUE;
+				if (time_lapse.on_hold)
+					display_inform("\"Timelapse on hold\" 3 3 1");
+				else
+					display_inform("\"Timelapse resuming\" 3 3 1");
+				display_inform("timeout 2");
+				}
+			else
+				{
+				display_inform("\"Timelapse is not running.\" 3 3 1");
+				display_inform("timeout 2");
+				time_lapse.on_hold = FALSE;
+				}
 			break;
 
 		case tl_end:
@@ -745,6 +783,16 @@ command_process(char *command_line)
 				pikrellcam.state_modified = TRUE;
 				config_timelapse_save_status();
 				exec_no_wait(pikrellcam.on_timelapse_end_cmd, NULL);
+
+				config_set_boolean(&time_lapse.show_status, "on");
+				display_inform("\"Timelapse ended.\" 3 3 1");
+				display_inform("\"Starting convert...\" 4 3 1");
+				display_inform("timeout 2");
+				}
+			else
+				{
+				display_inform("\"Timelapse is not running.\" 3 3 1");
+				display_inform("timeout 3");
 				}
 			break;
 
@@ -753,6 +801,9 @@ command_process(char *command_line)
 				{
 				event_remove(time_lapse.inform_event);
 				dup_string(&time_lapse.convert_name, "");
+				dup_string(&pikrellcam.timelapse_video_last, pikrellcam.timelapse_video_pending);
+				dup_string(&pikrellcam.timelapse_video_pending, "");
+				dup_string(&pikrellcam.timelapse_jpeg_last, "");
 				pikrellcam.state_modified = TRUE;
 				time_lapse.convert_size = 0;
 				}
@@ -1018,6 +1069,9 @@ main(int argc, char *argv[])
 			exit(1);
 			}
 		}
+
+	if (pikrellcam.debug)
+		printf("debugging...\n");
 
 	homedir = getpwuid(geteuid())->pw_dir;
 	user = strrchr(homedir, '/');

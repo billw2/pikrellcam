@@ -30,11 +30,12 @@ CameraObject	stream_resizer;
 
 VideoCircularBuffer video_circular_buffer;
 
-static boolean      motion_frame_event,
-                    mjpeg_do_preview_save;
+static boolean      motion_frame_event;
+static int          mjpeg_do_preview_save;
 
-static unsigned int	mjpeg_encoder_send_count,
-                    mjpeg_encoder_recv_count;
+static pthread_mutex_t mjpeg_encoder_count_lock;
+static unsigned int	   mjpeg_encoder_send_count,
+                       mjpeg_encoder_recv_count;
 
   /* TODO: handle annotateV3
   */
@@ -134,13 +135,13 @@ int debug_fps = 0;
 void
 mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	{
-	CameraObject			*data = (CameraObject *) port->userdata;
-	static struct timeval	timer;
-	int						n, utime;
-	static FILE				*file	= NULL;
-	static char				*fname_part;
+	CameraObject           *data = (CameraObject *) port->userdata;
+	static struct timeval  timer;
+	int                    n, utime;
+	static FILE            *file	= NULL;
+	static char            *fname_part;
+	boolean                do_preview_save = FALSE;
 
-	++mjpeg_encoder_recv_count;
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.mjpeg_filename);
 
@@ -164,6 +165,17 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			fclose(file);
 			file = NULL;
 
+		pthread_mutex_lock(&mjpeg_encoder_count_lock);
+		++mjpeg_encoder_recv_count;
+		if (mjpeg_do_preview_save == 1)
+			{
+			mjpeg_do_preview_save = 0;
+			do_preview_save = TRUE;
+			}
+		else if (mjpeg_do_preview_save > 1)
+			--mjpeg_do_preview_save;
+		pthread_mutex_unlock(&mjpeg_encoder_count_lock);
+
 			/* When adding an event_preview_save, set a rename holdoff that
 			|  will be reset when the preview_save is done.  Don't do
 			|  any renames until the holdoff reset to ensure the correct
@@ -174,7 +186,10 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			*/
 			if (!pikrellcam.mjpeg_rename_holdoff)
 				rename(fname_part, pikrellcam.mjpeg_filename);
-			if (mjpeg_do_preview_save)
+			else if (pikrellcam.debug)
+				printf("%s: holdoff not clear -> rename skipped\n",
+						fname_base(pikrellcam.video_pathname));
+			if (do_preview_save)
 				{
 				pikrellcam.mjpeg_rename_holdoff = TRUE;
 				event_add("motion preview save", pikrellcam.t_now, 0,
@@ -188,7 +203,6 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 							pikrellcam.on_motion_preview_save_cmd);
 					}
 				}
-			mjpeg_do_preview_save = FALSE;
 			motion_frame.do_preview_save_cmd = FALSE;
 			}
 		file = fopen(fname_part, "w");
@@ -246,34 +260,70 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	MMAL_BUFFER_HEADER_T  *buffer_in;
 	static struct timeval timer;
 	int                   utime;
+	static int            encoder_busy_count;
 
 	if (   buffer->length > 0
 	    && motion_frame_event
 	   )
 		{
-		if (mjpeg_encoder_send_count != mjpeg_encoder_recv_count)
-			{
-			mjpeg_encoder_send_count = mjpeg_encoder_recv_count;
-//			printf("mjpeg encoder path not clear.\n");
-			}
 		motion_frame_event = FALSE;
-		if (obj->callback_port_in && obj->callback_pool_in)
+
+		/* Do not send buffer to encoder if it has not received the previous
+		|  one we sent unless this is the frame we want for a preview save.
+		|  In that case, we may be sending a buffer to preview save before
+		|  the previous buffer is handled.  This is accounted for below.
+		*/
+		if (   mjpeg_encoder_send_count == mjpeg_encoder_recv_count
+		    || motion_frame.do_preview_save
+		   )
 			{
-			buffer_in = mmal_queue_get(obj->callback_pool_in->queue);
-			if (   buffer_in
-			    && obj->callback_port_in->buffer_size >= buffer->length
-			   )
+			if (obj->callback_port_in && obj->callback_pool_in)
 				{
-				mmal_buffer_header_mem_lock(buffer);
-				memcpy(buffer_in->data, buffer->data, buffer->length);
-				buffer_in->length = buffer->length;
-				mmal_buffer_header_mem_unlock(buffer);
-				display_draw(buffer_in->data);
-				if (motion_frame.do_preview_save)
-					mjpeg_do_preview_save = TRUE;	/* relay it */
-				motion_frame.do_preview_save = FALSE;
-				++mjpeg_encoder_send_count;
-				mmal_port_send_buffer(obj->callback_port_in, buffer_in);
+				buffer_in = mmal_queue_get(obj->callback_pool_in->queue);
+				if (   buffer_in
+				    && obj->callback_port_in->buffer_size >= buffer->length
+				   )
+					{
+					mmal_buffer_header_mem_lock(buffer);
+					memcpy(buffer_in->data, buffer->data, buffer->length);
+					buffer_in->length = buffer->length;
+					mmal_buffer_header_mem_unlock(buffer);
+					display_draw(buffer_in->data);
+
+					if (motion_frame.do_preview_save)
+						{
+						/* If mjpeg encoder has not received previous buffer,
+						|  then the buffer to save will be the second buffer
+						|  it gets from now. Otherwise it's the next buffer.
+						*/
+						pthread_mutex_lock(&mjpeg_encoder_count_lock);
+						if (mjpeg_encoder_send_count == mjpeg_encoder_recv_count)
+							mjpeg_do_preview_save = 1;
+						else
+							mjpeg_do_preview_save = 2;
+						pthread_mutex_unlock(&mjpeg_encoder_count_lock);
+						if (mjpeg_do_preview_save == 2 && pikrellcam.debug)
+							printf("%s: encoder not clear -> preview save delayed\n",
+								fname_base(pikrellcam.video_pathname));
+						}
+					motion_frame.do_preview_save = FALSE;
+					++mjpeg_encoder_send_count;
+					mmal_port_send_buffer(obj->callback_port_in, buffer_in);
+					}
+				}
+			}
+		else
+			{
+			++encoder_busy_count;
+			if (pikrellcam.debug)
+				printf("encoder not clear (%d) -> skipping mjpeg frame.\n",
+					   encoder_busy_count);
+			if (encoder_busy_count > 2)	/* Frame maybe dropped ??, move on */
+				{
+				if (pikrellcam.debug)
+					printf("  Syncing recv/send counts.\n");
+				encoder_busy_count = 0;
+				mjpeg_encoder_recv_count = mjpeg_encoder_send_count;
 				}
 			}
 		if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)

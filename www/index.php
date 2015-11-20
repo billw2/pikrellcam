@@ -7,6 +7,21 @@
 	require_once(dirname(__FILE__) . '/config.php');
 	include_once(dirname(__FILE__) . '/config-user.php');
 	include_once(dirname(__FILE__) . '/config-defaults.php');	
+
+function time_lapse_period()
+	{
+	$tl_status = "../../.pikrellcam/timelapse.status";
+	$f = fopen($tl_status, 'r');
+	$tl_period = 1;
+	if ($f)
+		{
+		$input = fgets($f);
+		$input = fgets($f);
+		sscanf($input, "%d", $tl_period);
+		fclose($f);
+		}
+	return $tl_period;
+	}
 ?>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -377,7 +392,7 @@ if (file_exists("custom-control.php"))
                     <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Time Lapse </span>"; ?>
                     <div>
                     <?php echo "<span style=\"margin-left:40px; font-weight:600; color: $default_text_color\"> Period </span>"; ?>
-                      <input type="text" id="tl_period" value="0" size="3"
+                      <input type="text" id="tl_period" value="<?php echo time_lapse_period(); ?>" size="3"
                       >
                     <?php echo "<span style=\"margin-left:4px; color: $default_text_color\"> sec </span>"; ?>
                       <input type="button" value="Start"

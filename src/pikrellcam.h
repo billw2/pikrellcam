@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.0.1"
+#define	PIKRELLCAM_VERSION	"2.0.2"
 
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))
@@ -464,8 +464,10 @@ typedef struct
 	char	*on_still_capture_cmd;
 
 	char	*timelapse_video_name,
+			*timelapse_video_last,
+			*timelapse_video_pending,
 			*timelapse_format,
-			*timelapse_last,
+			*timelapse_jpeg_last,
 			*timelapse_status_file;
 	char	*on_timelapse_end_cmd;
 
@@ -498,6 +500,8 @@ typedef struct
 			*crop,
 			*shutter_speed,
 			*raw_capture;
+
+	int		debug;
 	}
 	PiKrellCam;
 
