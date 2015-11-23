@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.0.2"
+#define	PIKRELLCAM_VERSION	"2.0.3"
 
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))
@@ -290,6 +290,7 @@ typedef struct
 	{
 	int		position;
 	time_t	t_frame;
+	int		frame_count;
 	}
 	KeyFrame;
 
@@ -308,8 +309,11 @@ typedef struct
 	{
 	pthread_mutex_t	mutex;
 
-	FILE		*file;
-	int			state;
+	FILE		*file,
+				*motion_stats_file;
+	boolean		motion_stats_do_header;
+	int			state,
+				frame_count;
 
 	int8_t	   h264_header[H264_MAX_HEADER_SIZE];
 	int		   h264_header_position;
@@ -422,12 +426,14 @@ typedef struct
 			motion_magnitude_limit,
 			motion_magnitude_limit_count;
 	char	*on_motion_begin_cmd,
-			*on_motion_end_cmd;
+			*on_motion_end_cmd,
+			*motion_regions_name;
 	char	*preview_filename;
 	char	*motion_preview_save_mode,
 			*on_motion_preview_save_cmd;
 	boolean	motion_preview_clean,
-			motion_vertical_filter;
+			motion_vertical_filter,
+			motion_stats;
 	int		motion_area_min_side;
 
 	CameraConfig
@@ -445,7 +451,6 @@ typedef struct
 			video_motion_sequence,
 			video_header_size,
 			video_size;
-	FILE	*video_file;
 	
 	boolean	video_mp4box;
 
@@ -642,8 +647,8 @@ void	command_process(char *command_line);
 void	motion_init(void);
 void	motion_command(char *cmd_line);
 void	motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf);
-void	motion_regions_config_save(char *config_file);
-boolean	motion_regions_config_load(char *config_file);
+void	motion_regions_config_save(char *config_file, boolean inform);
+boolean	motion_regions_config_load(char *config_file, boolean inform);
 void	motion_preview_file_event(void);
 void	motion_preview_area_fixup(void);
 void	print_cvec(char *str, CompositeVector *cvec);

@@ -92,10 +92,10 @@ typedef struct
 	}
 	InformLine;
 
-#define	N_INFORM_LINES	10
+#define	N_INFORM_LINES	20
 
 InformLine	inform_line[N_INFORM_LINES];
-
+static int	inform_line_index;
 
 static int	display_state;
 static int	display_menu;
@@ -318,6 +318,13 @@ motion_draw(uint8_t *i420)
 								mf->mag2_limit_count);
 		i420_print(&top_status_area, normal_font, 0xff, 1, 1, 0,
 					JUSTIFY_LEFT, info);
+		if (pikrellcam.motion_regions_name)
+			{
+			snprintf(info, sizeof(info), "   Regions name: %s",
+						pikrellcam.motion_regions_name);
+			i420_print(&top_status_area, normal_font, 0xff, 2, 1, 0,
+						JUSTIFY_LEFT, info);
+			}
 
 		if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
 			{
@@ -1238,6 +1245,7 @@ display_inform_expire(void)
 		free(inform_line[i].string);
 		inform_line[i].string = NULL;
 		}
+	inform_line_index = 0;
 	}
 
 void
@@ -1257,9 +1265,9 @@ display_inform(char *args)
 		{
 		n = sscanf(args, "\"%127[^\"]\" %d %d %d %d %d",
 				str, &row, &justify, &font, &xs, &ys);
-		if (n > 0 && row >= 0 && row < N_INFORM_LINES)
+		if (n > 0 && row >= 0 && inform_line_index < N_INFORM_LINES)
 			{
-			iline = &inform_line[row];
+			iline = &inform_line[inform_line_index++];
 			dup_string(&iline->string, str);
 			iline->row = row;
 			iline->justify = justify;

@@ -153,7 +153,7 @@ function build_month_html($year, $month, $type)
 	$title = TITLE_STRING;
 	$header = "<!DOCTYPE html><html><head>";
 	$header .= "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-    $header .= "<title>$title Archive</title>";
+    $header .= "<title>$title Calendar</title>";
 	$header .= "<link rel=\"stylesheet\" href=\"js-css/pikrellcam.css\" />";
 	$header .= "</head>";
 	$header .= "<body background=\"$background_image\">";

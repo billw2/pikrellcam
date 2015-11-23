@@ -374,6 +374,7 @@ circular_buffer_init()
 		{
 		vcb->key_frame[i].position = 0;
 		vcb->key_frame[i].t_frame = 0;
+		vcb->key_frame[i].frame_count = 0;
 		}
 	}
 
@@ -422,10 +423,10 @@ void
 video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
-	int				end_space, event = 0;
-	time_t			t_cur = pikrellcam.t_now;
-	static int		fps_count;
-	static time_t	t_prev;
+	int            i, end_space, event = 0;
+	time_t         t_cur = pikrellcam.t_now;
+	static int     fps_count;
+	static time_t  t_prev;
 
 	if (vcb->state == VCB_STATE_RESTARTING)
 		{
@@ -466,6 +467,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb->in_keyframe = TRUE;
 			vcb->cur_frame_index = (vcb->cur_frame_index + 1) % KEYFRAME_SIZE;
 			vcb->key_frame[vcb->cur_frame_index].position = vcb->head;
+			vcb->key_frame[vcb->cur_frame_index].frame_count = 0;
 			if (vcb->pause && vcb->state == VCB_STATE_MANUAL_RECORD)
 				vcb->tail = vcb->head;
 			vcb->key_frame[vcb->cur_frame_index].t_frame = t_cur;
@@ -479,8 +481,21 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				}
 			}
 		if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
+			{
 			vcb->in_keyframe = FALSE;
-
+			i = vcb->pre_frame_index; 
+			while (1)
+				{
+				vcb->key_frame[i].frame_count += 1;
+				if (i++ == vcb->cur_frame_index)
+					break;
+				i %= KEYFRAME_SIZE;
+				}
+			if (vcb->state == VCB_STATE_MOTION_RECORD)
+				vcb->frame_count += 1;
+			else
+				vcb->frame_count = vcb->key_frame[vcb->pre_frame_index].frame_count;
+			}
 		if (t_cur > t_prev)
 			{
 			/* While waiting for a video record start event, keep key frames
@@ -514,6 +529,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb_video_write(vcb);
 			vcb->record_start = t_cur - pikrellcam.motion_times.pre_capture;
 			vcb->motion_sync_time = t_cur + pikrellcam.motion_times.post_capture;
+//			vcb->frame_count = vcb->key_frame[vcb->pre_frame_index].frame_count;
 			vcb->state = VCB_STATE_MOTION_RECORD;
 
 			/* Schedule any motion begin command.

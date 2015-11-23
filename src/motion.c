@@ -19,6 +19,7 @@
 */
 
 #include "pikrellcam.h"
+#include <dirent.h>
 
 #define EXPMA_SMOOTHING	0.01
 
@@ -310,6 +311,27 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		*cvec = zero_cvec;
 	}
 
+static void
+motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
+	{
+	CompositeVector *frame_vec = &mf->frame_vector;
+
+	if (!vcb->motion_stats_file)
+		return;
+	if (vcb->motion_stats_do_header)
+		fprintf(vcb->motion_stats_file,
+			"# time, x, y, dx, dy, magnitude, count\n"
+	        "# width %d height %d\n",
+	        mf->width, mf->height);
+	vcb->motion_stats_do_header = FALSE;
+
+	fprintf(vcb->motion_stats_file,
+		"%6.3f, %3d, %3d, %3d, %3d, %3.0f, %4d\n",
+		(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps,
+		frame_vec->x, frame_vec->y, frame_vec->vx, frame_vec->vy,
+		sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
+	}
+
 void
 motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	{
@@ -374,6 +396,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			frame_vec->y  += reg_vec->y;
 			frame_vec->vx += reg_vec->vx;
 			frame_vec->vy += reg_vec->vy;
+			frame_vec->mag2_count += reg_vec->mag2_count;
 			}
 		}
 
@@ -388,6 +411,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		frame_vec->y /= motion_count;
 		frame_vec->vx /= motion_count;
 		frame_vec->vy /= motion_count;
+		frame_vec->mag2 =
+			frame_vec->vx * frame_vec->vx + frame_vec->vy * frame_vec->vy;
 
 		x0 = y0 = x1 = y1 = 0;
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
@@ -493,6 +518,9 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			if (pikrellcam.verbose_motion)
 				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
 			}
+		if (pikrellcam.motion_stats)
+			motion_stats_write(vcb, mf);
+
 		}
 	}
 
@@ -610,11 +638,12 @@ atof_range(float *result, char *value, double low, double high)
 #define	SAVE_REGIONS	5
 #define LOAD_REGIONS	6
 #define LOAD_REGIONS_SHOW	7
-#define DELETE_REGIONS	8
-#define	SET_LIMITS		9
-#define	SELECT_REGION	10
-#define	SHOW_REGIONS	11
-#define	SHOW_VECTORS	12
+#define LIST_REGIONS	8
+#define DELETE_REGIONS	9
+#define	SET_LIMITS		10
+#define	SELECT_REGION	11
+#define	SHOW_REGIONS	12
+#define	SHOW_VECTORS	13
 
 
 typedef struct
@@ -637,6 +666,7 @@ static MotionCommand motion_commands[] =
 	{ "save_regions",   SAVE_REGIONS,  1 },
 	{ "load_regions",   LOAD_REGIONS,  1 },
 	{ "load_regions_show", LOAD_REGIONS_SHOW,  1 },
+	{ "list_regions",   LIST_REGIONS,  0 },
 	{ "delete_regions", DELETE_REGIONS, 1 },
 	{ "select_region", SELECT_REGION,    1 },
 	{ "limits", SET_LIMITS,    2 }
@@ -692,27 +722,46 @@ get_motion_args(MotionRegion *mreg, char *xs, char *ys, char *dxs, char *dys,
 	return FALSE;
 	}
 
+static char *
+motion_regions_name(char *name)
+	{
+	char        *s, *base = fname_base(name);
+	static char reg_name[50];
+
+	if (strncmp(base, "motion-regions-", 15) == 0)
+		stpncpy(reg_name, base + 15, 49);
+	else
+		strcpy(reg_name, "default");
+
+	s = strrchr(reg_name, '.');
+	if (s)
+		*s = '\0';
+	return reg_name;
+	}
+
 void
 motion_command(char *cmd_line)
 	{
-	MotionCommand	*mcmd;
-	MotionFrame		*mf = &motion_frame;
-	MotionRegion	*mreg, mrtmp;
-	SList			*list;
-	char			cmd[32], arg1[32], arg2[32], arg3[32], arg4[32], arg5[32];
-	char			*path;
-	int				i, n, id = -1;
-	float			delta = 0.0;
+	MotionCommand *mcmd;
+	MotionFrame   *mf = &motion_frame;
+	MotionRegion  *mreg, mrtmp;
+	SList         *list;
+	char          buf[64], arg1[32], arg2[32], arg3[32], arg4[32], arg5[32];
+	char          *path, *reg_name;
+	int           i, n, id = -1;
+	float         delta = 0.0;
+	struct dirent *dp;
+	DIR           *dfd;
 
-	n = sscanf(cmd_line, "%31s %31s %31s %31s %31s %31s",
-					cmd, arg1, arg2, arg3, arg4, arg5);
-	if (n < 1 || cmd[0] == '#')
+	n = sscanf(cmd_line, "%63s %31s %31s %31s %31s %31s",
+					buf, arg1, arg2, arg3, arg4, arg5);
+	if (n < 1 || buf[0] == '#')
 		return;
 
 	for (i = 0; i < N_MOTION_COMMANDS; ++i)
 		{
 		mcmd = &motion_commands[i];
-		if (!strcmp(mcmd->name, cmd))
+		if (!strcmp(mcmd->name, buf))
 			{
 			if (mcmd->n_args == n - 1)
 				id = mcmd->id;
@@ -802,6 +851,11 @@ motion_command(char *cmd_line)
 					}
 				pthread_mutex_unlock(&mf->region_list_mutex);
 				}
+			else
+				{
+				display_inform("\"Select a region first.\" 3 3 1");
+				display_inform("timeout 1");
+				}
 			break;
 
 		case MOVE_REGION:	/* 	move_region r  x y dx dy */
@@ -838,7 +892,7 @@ motion_command(char *cmd_line)
 
 		case SAVE_REGIONS:		/* save_regions config-name */
 			path = regions_custom_config(arg1);
-			motion_regions_config_save(path);
+			motion_regions_config_save(path, TRUE);
 			free(path);
 			break;
 
@@ -846,8 +900,33 @@ motion_command(char *cmd_line)
 			mf->show_regions = TRUE;
 		case LOAD_REGIONS:		/* load_regions config-name */
 			path = regions_custom_config(arg1);
-			motion_regions_config_load(path);
+			motion_regions_config_load(path, TRUE);
 			free(path);
+			break;
+
+		case LIST_REGIONS:
+			if ((dfd = opendir(pikrellcam.config_dir)) != NULL)
+				{
+				i = 2;
+				n = 10;
+				display_inform("\"Motion regions list:\" 1 3 1");
+				while ((dp = readdir(dfd)) != NULL)
+					{
+					if (strncmp(dp->d_name, "motion-regions", 14) != 0)
+						continue;
+					reg_name = motion_regions_name(dp->d_name);
+					snprintf(buf, sizeof(buf), "\"%s\" %d 4 1 %d",
+						reg_name, i++, n);
+					display_inform(buf);
+					if (i == 10)
+						{
+						n += pikrellcam.mjpeg_width / 3;
+						i = 2;
+						}
+					}
+				display_inform("timeout 4");
+				closedir(dfd);
+				}
 			break;
 
 		case DELETE_REGIONS:		/* delete_regions all / delete r */
@@ -872,6 +951,12 @@ motion_command(char *cmd_line)
 						slist_remove(mf->motion_region_list, mreg);
 				free(mreg);
 				}
+			else
+				{
+				display_inform("\"Select a region first.\" 3 3 1");
+				display_inform("timeout 1");
+				}
+
 			for (i = 0, list = mf->motion_region_list; list; list = list->next)
 				{
 				mreg = (MotionRegion *) list->data;
@@ -944,12 +1029,14 @@ motion_init(void)
 	motion_frame.motion_status = 0;
 	}
 
+
 void
-motion_regions_config_save(char *config_file)
+motion_regions_config_save(char *config_file, boolean inform)
 	{
-	FILE			*f;
-	SList			*list;
-	MotionRegion	*mreg;
+	FILE         *f;
+	SList        *list;
+	MotionRegion *mreg;
+	char         buf[128];
 
 	if (   !config_file
 	    || (f = fopen(config_file, "w")) == NULL
@@ -966,23 +1053,35 @@ motion_regions_config_save(char *config_file)
 				mreg->xf0, mreg->yf0, mreg->dxf, mreg->dyf);
 		}
 	fclose(f);
+
+	if (inform)
+		{
+		snprintf(buf, sizeof(buf), "\"%s\" 4 3 1", motion_regions_name(config_file));
+		display_inform("\"Saved motion regions to:\" 3 3 1");
+		display_inform(buf);
+		display_inform("timeout 1");
+		}
 	}
 
 boolean
-motion_regions_config_load(char *config_file)
+motion_regions_config_load(char *config_file, boolean inform)
 	{
 	boolean	save_show;
 	FILE	*f;
-	char	buf[128];
+	char	*reg_name, buf[128], dbuf[128];
 
+	reg_name = motion_regions_name(config_file);
+	snprintf(dbuf, sizeof(dbuf), "\"%s\" 4 3 1", reg_name);
 	if (   !config_file
 	    || (f = fopen(config_file, "r")) == NULL
 	   )
 		{
-		snprintf(buf, sizeof(buf), "\"%s\" 4 3 1", fname_base(config_file));
-		display_inform("\"Cannot open motion regions file:\" 3 3 1");
-		display_inform(buf);
-		display_inform("timeout 6");
+		if (inform)
+			{
+			display_inform("\"Cannot open motion regions name:\" 3 3 1");
+			display_inform(dbuf);
+			display_inform("timeout 2");
+			}
 		log_printf("Failed to open motion regions file: %s\n", config_file);
 		return FALSE;
 		}
@@ -994,6 +1093,13 @@ motion_regions_config_load(char *config_file)
 		motion_command(buf);
 	fclose(f);
 
+	dup_string(&pikrellcam.motion_regions_name, reg_name);
+	if (inform)
+		{
+		display_inform("\"Loaded motion regions name:\" 3 3 1");
+		display_inform(dbuf);
+		display_inform("timeout 1");
+		}
 	motion_frame.show_regions = save_show;		/* can't double send_cmd()??*/
 	return TRUE;
 	}

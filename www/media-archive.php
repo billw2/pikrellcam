@@ -44,6 +44,10 @@ function media_dir_array_create($media_dir)
 		$n_files = count($tmp_array);
 		foreach($tmp_array as $file_name)
 			{
+			$extension = substr(strrchr($file_name, "."), 0);
+			if ("$extension" != ".mp4" && "$extension" != ".jpg" && "$extension" != ".h264")
+				continue;
+
 			// Try to use an mtime from file name ccc_yyyy-mm-dd_hh.mm.ss_ccc.[mp4|jpg] which
 			// has date embedded in name instead of filesystem mtime which can change if file
 			// is copied. Otherwise (name format changed) use the mtime from the filesystem.
@@ -65,7 +69,6 @@ function media_dir_array_create($media_dir)
 			if ($mtime == 0)
 				$mtime = filemtime("$file_dir" . "/" . "$file_name");
 			$ymd = date("Y-m-d", $mtime);
-			$extension = substr(strrchr($file_name, "."), 0);
 			if ("$media_type" == "videos" || "$media_type" == "thumbs")
 				{
 				if ("$media_type" == "videos")
@@ -173,8 +176,10 @@ function delete_file($media_dir, $fname)
 	else
 		{
 		$thumb = str_replace(".mp4", ".th.jpg", $fname);
+		$csv = str_replace(".mp4", ".csv", $fname);
 		unlink("$media_dir/videos/$fname");
 		unlink("$media_dir/thumbs/$thumb");
+		unlink("$media_dir/videos/$csv");
 		}
 	if ("$media_mode" == "archive")
 		delete_empty_media_dir($media_dir);
@@ -191,6 +196,7 @@ function delete_day($media_dir, $ymd)
 	if ("$media_type" == "videos" || "$media_type" == "thumbs")
 		{
 		array_map('unlink', glob("$media_dir/videos/*$ymd*.mp4"));
+		array_map('unlink', glob("$media_dir/videos/*$ymd*.csv"));
 		array_map('unlink', glob("$media_dir/videos/*$ymd*.h264"));
 		array_map('unlink', glob("$media_dir/thumbs/*$ymd*.th.jpg"));
 		}
@@ -209,6 +215,7 @@ function delete_all_files($media_dir)
 	if ("$media_type" == "videos" || "$media_type" == "thumbs")
 		{
 		array_map('unlink', glob("$media_dir/videos/*.mp4"));
+		array_map('unlink', glob("$media_dir/videos/*.csv"));
 		array_map('unlink', glob("$media_dir/videos/*.h264"));
 		array_map('unlink', glob("$media_dir/thumbs/*.th.jpg"));
 		}
@@ -320,11 +327,17 @@ function restart_page($selected)
 
 //echo "<script type='text/javascript'>alert('$name_style $n_columns');</script>";
 
-
+	$media_mode = "archive";
+	if (isset($_GET["mode"]))
+		$media_mode = $_GET["mode"];	// "archive" or "media"
 	$title = TITLE_STRING;
+
 	$header = "<!DOCTYPE html><html><head>";
 	$header .= "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-	$header .= "<title>$title Media</title>";
+	if ("$media_mode" == "archive")
+		$header .= "<title>$title Archive</title>";
+	else
+		$header .= "<title>$title Media</title>";
 	$header .= "<link rel=\"stylesheet\" href=\"js-css/pikrellcam.css\" />";
 	$header .= "</head>";
 	$header .= "<body onload=\"scroll_to_selected()\" background=\"$background_image\">";
@@ -339,7 +352,6 @@ function restart_page($selected)
 
 	$archive_root = ARCHIVE_DIR;
 
-	$media_mode = "archive";
 	$media_type = "videos";
 	$selected = "";
 	$media_dir = "";
@@ -347,9 +359,6 @@ function restart_page($selected)
 	$label = "??";
 	$env = "";
 	$year = "";
-
-	if (isset($_GET["mode"]))
-		$media_mode = $_GET["mode"];	// "archive" or "media"
 
 	if (isset($_GET["newtype"]))
 		$media_type = $_GET["newtype"];	// "videos", "stills", or "thumbs"
@@ -437,8 +446,6 @@ function restart_page($selected)
 				{
 				if ("$media_mode" == "archive")
 					$media_dir = archive_media_dir($date[0], $date[1], $date[2]);
-//				$thumb = str_replace(".mp4", ".th.jpg", $vid);
-//				delete_file($media_dir, $thumb);
 				delete_file($media_dir, $vid);
 				}
 			else if ($action == "archive_selected")
@@ -643,7 +650,7 @@ function restart_page($selected)
 	$free = eng_filesize($disk_free);
 	$used = eng_filesize($disk_total - $disk_free);
 
-	echo "<span style=\"float: right; font-size: 0.96em; font-weight:550; color: $default_text_color\">
+	echo "<span style=\"float: top; margin-left:16px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
 		Disk Total:&thinsp;${total}B &nbsp Free:&thinsp;${free}B &nbsp Used:&thinsp;${used}B ($used_percent %)</span>";
 	echo "</div>";
 

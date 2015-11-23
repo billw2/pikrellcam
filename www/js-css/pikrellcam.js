@@ -19,9 +19,6 @@ function tl_start()
 	var period;
 
 	period = document.getElementById('tl_period').value;
-//	document.getElementById('tl_period').value = "";
-
-//	alert("tl_start " +  period);
 	fifo_command("tl_start " +  period);
 	}
 
@@ -38,6 +35,11 @@ function new_region()
 	fifo_command("motion add_region 0.3 0.3 0.3 0.3");
 //	alert("Two consecutive fifo_command() not working.");
 //	fifo_command("motion select_region last\n");
+	}
+
+function list_regions()
+	{
+	fifo_command("motion list_regions");
 	}
 
 function load_regions()

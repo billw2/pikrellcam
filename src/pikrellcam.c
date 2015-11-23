@@ -375,8 +375,9 @@ timelapse_inform_convert(void)
 void
 video_record_start(VideoCircularBuffer *vcb, int start_state)
 	{
-	char	*s, *tag, *path, seq_buf[12];
-	int		*seq;
+	char    *s, *tag, *path, *stats_path = NULL, seq_buf[12];
+	int     *seq;
+	boolean do_stats = FALSE;
 
 	if (vcb->state == VCB_STATE_MANUAL_RECORD)
 		return;
@@ -385,6 +386,8 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 		{
 		tag = pikrellcam.video_motion_tag;
 		seq = &pikrellcam.video_motion_sequence;
+		if (pikrellcam.motion_stats)
+			do_stats = TRUE;
 		}
 	else
 		{
@@ -403,6 +406,12 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 
 	if ((s = strstr(path, ".mp4")) != NULL && *(s + 4) == '\0')
 		{
+		if (do_stats)
+			{
+			*s = '\0';
+			asprintf(&stats_path, "%s.csv", path);
+			*s = '.';
+			}
 		asprintf(&path, "%s.h264", pikrellcam.video_pathname);
 		dup_string(&pikrellcam.video_h264, path);
 		free(path);
@@ -419,6 +428,10 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 		log_printf("Video record: %s ...\n", path);
 		vcb->state = start_state;
 		pikrellcam.state_modified = TRUE;
+		if (   do_stats
+		    && (vcb->motion_stats_file = fopen(stats_path, "w")) != NULL
+		   )
+			vcb->motion_stats_do_header = TRUE;
 		}
 	}
 
@@ -438,7 +451,11 @@ video_record_stop(VideoCircularBuffer *vcb)
 
 	fclose(vcb->file);
 	vcb->file = NULL;
-
+	if (vcb->motion_stats_file)
+		{
+		fclose(vcb->motion_stats_file);
+		vcb->motion_stats_file = NULL;
+		}
 	log_printf("Video %s record stopped. Header size: %d  h264 file size: %d\n",
 			(vcb->state & VCB_STATE_MOTION_RECORD) ? "motion" : "manual",
 			pikrellcam.video_header_size, pikrellcam.video_size);
@@ -763,12 +780,12 @@ command_process(char *command_line)
 					display_inform("\"Timelapse on hold\" 3 3 1");
 				else
 					display_inform("\"Timelapse resuming\" 3 3 1");
-				display_inform("timeout 2");
+				display_inform("timeout 1");
 				}
 			else
 				{
 				display_inform("\"Timelapse is not running.\" 3 3 1");
-				display_inform("timeout 2");
+				display_inform("timeout 1");
 				time_lapse.on_hold = FALSE;
 				}
 			break;
@@ -792,7 +809,7 @@ command_process(char *command_line)
 			else
 				{
 				display_inform("\"Timelapse is not running.\" 3 3 1");
-				display_inform("timeout 3");
+				display_inform("timeout 1");
 				}
 			break;
 
@@ -1014,8 +1031,8 @@ main(int argc, char *argv[])
 
 	if (!config_load(pikrellcam.config_file))
 		config_save(pikrellcam.config_file);
-	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file))
-		motion_regions_config_save(pikrellcam.motion_regions_config_file);
+	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file, FALSE))
+		motion_regions_config_save(pikrellcam.motion_regions_config_file, FALSE);
 
 	if (*pikrellcam.log_file != '/')
 		{

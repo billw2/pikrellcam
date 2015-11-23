@@ -142,8 +142,12 @@ if (file_exists("custom-control.php"))
                     <table cellpadding="0" cellspacing="0" border="0" table-layout="fixed">
                     <tr>
                       <td style="border: 0;" >
-                         <input type="text" id="load_regions" size=6 >
-                         <input type="button" value="Load"
+                         <input type="button" value="List" style="margin-right: 12px;"
+                           onclick="list_regions();"
+                           class="btn-control"
+                         >
+                         <input type="text" id="load_regions" size=6>
+                         <input type="button" value="Load" style="margin-right: 8px;"
                             onclick="load_regions();"
                             class="btn-menu"
                             >
@@ -158,11 +162,7 @@ if (file_exists("custom-control.php"))
                     </tr>
 
                     <tr>
-                       <td style="border: 0;" align="center">
-                         <input type="button" value="New"
-                           onclick="new_region();"
-                           class="btn-control"
-                         >
+                       <td style="border: 0;" align="left">
                        </td>
                        <td style="border: 0;" align="right">
                          <?php echo "<span style=\"color: $default_text_color\">
@@ -173,8 +173,12 @@ if (file_exists("custom-control.php"))
                     </tr>
  
                    <tr align="right">
-                       <td style="border: 0;" align="center">
-                         <input type="button" value="Delete"
+                       <td style="border: 0;" align="right">
+                         <input type="button" value="New"
+                           onclick="new_region();"
+                           class="btn-control"
+                         >
+                         <input type="button" value="Delete" style="margin-right: 8px;"
                            onclick="fifo_command('motion delete_regions selected');"
                            class="btn-control alert-control"
                          >

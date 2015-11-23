@@ -666,11 +666,11 @@ static Config  config[] =
 	  "#",
 	"on_motion_preview_save", "", TRUE, {.string = &pikrellcam.on_motion_preview_save_cmd}, config_string_set },
 
-	{ "# Set to on if you do not want jpeg preview files to have overlay text or\n"
-	  "# graphics drawn.  Otherwise they will have whatever is being shown on\n"
-	  "# the web mjpeg.jpg view.\n"
+	{ "# Set to off if you want jpeg preview files to show the OSD overlay text\n"
+	  "# or graphics.  This can be considered a debug or instructional option.\n"
+	  "# Normally it is nicer to have clean preview jpegs and thumbs.\n"
 	  "#",
-	"motion_preview_clean",  "off", FALSE, {.value = &pikrellcam.motion_preview_clean}, config_value_bool_set },
+	"motion_preview_clean",  "on", FALSE, {.value = &pikrellcam.motion_preview_clean}, config_value_bool_set },
 
 	{ "# Minimum width and height in pixels for the substitution width and height\n"
 	  "# variables for motion detect areas in the preview jpeg.\n"
@@ -678,6 +678,11 @@ static Config  config[] =
 	  "# faster moving objects.\n"
 	  "#",
 	"motion_area_min_side",  "60", FALSE, {.value = &pikrellcam.motion_area_min_side}, config_value_int_set },
+
+	{ "# Enable writing a motion statistics .csv file for each motion video.\n"
+	  "# For users who have a need for advanced video post processing.\n"
+	  "#",
+	"motion_stats",  "off", FALSE, {.value = &pikrellcam.motion_stats}, config_value_bool_set },
 
 
 	{ "\n# --------------------- Video Record Options -----------------------\n"
@@ -956,7 +961,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 10;
+	pikrellcam.config_sequence_new = 12;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

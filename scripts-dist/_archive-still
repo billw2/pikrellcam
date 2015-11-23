@@ -15,7 +15,7 @@
 #   is moved into the archive directory.
 
 
-DAY=$1
+DAY_FLAG=$1
 STILL=$1
 DATE=$2
 ARCHIVE_DIR=$3
@@ -23,21 +23,45 @@ MEDIA_DIR=$4
 FIFO=$5
 LOG_FILE=$6
 
-# From DATE arg: yyyy-mm-dd  Get the DATE_PATH: yyyy/mm/dd
-DATE_PATH=${DATE//[-]/\/}
+
+LEN=${#DATE}
+
+if [[ "$LEN" -ne "10" ]]
+then
+	echo "  archive-still bad date string: $DATE" >> $LOG_FILE
+	exit 1
+fi
+
+# From DATE arg: yyyy-mm-dd, DATE_PATH is: yyyy/mm/dd
+YEAR=`expr substr $DATE 1 4`
+MONTH=`expr substr $DATE 6 2`
+DAY=`expr substr $DATE 9 2`
+
+DATE_PATH=$YEAR/$MONTH/$DAY
 
 ARCHIVE_STILLS_PATH=$ARCHIVE_DIR/$DATE_PATH/stills
 
-if [ ! -d $ARCHIVE_STILLS_PATH ]
-then
-	mkdir -p $ARCHIVE_STILLS_PATH
-	# %%-* strips longest match of -* from end of string ie the -mm-dd
-	sudo chown -R :www-data $ARCHIVE_DIR/${DATE%%-*}
-	sudo chmod -R 775  $ARCHIVE_DIR/${DATE%%-*}
-fi
+YEAR=`expr substr $DATE 1 4`
+MONTH=`expr substr $DATE 6 2`
+DAY=`expr substr $DATE 9 2`
 
+create_dir()
+	{
+	DIR=$1
+	if [ ! -d $DIR ]
+	then
+		mkdir $DIR
+		sudo chown :www-data $DIR
+		sudo chmod 775  $DIR
+	fi
+	}
 
-if [ "$DAY" == "day" ]
+create_dir $ARCHIVE_DIR/$YEAR
+create_dir $ARCHIVE_DIR/$YEAR/$MONTH
+create_dir $ARCHIVE_DIR/$YEAR/$MONTH/$DAY
+create_dir $ARCHIVE_STILLS_PATH
+
+if [ "$DAY_FLAG" == "day" ]
 then
 	echo "  archive-still day $DATE to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
 	mv $MEDIA_DIR/stills/*${DATE}*.jpg $ARCHIVE_STILLS_PATH
