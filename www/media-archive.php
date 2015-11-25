@@ -613,18 +613,21 @@ function restart_page($selected)
 		}
 	echo "</div>";
 
-	echo "<div style='margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
-	$uctype = ucfirst($media_type);
+	echo "<div style='color: $default_text_color; margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
 	if ("$media_mode" == "archive")
-		$media_label = "Archive: $uctype $year $label";
+		$media_label = "Archive $year $label:";
 	else
-		$media_label = "Media: $uctype";
-	echo "<span style=\"font-size: 1.2em; font-weight: 500; color: $default_text_color\">
+		$media_label = "Media:";
+
+	echo "<span style=\"font-size: 1.2em; font-weight: 500;\">
 			$media_label</span>";
+	$uctype = ucfirst($media_type);
 	if ("$media_type" == "videos")
 		{
+		echo "<span style=\"margin-left: 16px; font-size: 1.2em; font-weight: 500;\">
+				$uctype</span>";
 		echo "<a href=\"media-archive.php?newtype=thumbs&$env\"
-				class='btn-control' style='margin-left:16px;'>Thumbs</a>";
+				class='btn-control' style='margin-left:8px;'>Thumbs</a>";
 		echo "<a href=\"media-archive.php?newtype=stills&$env\"
 				class='btn-control' style='margin-left:8px;'>Stills</a>";
 		}
@@ -632,6 +635,8 @@ function restart_page($selected)
 		{
 		echo "<a href=\"media-archive.php?newtype=videos&$env\"
 				class='btn-control' style='margin-left:16px;'>Videos</a>";
+		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">
+				$uctype</span>";
 		echo "<a href=\"media-archive.php?newtype=stills&$env\"
 				class='btn-control' style='margin-left:8px;'>Stills</a>";
 		}
@@ -641,6 +646,8 @@ function restart_page($selected)
 				class='btn-control' style='margin-left:16px;'>Videos</a>";
 		echo "<a href=\"media-archive.php?newtype=thumbs&$env\"
 				class='btn-control' style='margin-left:8px;'>Thumbs</a>";
+		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">
+				$uctype</span>";
 		}
 
 	$disk_total = disk_total_space($archive_root);
@@ -650,8 +657,8 @@ function restart_page($selected)
 	$free = eng_filesize($disk_free);
 	$used = eng_filesize($disk_total - $disk_free);
 
-	echo "<span style=\"float: top; margin-left:16px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
-		Disk Total:&thinsp;${total}B &nbsp Free:&thinsp;${free}B &nbsp Used:&thinsp;${used}B ($used_percent %)</span>";
+	echo "<span style=\"float: top; margin-left:30px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
+		Disk:&thinsp;${total}B &nbsp Free:&thinsp;${free}B &nbsp Used:&thinsp;${used}B ($used_percent %)</span>";
 	echo "</div>";
 
 	if ($media_array_size == 0)
@@ -677,7 +684,6 @@ function restart_page($selected)
 			echo "<table width='100%' cellpadding='2'>";
 		else
 			echo "<table width='100%' cellpadding='2' frame='box'>";
-
 		$next_select = "";
 		for ($k = 0; $k < $media_array_size; $k = $last)
 			{
@@ -741,7 +747,7 @@ function restart_page($selected)
 					$out = "<fieldset style=\"display:inline; $border_color margin:1px; padding:2px 0px 1px 1px; vertical-align:middle; font-size: 0.88em\">";
 					$out .= "<span style=\"color: $color;\">$display_name &nbsp</span>";
 					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"></span>";
-					$out .= "<span style='float:right;'>$fsize</span><br>";
+					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
 					echo "$out";
 					if ("$scrolled" == "yes")
 						{
@@ -788,7 +794,8 @@ function restart_page($selected)
 
 							echo "<a href='media-archive.php?$env&file=$fname'
 								style=\"color: $color; text-decoration: none;\">$display_name</a>
-								<span style='font-size: 0.86em;'>($fsize)</span>";
+								<span style='font-size: 0.86em; color: $default_text_color;'>
+									($fsize)</span>";
 							}
 						else
 							echo "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
@@ -812,30 +819,37 @@ function restart_page($selected)
 		style=\"margin-left: 8px;\">
 		Archive Calendar</a>";
 
-	echo "<span style='float:right;'>";
+	echo "<span style=\"color: $default_text_color;\">";
 	if ("$media_type" == "thumbs")
 		{
-		echo "Selections:&nbsp";
+		echo "<span style='margin-left: 50px;'>Selections:</span>";
 		if ("$media_mode" != "archive")
-			echo "<button type='submit' class='btn-control' style='margin-right: 8px';
+			echo "<button type='submit' class='btn-control' style='margin-left: 8px';
 				value='archive_selected' name='action'
 				onclick=\"return confirm('Archive selected thumbs/videos?');\">
 				Archive</button>";
-		echo "<button type='submit' class='btn-control alert-control'
+		echo "<button type='submit' class='btn-control alert-control' style='margin-left: 8px'
 			value='delete_selected' name='action'
 				onclick=\"return confirm('Delete selected thumbs/videos?');\">
 			Delete</button>";
-		echo "<a style='margin-left:16px;' href='media-archive.php?$env&toggle_scroll'>
+		echo "<span style='float:right;'>";
+		echo "Files:&thinsp;$media_array_size";
+		echo "<a style='margin-left:32px;' href='media-archive.php?$env&toggle_scroll'>
 			Toggle Scrolled</a>";
+		echo "</span>";
 		}
 	else
 		{
+		echo "<span style='margin-left: 70px;'>";
 		echo "<input type='button' value='Delete All'
 			class='btn-control alert-control' style='margin-right:40px;'
 			onclick='if (confirm(\"Delete all $year $label?\"))
 			  {window.location=\"media-archive.php?$env&delete_all\";}'>";
+		echo "</span>";
 
-		echo "<a style='margin-left:16px;' href='media-archive.php?$env&toggle_name_style'>
+		echo "<span style='float:right;'>";
+		echo "Files:&thinsp;$media_array_size";
+		echo "<a style='margin-left: 32px; margin-right:24px;' href='media-archive.php?$env&toggle_name_style'>
 			Name Style</a>";
 		echo "&nbsp;&nbsp;Columns $n_columns:";
 		if ($n_columns > 2)
@@ -846,6 +860,7 @@ function restart_page($selected)
 			echo "<input type='button' value='+'
 				class='btn-control' style='margin-left:6px;'
 				onclick='window.location=\"media-archive.php?$env&inc_columns\";'>";
+		echo "</span>";
 		}
 	echo "</span>";
 

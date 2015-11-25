@@ -1101,5 +1101,10 @@ config_timelapse_load_status(void)
 						pikrellcam.t_now, time_lapse.period,
 						timelapse_capture, NULL);
 		}
+	if (!f || time_lapse.period < 1)
+		{
+		time_lapse.period = 60;
+		config_timelapse_save_status();
+		}
 	}
 

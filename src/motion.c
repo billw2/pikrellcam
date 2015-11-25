@@ -320,7 +320,7 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 		return;
 	if (vcb->motion_stats_do_header)
 		fprintf(vcb->motion_stats_file,
-			"# time, x, y, dx, dy, magnitude, count\n"
+			"time, x, y, dx, dy, magnitude, count\n"
 	        "# width %d height %d\n",
 	        mf->width, mf->height);
 	vcb->motion_stats_do_header = FALSE;
@@ -328,7 +328,7 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 	fprintf(vcb->motion_stats_file,
 		"%6.3f, %3d, %3d, %3d, %3d, %3.0f, %4d\n",
 		(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps,
-		frame_vec->x, frame_vec->y, frame_vec->vx, frame_vec->vy,
+		frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
 		sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
 	}
 
