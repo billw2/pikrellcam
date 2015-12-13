@@ -179,7 +179,7 @@ i420_dim_frame(uint8_t *i420)
 	int16_t		*ptrig;			/* ptr to motion frame trigger data */
 	int			x, y, x_mv, y_mv;
 	uint8_t		*pY,		/* ptr to I420 intensity (Y) data */
-				Ydim, Ytrig;
+				Ydim, Ytrig, Ys;
 //	uint8_t		*pU, *pV;
 	
 	for (y = 0; y < pikrellcam.mjpeg_height; ++y)
@@ -200,14 +200,24 @@ i420_dim_frame(uint8_t *i420)
 
 			Ydim = *pY * pikrellcam.motion_vectors_dimming / 100;
 			Ytrig = *pY;
-			if (Ytrig < 245)
+			if (Ytrig < 225)
+				Ytrig += 30;
+			else if (Ytrig < 235)
+				Ytrig += 20;
+			else if (Ytrig < 245)
 				Ytrig += 10;
 			if (*ptrig > 2)			/* passing vector */
 				*pY = Ytrig;
-			else if (*ptrig == 2)	/* reject */
-				*pY = Ydim + (Ytrig - Ydim) / 3;
+			else if (*ptrig == 2)	/* direction reject */
+				*pY = Ydim + (Ytrig - Ydim) / 4;
 			else if (*ptrig == 1)	/* sparkle */
-				*pY = Ydim + 2 * (Ytrig - Ydim) / 3;
+				{
+				Ys = (Ytrig - Ydim) / 2;
+				if (Ys <= Ydim)
+					*pY = Ydim - Ys;
+				else
+					*pY = 0;
+				}
 			else
 				*pY = Ydim;
 			}
@@ -217,18 +227,18 @@ i420_dim_frame(uint8_t *i420)
 static void
 motion_draw(uint8_t *i420)
 	{
-	GlcdFont		*font;
+	GlcdFont        *font;
 	VideoCircularBuffer *vcb = &video_circular_buffer;
-	DrawArea		*da;
-	MotionFrame		*mf = &motion_frame;
-	MotionRegion	*mreg;
-	CompositeVector	*vec;
-	SList 			*mrlist;
-	char			*msg, info[100], status[100];
-	int16_t			color;			/* just B&W */
-	int				i, x, y, dx, dy, r_unit;
-	int				t_record, t_hold;
-	boolean			inform_shown = FALSE;
+	DrawArea        *da;
+	MotionFrame     *mf = &motion_frame;
+	MotionRegion    *mreg;
+	CompositeVector *vec;
+	SList           *mrlist;
+	char            *msg, info[100], status[100];
+	int16_t         color;			/* just B&W */
+	int             i, x, y, dx, dy, r, r_unit;
+	int             t_record, t_hold;
+	boolean         inform_shown = FALSE;
 
 	if (!glcd)
 		return;
@@ -307,6 +317,21 @@ motion_draw(uint8_t *i420)
 					glcd_fill_circle(glcd, da, color, x + dx, y + dy, 6);
 				else
 					glcd_draw_circle(glcd, da, color, x + dx, y + dy, 6);
+				if (mf->motion_status & MOTION_BURST)
+					{
+					vec = &mf->frame_vector;
+					x  = MOTION_VECTOR_TO_MJPEG_X(vec->x);
+					y  = MOTION_VECTOR_TO_MJPEG_Y(vec->y);
+					dx = -vec->vx * r_unit;
+					dy = -vec->vy * r_unit;
+					glcd_draw_line(glcd, da, color, x, y, x + dx, y + dy);
+					glcd_fill_circle(glcd, da, color, x + dx, y + dy, 12);
+					r = (int) sqrt(vec->mag2_count) * r_unit;
+					i = MOTION_VECTOR_TO_MJPEG_Y(mf->height);
+					if (r > i / 2)
+						r = i / 2;
+					glcd_draw_circle(glcd, da, color, x, y, r);
+					}
 				}
 			}
 		snprintf(info, sizeof(info), "Magnitude limit: %d",
@@ -328,10 +353,10 @@ motion_draw(uint8_t *i420)
 
 		if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
 			{
-			snprintf(status, sizeof(status), "%d", mf->frame_window);
+			snprintf(status, sizeof(status), "confirming[%d]", mf->frame_window);
 			msg = status;
 			}
-		else if (mf->motion_status == MOTION_DETECTED)
+		else if (mf->motion_status & MOTION_DETECTED)
 			msg = "motion";
 		else if (mf->trigger_count > 0)
 			msg = "counts";
@@ -340,13 +365,23 @@ motion_draw(uint8_t *i420)
 		else
 			msg = "quiet";
 
-		snprintf(info, sizeof(info), "cnt:%-3d rej:%-3d spkl:%-3d %.1f",
-					mf->trigger_count, mf->reject_count,
-					mf->sparkle_count, mf->sparkle_expma);
-		i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
-					JUSTIFY_CENTER, msg);
+		snprintf(info, sizeof(info),
+				"any:%-3d(%.1f) rej:%-3d spkl:%-3d(%.1f)",
+					mf->any_count, mf->any_count_expma,
+					mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
 		i420_print(&bottom_status_area, normal_font, 0xff, 0, 40, 0,
 					JUSTIFY_CENTER, info);
+
+		if (mf->trigger_count > 0)
+			{		
+			snprintf(info, sizeof(info), "%s:%-3d", msg, mf->trigger_count);
+			i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
+						JUSTIFY_CENTER, info);
+			}
+		else
+			i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
+						JUSTIFY_CENTER, msg);
+
 		i420_print(&bottom_status_area, normal_font, 0xff, 1, 0, 0,
 					JUSTIFY_RIGHT(0), "Regions ON");
 		}
@@ -630,7 +665,7 @@ static Adjustment	camera_adjustment[] =
 	{ "video_bitrate",   2000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
 	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
 	{ "video_mp4box_fps",  1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
-	{ "mjpeg_divider",  1,  8,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },
+	{ "mjpeg_divider",  1,  12,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },
 	{ "still_quality",  5,    100,   1,   0, 0, 0, "", NULL, &camera_adjust_temp.still_quality },
 	};
 
@@ -672,8 +707,10 @@ Adjustment	motion_time_adjustment[] =
 
 Adjustment	motion_limit_adjustment[] =
 	{
-	{ "Vector_Magnitude",  3, 40, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit },
-	{ "Vector_Count",      2, 40, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit_count }
+	{ "Vector_Magnitude",  3, 50, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit },
+	{ "Vector_Count",      2, 50, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit_count },
+	{ "Burst_Count",      50, 2000, 10, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_count },
+	{ "Burst_Frames",      2, 20, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_frames }
 	};
 
 #define N_MOTION_LIMIT_ADJUSTMENTS \

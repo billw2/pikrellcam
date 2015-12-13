@@ -589,15 +589,22 @@ static Config  config[] =
 
 	{ "# Motion vectors must be at least this magnitude for a motion detect.\n"
 	  "# Minimum is 3 for detecting the slowest moving objects possible.\n"
-	  "# Maximum is lets say 100, but there's no reason to set it that high.\n"
 	  "#",
 	"motion_magnitude_limit",  "5", FALSE, {.value = &pikrellcam.motion_magnitude_limit},      config_value_int_set},
 
 	{ "# The count of vectors required for a motion detect.\n"
 	  "# Minimum is 2 for detecting the smallest objects possible.\n"
-	  "# Maximum should be something less than what fits in the motion regions.\n"
 	  "#",
 	"motion_magnitude_limit_count",  "4", FALSE, {.value = &pikrellcam.motion_magnitude_limit_count},      config_value_int_set},
+
+	{ "# Motion vector count minimum for a burst motion detect.\n"
+	  "# For large/close object detection.\n"
+	  "#",
+	"motion_burst_count",  "200", FALSE, {.value = &pikrellcam.motion_burst_count},      config_value_int_set},
+
+	{ "# The number of sustained frames for a burst motion detect.\n"
+	  "#",
+	"motion_burst_frames",  "3", FALSE, {.value = &pikrellcam.motion_burst_frames},      config_value_int_set},
 
 	{ "# Percent to dim image when drawing motion vectors.  Range 30 - 60\n"
 	  "#",
@@ -985,6 +992,11 @@ config_load(char *config_file)
 		pikrellcam.motion_magnitude_limit = 3;
 	if (pikrellcam.motion_magnitude_limit_count < 2)
 		pikrellcam.motion_magnitude_limit_count = 2;
+
+	if (pikrellcam.motion_burst_count < 20)
+		pikrellcam.motion_burst_count = 20;
+	if (pikrellcam.motion_burst_frames < 2)
+		pikrellcam.motion_burst_frames = 2;
 
 	if (pikrellcam.motion_vectors_dimming < 30)
 		pikrellcam.motion_vectors_dimming = 30;

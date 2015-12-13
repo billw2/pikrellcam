@@ -28,9 +28,6 @@
 
 MotionFrame		motion_frame;
 
-static int		any_count,
-				cvec_count;
-
 static CompositeVector	zero_cvec;
 
 
@@ -77,12 +74,12 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	*/
 	if ((y0 = mreg->y) == 0)
 		y0 = 1;
-	if ((y1 = mreg->y + mreg->dy) == mf->height)
+	if ((y1 = mreg->y + mreg->dy) >= mf->height)
 		y1 = mf->height - 1;
 	if ((x0 = mreg->x) == 0)
 		x0 = 1;
-	if ((x1 = mreg->x + mreg->dx) == mf->width)
-		y1 = mf->width - 1;
+	if ((x1 = mreg->x + mreg->dx) >= mf->width)
+		x1 = mf->width - 1;
 
 	/* First pass, filter out any vector < mag2_limit
 	*/
@@ -96,7 +93,6 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 			if (mag2 >= mf->mag2_limit)
 				{
 				*(mf->trigger + mb_index) = mag2;
-				any_count += 1;
 				}
 			}
 		}
@@ -130,6 +126,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 				tvec.vy += mv->vy;
 				tvec.x  += x;
 				tvec.y  += y;
+				mf->any_count += 1;
 				}
 			}
 		}
@@ -216,7 +213,6 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	mreg->motion = 0;
 	if (cvec->mag2_count >= mf->mag2_limit_count)
 		{
-		cvec_count += 1;
 		cvec->x /= cvec->mag2_count;
 		cvec->y /= cvec->mag2_count;
 		cvec->vx /= cvec->mag2_count;
@@ -335,12 +331,13 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 void
 motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	{
-	MotionRegion	*mreg;
-	CompositeVector	*reg_vec, *frame_vec;
-	SList 			*mrlist;
-	int				motion_count, fail_count;
-	char			tbuf[50];
-	int				x0, y0, x1, y1, t;
+	MotionRegion    *mreg;
+	CompositeVector *cvec, *frame_vec;
+	SList           *mrlist;
+	int             motion_count, fail_count;
+	char            tbuf[50], *msg;
+	int             x0, y0, x1, y1, t;
+	static int      mfp_number, motion_burst_frame;
 
 	/* Allow some startup camera settle time before motion detecting.
 	*/
@@ -350,13 +347,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	mf->trigger_count = 0;
 	mf->motion_status = MOTION_NONE;
 
-	mf->sparkle_count = 0;
-	mf->reject_count = 0;
+	mf->sparkle_count  = 0;
+	mf->reject_count   = 0;
+	mf->any_count      = 0;
 	mf->vertical_count = 0;
 
 	memset(mf->trigger, 0, MF_TRIGGER_SIZE);
-	any_count = 0;
-	cvec_count = 0;
 	mf->best_region_vector = zero_cvec;
 	mf->motion_area.x0 = mf->motion_area.y0 = mf->motion_area.x1 = mf->motion_area.y1 = 0;
 	mf->mag2_limit  = pikrellcam.motion_magnitude_limit * pikrellcam.motion_magnitude_limit;
@@ -379,24 +375,28 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	fail_count = 0;
 	mf->frame_vector = zero_cvec;
 	frame_vec = &mf->frame_vector;
+	mf->cvec_count = 0;
 
 	for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 		{
 		mreg = (MotionRegion *) mrlist->data;
-		reg_vec = &mreg->vector;
+		cvec = &mreg->vector;
 
-		if (   mreg->vector.mag2_count > 0
+		if (   cvec->mag2_count > 0
 		    && mreg->motion == 0
 		   )
 			fail_count += 1;
 		else if (mreg->motion > 0)
-			{
 			motion_count += 1;
-			frame_vec->x  += reg_vec->x;
-			frame_vec->y  += reg_vec->y;
-			frame_vec->vx += reg_vec->vx;
-			frame_vec->vy += reg_vec->vy;
-			frame_vec->mag2_count += reg_vec->mag2_count;
+
+		if (cvec->mag2_count > 0)
+			{
+			frame_vec->x  += cvec->x;
+			frame_vec->y  += cvec->y;
+			frame_vec->vx += cvec->vx;
+			frame_vec->vy += cvec->vy;
+			frame_vec->mag2_count += cvec->mag2_count;
+			mf->cvec_count += 1;
 			}
 		}
 
@@ -405,12 +405,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	|  vector box extents from the frame vector center.  This vector box is
 	|  likely smaller than the geometric box recorded in the motion_area values.
 	*/
-	if (motion_count > 0)
+	if (mf->cvec_count > 0)
 		{
-		frame_vec->x /= motion_count;
-		frame_vec->y /= motion_count;
-		frame_vec->vx /= motion_count;
-		frame_vec->vy /= motion_count;
+		frame_vec->x /= mf->cvec_count;
+		frame_vec->y /= mf->cvec_count;
+		frame_vec->vx /= mf->cvec_count;
+		frame_vec->vy /= mf->cvec_count;
 		frame_vec->mag2 =
 			frame_vec->vx * frame_vec->vx + frame_vec->vy * frame_vec->vy;
 
@@ -418,20 +418,20 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 			{
 			mreg = (MotionRegion *) mrlist->data;
-			if (mreg->motion == 0)
+			cvec = &mreg->vector;
+			if (cvec->mag2_count == 0)
 				continue;
-			reg_vec = &mreg->vector;
 
-			t = reg_vec->x - reg_vec->box_w / 2;
+			t = cvec->x - cvec->box_w / 2;
 			if (x0 == 0 || t < x0)
 				x0 = t;
-			t = reg_vec->x + reg_vec->box_w / 2;
+			t = cvec->x + cvec->box_w / 2;
 			if (t > x1)
 				x1 = t;
-			t = reg_vec->y - reg_vec->box_h / 2;
+			t = cvec->y - cvec->box_h / 2;
 			if (y0 == 0 || t < y0)
 				y0 = t;
-			t = reg_vec->y + reg_vec->box_h / 2;
+			t = cvec->y + cvec->box_h / 2;
 			if (t > y1)
 				y1 = t;
 			}
@@ -445,32 +445,93 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	mf->sparkle_expma = EXPMA_SMOOTHING * (float) mf->sparkle_count +
 							(1.0 - EXPMA_SMOOTHING) * mf->sparkle_expma;
 
+	/* Burst motion triggers on counts above the any_count_expma
+	|  background count noise.
+	*/
+	if (frame_vec->mag2_count >
+				pikrellcam.motion_burst_count + (int) mf->any_count_expma)
+		{
+		if (motion_burst_frame < pikrellcam.motion_burst_frames)
+			++motion_burst_frame;
+		}
+	else
+		{
+		/* any_count_expma is background noise counts so exclude from it
+		|  activity that caused any pass or fail cvecs.  It already
+		|  excludes sparkles.
+		*/
+		if (motion_count == 0 && fail_count == 0)
+			mf->any_count_expma = 0.05 * (float) mf->any_count +
+					(1.0 - 0.05) * mf->any_count_expma;
+		if (motion_burst_frame > 0)
+			--motion_burst_frame;
+		}
+
 	mf->motion_status = MOTION_NONE;
+
 	if (   motion_count > 0
 	    && fail_count == 0
 	   )
 		{
-		if (mf->frame_window == 0 && pikrellcam.motion_times.confirm_gap > 0)
+		if (   vcb->state != VCB_STATE_MOTION_RECORD
+		    && mf->frame_window == 0
+		    && pikrellcam.motion_times.confirm_gap > 0
+		   )
+			{
 			mf->frame_window = pikrellcam.camera_adjust.video_fps *
 					pikrellcam.motion_times.confirm_gap / pikrellcam.mjpeg_divider;
+			mf->motion_status = MOTION_PENDING;
+			}
 		else
-			mf->motion_status = MOTION_DETECTED;
+			mf->motion_status = (MOTION_DETECTED | MOTION_VECTOR);
+		}
+
+	if (motion_burst_frame == pikrellcam.motion_burst_frames)	/* overrides pending */
+		{
+		mf->motion_status &= ~MOTION_PENDING;
+		mf->motion_status |= (MOTION_DETECTED | MOTION_BURST);
+		mf->frame_window = 0;
 		}
 	if (mf->frame_window > 0)
 		mf->frame_window -= 1;
 
+	if (   pikrellcam.verbose_motion
+	    && frame_vec->mag2_count > 0
+	   )
+		{
+		printf(
+"frame:   x,y(%d,%d) dx,dy(%d,%d) mag2,count(%d,%d) any_expma: %.1f burst:%d\n",
+			frame_vec->x, frame_vec->y, frame_vec->vx, frame_vec->vy,
+			frame_vec->mag2, frame_vec->mag2_count, mf->any_count_expma,
+			motion_burst_frame);
+		}
 	if (pikrellcam.verbose_motion && (fail_count > 0 || motion_count > 0))
 		{
 		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
-			any_count, mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
+			mf->any_count, mf->reject_count,
+			mf->sparkle_count, mf->sparkle_expma);
 
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
-		printf("%s motion count:%d fail:%d window:%d  %s\n",
-			tbuf, motion_count, fail_count, mf->frame_window,
-			(mf->motion_status == MOTION_DETECTED) ? "***MOTION***" : "\n");
-		}
+		if ((mf->motion_status & (MOTION_VECTOR | MOTION_BURST))
+				    == (MOTION_VECTOR | MOTION_BURST))
+			msg = "***MOTION BOTH***";
+		else if (mf->motion_status & MOTION_VECTOR)
+			msg = "***MOTION VECTOR***";
+		else if (mf->motion_status & MOTION_BURST)
+			msg = "***MOTION BURST***";
+		else if (mf->motion_status == MOTION_PENDING)
+			msg = "***motion pending***";
+		else
+			msg = "";
 
-	if (mf->motion_status == MOTION_DETECTED  && mf->motion_enable)
+		printf("%s [%d] motion count:%d fail:%d window:%d  %s\n\n",
+			tbuf, mfp_number,  motion_count, fail_count, mf->frame_window, msg);
+		}
+	++mfp_number;
+	if (motion_burst_frame == pikrellcam.motion_burst_frames)
+		motion_burst_frame = 0;
+
+	if ((mf->motion_status & MOTION_DETECTED)  && mf->motion_enable)
 		{
 		vcb->motion_last_detect_time = pikrellcam.t_now;
 
@@ -493,6 +554,22 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				motion_preview_area_fixup();
 				mf->do_preview_save_cmd = TRUE;
 				}
+			mf->first_detect = mf->motion_status;
+			mf->burst_detects = 0;
+			mf->direction_detects = 0;
+			mf->max_burst_count = 0;
+			mf->first_burst_count = 0;
+			if (mf->motion_status & MOTION_VECTOR)
+				{
+				mf->direction_detects = 1;
+				}
+			if (mf->motion_status & MOTION_BURST)
+				{
+				mf->burst_detects = 1;
+				mf->first_burst_count = frame_vec->mag2_count;
+				mf->max_burst_count = frame_vec->mag2_count;
+				}
+
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 				printf("***Motion record start: %s\n\n", pikrellcam.video_pathname);
 			}
@@ -515,6 +592,15 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				|  in video_record_stop().
 				*/
 				}
+			if (mf->motion_status & MOTION_VECTOR)
+				++mf->direction_detects;
+			if (mf->motion_status & MOTION_BURST)
+				{
+				++mf->burst_detects;
+				if (mf->max_burst_count < frame_vec->mag2_count)
+					mf->max_burst_count = frame_vec->mag2_count;
+				}
+
 			if (pikrellcam.verbose_motion)
 				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
 			}
@@ -641,9 +727,10 @@ atof_range(float *result, char *value, double low, double high)
 #define LIST_REGIONS	8
 #define DELETE_REGIONS	9
 #define	SET_LIMITS		10
-#define	SELECT_REGION	11
-#define	SHOW_REGIONS	12
-#define	SHOW_VECTORS	13
+#define	SET_BURST		11
+#define	SELECT_REGION	12
+#define	SHOW_REGIONS	13
+#define	SHOW_VECTORS	14
 
 
 typedef struct
@@ -669,7 +756,8 @@ static MotionCommand motion_commands[] =
 	{ "list_regions",   LIST_REGIONS,  0 },
 	{ "delete_regions", DELETE_REGIONS, 1 },
 	{ "select_region", SELECT_REGION,    1 },
-	{ "limits", SET_LIMITS,    2 }
+	{ "limits", SET_LIMITS,    2 },
+	{ "burst", SET_BURST,    2 }
 	};
 
 #define N_MOTION_COMMANDS	(sizeof(motion_commands) / sizeof(MotionCommand))
@@ -987,6 +1075,22 @@ motion_command(char *cmd_line)
 				n = n > mf->width * mf->height / 2;
 			pikrellcam.motion_magnitude_limit_count = n;
 			break;
+
+		case SET_BURST:			/* burst count frames */
+			n = atoi(arg1);
+			if (n < 20)
+				n = 20;
+			if (n > mf->width * mf->height / 2)
+				n = n > mf->width * mf->height / 2;
+			pikrellcam.motion_burst_count = n;
+
+			n = atoi(arg2);
+			if (n < 2)
+				n = 2;
+			if (n > 20)
+				n = 20;
+			pikrellcam.motion_burst_frames = n;
+			break;
 		}
 	}
 
@@ -1026,7 +1130,7 @@ motion_init(void)
 	if (motion_frame.trigger)
 		free(motion_frame.trigger);
 	motion_frame.trigger = malloc(MF_TRIGGER_SIZE);
-	motion_frame.motion_status = 0;
+	motion_frame.motion_status = MOTION_NONE;
 	}
 
 

@@ -551,16 +551,28 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			event |= EVENT_PREVIEW_SAVE;
 			}
 
+		if (h264_conn_status == H264_TCP_SEND_HEADER) 
+			tcp_send_h264_header(vcb->h264_header, vcb->h264_header_position);
+
 		/* Save video data into the circular buffer.
 		*/
 		mmal_buffer_header_mem_lock(mmalbuf);
 		end_space = vcb->size - vcb->head;
 		if (mmalbuf->length <= end_space)
+			{
 			memcpy(vcb->data + vcb->head, mmalbuf->data, mmalbuf->length);
+			if(h264_conn_status == H264_TCP_SEND_DATA) 
+				tcp_send_h264_data("data 1",vcb->data + vcb->head, mmalbuf->length);
+			}
 		else
 			{
 			memcpy(vcb->data + vcb->head, mmalbuf->data, end_space);
 			memcpy(vcb->data, mmalbuf->data + end_space, mmalbuf->length - end_space);
+			if (h264_conn_status == H264_TCP_SEND_DATA) 
+      			{
+				tcp_send_h264_data("data 2",vcb->data + vcb->head, end_space);
+				tcp_send_h264_data("data 3",vcb->data, mmalbuf->length - end_space);
+				}
 			}
 		vcb->head = (vcb->head + mmalbuf->length) % vcb->size;
 		mmal_buffer_header_mem_unlock(mmalbuf);

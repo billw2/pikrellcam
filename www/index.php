@@ -43,15 +43,14 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
     echo "<div class=\"text-center\">";
         echo "<div class='text-shadow-large'>";
         echo TITLE_STRING;
-        echo "</div>";
+        echo "</div></div>";
+    echo "<div class=\"text-center\" style=\"color: $default_text_color; font-size: 1.4em;\">";
+    echo "<img id=\"mjpeg_image\"
+          alt=\"No preview jpeg. Is pikrellcam running?  Click: System->Start\"
+          style=\"border:6px groove silver;\"
+          onclick=\"image_expand_toggle();\"
+        ></div>";
 ?>
-    </div>
-      <div class="text-center">
-        <img id="mjpeg_image"
-          style="border:6px groove silver;"
-          onclick="image_expand_toggle();"
-        >
-      </div>
 
     <div class="text-center top-margin">
       <input type="image" src="images/stop.png"
@@ -380,13 +379,13 @@ if (file_exists("custom-control.php"))
                         class="btn-menu"
                         onclick="fifo_command('display motion_limit');"
                       >
-                      <input type="button" value="Settings"
-                        class="btn-menu"
-                        onclick="fifo_command('display motion_setting');"
-                      >
                       <input type="button" value="Times"
                         class="btn-menu"
                         onclick="fifo_command('display motion_time');"
+                      >
+                      <input type="button" value="Settings"
+                        class="btn-menu"
+                        onclick="fifo_command('display motion_setting');"
                       >
                     </div>
                   </td>
@@ -437,6 +436,7 @@ if (file_exists("custom-control.php"))
           >
 
           <input id="start_button" type="button" value="Start"
+            style="margin-left:4px;"
             onclick="pikrellcam('start');"
             class="btn-control"
           >
@@ -446,13 +446,14 @@ if (file_exists("custom-control.php"))
             onclick="window.location='log.php';"
             class="btn-control"
           >
+          <a href="help.php"
+            class="btn-control" style="margin-left:4px;">Help</a>
+
           <input id="upgrade_button" type="button" value="Upgrade"
-            style="margin-left:16px;"
+            style="margin-left:48px;"
             onclick="fifo_command('upgrade')"
             class="btn-control"
           >
-          <a href="help.php"
-            class="btn-control" style="margin-left:16px;">Help</a>
         </div>
     </div>
 <?php

@@ -50,7 +50,23 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.0.4"
+#define	PIKRELLCAM_VERSION	"2.1.0"
+
+
+//TCP Stream Server
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>  
+
+#define H264_TCP_WAIT_FOR_CONNECT 0
+#define H264_TCP_SEND_HEADER      1
+#define H264_TCP_SEND_DATA        2
+
+extern int listenfd, connfd, num_sent;
+extern socklen_t clilen;
+extern struct sockaddr_in cliaddr, servaddr;
+extern int h264_conn_status;
+
 
 #ifndef MAX
 #define MAX(a,b)	(((a) > (b)) ? (a) : (b))
@@ -221,9 +237,11 @@ typedef struct
 	MotionRegion;
 
 
-#define	MOTION_NONE				0
-#define	MOTION_LIGHTSWITCH		1
-#define	MOTION_DETECTED			2
+#define	MOTION_NONE      0
+#define	MOTION_PENDING   1
+#define	MOTION_DETECTED  2
+#define	MOTION_VECTOR    4
+#define	MOTION_BURST     8
 
 #define EVENT_MOTION_BEGIN            1
 #define EVENT_MOTION_END              2
@@ -249,6 +267,7 @@ typedef struct
 					final_preview_vector;
 	CompositeVector	best_region_vector,
 					best_motion_vector;
+	int				cvec_count;
 	int16_t			*trigger;
 	int				n_regions,
 					selected_region,
@@ -262,12 +281,19 @@ typedef struct
 	int		trigger_count,	/* Total # of vectors > mag2_limit */
 			reject_count,	/* # of frame vectors not pointing same as composite vector */
 			sparkle_count,	/* nuber of isolated vectors */
-			vertical_count;
+			any_count,		/* mag2 count total of the frame (not frame vector) */
+			vertical_count,
+			first_detect,
+			direction_detects,
+			burst_detects,
+			first_burst_count,
+			max_burst_count;
 
 	Area	motion_area,	/* Geometric area convering passing vectors */
 			preview_motion_area;	/* Copy to preserve values for preview */
 
-	float	sparkle_expma;
+	float	sparkle_expma,
+			any_count_expma;	/* of the total frame vector */
 
 	int		frame_window;
 	}
@@ -424,7 +450,9 @@ typedef struct
 			motion_times;
 	int		motion_vectors_dimming,
 			motion_magnitude_limit,
-			motion_magnitude_limit_count;
+			motion_magnitude_limit_count,
+			motion_burst_count,
+			motion_burst_frames;
 	char	*on_motion_begin_cmd,
 			*on_motion_end_cmd,
 			*motion_regions_name;
@@ -690,6 +718,12 @@ Event	*exec_child_event(char *event_name, char *command, char *arg);
 void	sun_times_init(void);
 void	at_commands_config_save(char *config_file);
 boolean	at_commands_config_load(char *config_file);
+
+void setup_h264_tcp_server(void);
+void tcp_poll_connect(void);
+void tcp_send_h264_header(void *data, int len);
+void tcp_send_h264_data(char * what, void *data, int len);
+
 
 
 #endif			/* _PIKRELLCAM_H		*/

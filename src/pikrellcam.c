@@ -132,12 +132,24 @@ log_printf(char *fmt, ...)
 void
 camera_start(void)
 	{
-	MMAL_STATUS_T	status;
+	MMAL_STATUS_T status;
+	char          *cmd;
 
 	motion_init();
 	circular_buffer_init();
 
-	camera_create();
+	if (!camera_create())
+		{
+		pikrellcam.verbose = TRUE;
+		log_printf("Failed to start the camera.  Possible causes:\n");
+		log_printf("   Another program is using the camera.\n");
+		log_printf("   Camera ribbon cable connection problem.\n");
+		fprintf(stderr, "See /tmp/pikrellcam.log for an error message.\n");
+		asprintf(&cmd, "cp %s/www/images/camera-error.jpg %s",
+				pikrellcam.install_dir, pikrellcam.mjpeg_filename);
+		exec_wait(cmd, NULL);
+		exit(1);
+		}
 
 	/* ====== Create the camera preview port path ====== :
 	|  preview --(tunnel)--> resizer --> I420_callback --> jpeg_encoder --> mjpeg_callback
@@ -442,9 +454,10 @@ video_record_stop(VideoCircularBuffer *vcb)
 	{
 	struct statvfs st;
 	struct stat    st_h264;
+	MotionFrame    *mf = &motion_frame;
 	unsigned long  tmp_space;
 	Event          *event = NULL;
-	char           *cmd, *tmp_dir;
+	char           *cmd, *tmp_dir, *detect;
 
 	if (!vcb->file)
 		return;
@@ -459,6 +472,21 @@ video_record_stop(VideoCircularBuffer *vcb)
 	log_printf("Video %s record stopped. Header size: %d  h264 file size: %d\n",
 			(vcb->state & VCB_STATE_MOTION_RECORD) ? "motion" : "manual",
 			pikrellcam.video_header_size, pikrellcam.video_size);
+	if (vcb->state & VCB_STATE_MOTION_RECORD)
+		{
+		if ((mf->first_detect & (MOTION_BURST | MOTION_VECTOR))
+				== (MOTION_BURST | MOTION_VECTOR))
+			detect = "both";
+		else if (mf->first_detect & MOTION_BURST)
+			detect = "burst";
+		else
+			detect = "direction";
+		log_printf(
+"    first detect: %s  totals - direction: %d  burst: %d  max burst count: %d\n",
+				detect,
+				mf->direction_detects, mf->burst_detects, mf->max_burst_count);
+		}
+
 	if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 		printf("***Motion record stop: %s\n", pikrellcam.video_pathname);
 
@@ -687,7 +715,14 @@ command_process(char *command_line)
 		{
 		case record:
 			pthread_mutex_lock(&vcb->mutex);
-			if (config_boolean_value(args) == TRUE)
+			if (!strcmp(args, "pause"))
+				{
+				if (vcb->state == VCB_STATE_MANUAL_RECORD)
+					vcb->pause = TRUE;
+				else
+					vcb->pause = FALSE;
+				}
+			else if (config_boolean_value(args) == TRUE)
 				{
 				if (vcb->pause)
 					vcb->pause = FALSE;
@@ -1167,10 +1202,13 @@ main(int argc, char *argv[])
 	signal(SIGTERM, signal_quit);
 	signal(SIGCHLD, event_child_signal);
 
+	setup_h264_tcp_server();
+
 	while (1)
 		{
 		usleep(1000000 / EVENT_LOOP_FREQUENCY);
 		event_process();
+		tcp_poll_connect();
 
 		/* Process lines in the FIFO.  Single lines via an echo "xxx" > FIFO
 		|  or from a web page may not have a terminating \n.
@@ -1195,5 +1233,9 @@ main(int argc, char *argv[])
 				}
 			}
 		}
+
+	//close listening socket
+	close (listenfd);  
+
 	return 0;
 	}
