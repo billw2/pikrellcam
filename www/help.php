@@ -914,7 +914,7 @@ Fri      sunset+5  "@tl_show_status on"
 <li>
 Each day at 8:00 AM, archive all videos from yesterday:.
 <pre>
-daily    08:00  "@archive_video day yesterday""
+daily    08:00  "@archive_video day yesterday"
 </pre>
 Or you could have a custom archive script that does something more complicated like
 archiving and cleaning out old files. For example,
