@@ -24,5 +24,5 @@
 	define("PIKRELLCAM", "/home/pi/pikrellcam/pikrellcam");
 	define("FIFO_FILE", "/home/pi/pikrellcam/www/FIFO");
 
-	define("VERSION", "2.1.0");
+	define("VERSION", "2.1.1");
 ?>

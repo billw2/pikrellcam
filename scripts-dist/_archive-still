@@ -23,6 +23,13 @@ MEDIA_DIR=$4
 FIFO=$5
 LOG_FILE=$6
 
+if [ "$DATE" == "yesterday" ]
+then
+	DATE=`date --date="yesterday" +'%F'`
+elif [ "$DATE" == "today" ]
+then
+	DATE=`date --date="today" +'%F'`
+fi
 
 LEN=${#DATE}
 

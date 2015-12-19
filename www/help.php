@@ -727,7 +727,12 @@ or a specific video (including its thumb) can be archived with:
 <pre>
 echo "archive_video motion_2015-11-05_14.46.14_456.mp4 2015-11-05" > ~/pikrellcam/www/FIFO
 </pre>
-Stills may be script archived with the archive_still FIFO command.
+To archive all videos for today or yesterday:
+<pre>
+echo "archive_video day today" > ~/pikrellcam/www/FIFO
+echo "archive_video day yesterday" > ~/pikrellcam/www/FIFO
+</pre>
+Stills may be script archived using the same set of arguments with the archive_still FIFO command.
 </div>
 
 
@@ -907,10 +912,19 @@ Fri      sunset+5  "@tl_show_status on"
 </pre>
 </li>
 <li>
-Each day at 11:00 PM, run a script that archives videos:
+Each day at 8:00 AM, archive all videos from yesterday:.
 <pre>
-daily    23:00  "$C/archive"
+daily    08:00  "@archive_video day yesterday""
 </pre>
+Or you could have a custom archive script that does something more complicated like
+archiving and cleaning out old files. For example,
+use something like this
+<a href="https://www.raspberrypi.org/forums/viewtopic.php?p=847252#p847252">forum example</a>
+and have the at-command:
+<pre>
+daily    23:00  "$C/do-archive"
+</pre>
+The do-archive script could be run as an at-command as shown or cron could be used..
 </li>
 </ul>
 </div>

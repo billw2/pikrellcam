@@ -357,8 +357,13 @@ motion_draw(uint8_t *i420)
 			msg = status;
 			}
 		else if (mf->motion_status & MOTION_DETECTED)
-			msg = "motion";
-		else if (mf->trigger_count > 0)
+			{
+			if (mf->motion_status & MOTION_BURST)
+				msg = "burst motion";
+			else
+				msg = "motion";
+			}
+		else if (mf->frame_vector.mag2_count > 0)
 			msg = "counts";
 		else if (mf->sparkle_count > 0 || mf->reject_count > 0)
 			msg = "noise";
@@ -372,9 +377,9 @@ motion_draw(uint8_t *i420)
 		i420_print(&bottom_status_area, normal_font, 0xff, 0, 40, 0,
 					JUSTIFY_CENTER, info);
 
-		if (mf->trigger_count > 0)
+		if (mf->frame_vector.mag2_count > 0)
 			{		
-			snprintf(info, sizeof(info), "%s:%-3d", msg, mf->trigger_count);
+			snprintf(info, sizeof(info), "%s:%-3d", msg, mf->frame_vector.mag2_count);
 			i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
 						JUSTIFY_CENTER, info);
 			}

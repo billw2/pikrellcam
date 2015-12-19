@@ -24,6 +24,14 @@ MEDIA_DIR=$4
 FIFO=$5
 LOG_FILE=$6
 
+if [ "$DATE" == "yesterday" ]
+then
+	DATE=`date --date="yesterday" +'%F'`
+elif [ "$DATE" == "today" ]
+then
+	DATE=`date --date="today" +'%F'`
+fi
+
 LEN=${#DATE}
 
 if [[ "$LEN" -ne "10" ]]
@@ -59,6 +67,7 @@ create_dir $ARCHIVE_DIR/$YEAR/$MONTH
 create_dir $ARCHIVE_DIR/$YEAR/$MONTH/$DAY
 create_dir $ARCHIVE_VIDEOS_PATH
 create_dir $ARCHIVE_THUMBS_PATH
+
 
 if [ "$DAY_FLAG" == "day" ]
 then

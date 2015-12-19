@@ -177,7 +177,6 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 					&& (cos2 = 100 * dot * dot / (tvec.mag2 * mvmag2)) >= 82
 				   )
 					{
-					mf->trigger_count += 1;
 					cvec->mag2_count += 1;
 					cvec->vx += mv->vx;
 					cvec->vy += mv->vy;
@@ -344,7 +343,6 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	if (pikrellcam.t_now < pikrellcam.t_start + 3)
 		return;
 
-	mf->trigger_count = 0;
 	mf->motion_status = MOTION_NONE;
 
 	mf->sparkle_count  = 0;
@@ -448,7 +446,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	/* Burst motion triggers on counts above the any_count_expma
 	|  background count noise.
 	*/
-	if (frame_vec->mag2_count >
+	if (frame_vec->mag2_count + mf->reject_count >
 				pikrellcam.motion_burst_count + (int) mf->any_count_expma)
 		{
 		if (motion_burst_frame < pikrellcam.motion_burst_frames)
@@ -461,8 +459,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		|  excludes sparkles.
 		*/
 		if (motion_count == 0 && fail_count == 0)
-			mf->any_count_expma = 0.05 * (float) mf->any_count +
-					(1.0 - 0.05) * mf->any_count_expma;
+			mf->any_count_expma = 0.03 * (float) mf->any_count +
+					(1.0 - 0.03) * mf->any_count_expma;
 		if (motion_burst_frame > 0)
 			--motion_burst_frame;
 		}

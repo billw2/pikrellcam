@@ -600,7 +600,7 @@ static Config  config[] =
 	{ "# Motion vector count minimum for a burst motion detect.\n"
 	  "# For large/close object detection.\n"
 	  "#",
-	"motion_burst_count",  "200", FALSE, {.value = &pikrellcam.motion_burst_count},      config_value_int_set},
+	"motion_burst_count",  "400", FALSE, {.value = &pikrellcam.motion_burst_count},      config_value_int_set},
 
 	{ "# The number of sustained frames for a burst motion detect.\n"
 	  "#",

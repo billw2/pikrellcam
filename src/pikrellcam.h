@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.0"
+#define	PIKRELLCAM_VERSION	"2.1.1"
 
 
 //TCP Stream Server
@@ -278,8 +278,7 @@ typedef struct
 	int				mag2_limit;      /* magnitude^2 limit for a vector to add to region_vector */
 	int				mag2_limit_count; /* Threshold number of vectors added into */
 			                          /* region_vector to make it a valid motion event */
-	int		trigger_count,	/* Total # of vectors > mag2_limit */
-			reject_count,	/* # of frame vectors not pointing same as composite vector */
+	int		reject_count,	/* # of frame vectors not pointing same as composite vector */
 			sparkle_count,	/* nuber of isolated vectors */
 			any_count,		/* mag2 count total of the frame (not frame vector) */
 			vertical_count,
