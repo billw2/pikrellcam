@@ -565,7 +565,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				{
 				mf->burst_detects = 1;
 				mf->first_burst_count = frame_vec->mag2_count;
-				mf->max_burst_count = frame_vec->mag2_count;
+				mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
 				}
 
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
@@ -595,8 +595,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			if (mf->motion_status & MOTION_BURST)
 				{
 				++mf->burst_detects;
-				if (mf->max_burst_count < frame_vec->mag2_count)
-					mf->max_burst_count = frame_vec->mag2_count;
+				if (mf->max_burst_count < frame_vec->mag2_count + mf->reject_count)
+					mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
 				}
 
 			if (pikrellcam.verbose_motion)
