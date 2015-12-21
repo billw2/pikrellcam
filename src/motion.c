@@ -447,7 +447,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	|  background count noise.
 	*/
 	if (frame_vec->mag2_count + mf->reject_count >
-				pikrellcam.motion_burst_count + (int) mf->any_count_expma)
+				pikrellcam.motion_burst_count
+					+ (int) mf->any_count_expma + 60 * (int) mf->sparkle_expma)
 		{
 		if (motion_burst_frame < pikrellcam.motion_burst_frames)
 			++motion_burst_frame;

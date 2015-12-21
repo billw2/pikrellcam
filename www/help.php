@@ -841,11 +841,24 @@ frequency  time   "command"
 		If the time is <span style='font-weight:700'>start</span>, the command is executed
 		once at startup on the day specified
 		(usually <span style='font-weight:700'>daily</span>)
+		For all other times, the commands execute when the time occurs while PiKrellCam
+		is running.  This means if you need an initial setting based on a specific
+		time period (say started during the day versus started at night) when
+		PiKrellCam is started, you need to have your own script that checks the time.
+		Such a script can parse the PiKrellCam state file
+		<span style='font-weight:700'>/var/run/pikrellcam/state</span>
+		to get the
+		<span style='font-weight:700'>current_minute</span>
+		and compare it to todays sun times from the state file:
+		<span style='font-weight:700'>dawn sunrise sunset dusk</span>.
+		Other values in the state file can be used for special actions in at
+		command scripts.
 		<p>
 		For the sun times to work, edit
 		<span style='font-weight:700'>~/.pikrellcam/pikrellcam.conf</span> and set the
 		<span style='font-weight:700'>latitude</span> and
-		<span style='font-weight:700'>longitude</span> values to your location.
+		<span style='font-weight:700'>longitude</span> values to your location.  Check
+		the state file or the log file to check the calculated times.
 	</li>
 	<li>
 		<span style='font-weight:700'>command</span>
