@@ -30,6 +30,9 @@ CameraObject	stream_resizer;
 
 VideoCircularBuffer video_circular_buffer;
 
+extern char*	mjpeg_server_queue_get(void);
+extern void	mjpeg_server_queue_put(char *data, int len);
+
 static boolean      motion_frame_event;
 static int          mjpeg_do_preview_save;
 
@@ -141,14 +144,24 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	static FILE            *file	= NULL;
 	static char            *fname_part;
 	boolean                do_preview_save = FALSE;
+	static char	       *tcp_buf;
+	static int	       tcp_buf_offset;
+
 
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.mjpeg_filename);
+
+	if (!tcp_buf)
+		tcp_buf = mjpeg_server_queue_get();
 
 	if (file && buffer->length > 0)
 		{
 		mmal_buffer_header_mem_lock(buffer);
 		n = fwrite(buffer->data, 1, buffer->length, file);
+		if (tcp_buf) {
+			memcpy(tcp_buf + tcp_buf_offset, buffer->data, buffer->length);
+			tcp_buf_offset += buffer->length;
+		}
 		mmal_buffer_header_mem_unlock(buffer);
 		if (n != buffer->length)
 			{
@@ -158,6 +171,12 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		}
 	if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
 		{
+		if (tcp_buf) {
+			mjpeg_server_queue_put(tcp_buf, tcp_buf_offset);
+			tcp_buf = NULL;
+			tcp_buf_offset = 0;
+		}
+
 		if (debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
 			printf("%s fps %d\n", data->name, 1000000 / utime);
 		if (file)
