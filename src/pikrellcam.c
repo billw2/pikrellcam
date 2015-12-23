@@ -27,6 +27,8 @@
 PiKrellCam	pikrellcam;
 TimeLapse	time_lapse;
 
+extern int setup_mjpeg_tcp_server(void);
+
 static char	*pgm_name;
 static boolean	quit_flag;
 
@@ -1203,6 +1205,7 @@ main(int argc, char *argv[])
 	signal(SIGCHLD, event_child_signal);
 
 	setup_h264_tcp_server();
+	setup_mjpeg_tcp_server();
 
 	while (1)
 		{
