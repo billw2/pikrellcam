@@ -111,22 +111,16 @@ static void* handle_client(void *args)
 		if (!buf)
 			goto failed;
 
-		/* send start header */
+		/* send JPEG boundary start header */
 		memset(header, '\0', MAX_BUF_SIZE);
 		snprintf(header, MAX_BUF_SIZE,
-				"Content-type: image/jpeg\r\n"
-				"Content-Length:%d \r\n\r\n", buf->len);
+				"\r\n--fooboundary\r\n"
+				"Content-type: image/jpeg\r\n\r\n");
 		if (send(fd, header, strlen(header), MSG_NOSIGNAL) < 0)
 			goto failed;
 
 		/* send image contents */
 		if (send(fd, buf->data, buf->len, MSG_NOSIGNAL) < 0)
-			goto failed;
-
-		/* send end header */
-		memset(header, '\0', MAX_BUF_SIZE);
-		snprintf(header, MAX_BUF_SIZE, "\r\n--fooboundary\r\n");
-		if (send(fd, header, strlen(header), MSG_NOSIGNAL) < 0)
 			goto failed;
 
 		/* we are done with the image buffer */
