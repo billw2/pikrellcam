@@ -667,7 +667,7 @@ typedef struct
   */
 static Adjustment	camera_adjustment[] =
 	{
-	{ "video_bitrate",   2000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
+	{ "video_bitrate",   1000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
 	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
 	{ "video_mp4box_fps",  1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
 	{ "mjpeg_divider",  1,  12,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },

@@ -23,7 +23,8 @@
 
 #define EXPMA_SMOOTHING	0.01
 
-#define SMALL_OBJECT_COUNT	15
+#define SMALL_OBJECT_COUNT  15
+#define IN_BOX_COUNT_MIN    (2 * cvec->mag2_count)
 
 
 MotionFrame		motion_frame;
@@ -32,7 +33,7 @@ static CompositeVector	zero_cvec;
 
 
 static boolean
-composite_vector_best(CompositeVector *cvec1, CompositeVector *cvec2)
+composite_vector_better(CompositeVector *cvec1, CompositeVector *cvec2)
 	{
 	int		d1, d2,
 			xm = motion_frame.width / 2,
@@ -56,12 +57,13 @@ composite_vector_best(CompositeVector *cvec1, CompositeVector *cvec2)
 static void
 get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	{
-	CompositeVector	*cvec, tvec;
-	MotionVector	*mv;
-	Area			*area;
-	int				x, y, mag2, mb_index, mvmag2, dot, cos2,
-					x0, y0, x1, y1;
-	int16_t			*pm, *pp, *pn;
+	CompositeVector *cvec, tvec;
+	MotionVector    *mv;
+	Area            *area;
+	char            *mt, *mtb;
+	int             x, y, mag2, mb_index, mvmag2, dot, cos2,
+	                x0, y0, x1, y1;
+	int16_t         *pm, *pp, *pn;
 
 	cvec = &mreg->vector;
 	*cvec = zero_cvec;
@@ -136,8 +138,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	|  In regions with motion, this tries to raise limit_count above the noise
 	|  background, but sensitivity is reduced.
 	*/
-	x = (pikrellcam.motion_times.confirm_gap == 0)
-				? 2 * SMALL_OBJECT_COUNT / 3 : SMALL_OBJECT_COUNT;
+	x = SMALL_OBJECT_COUNT;
 	if (mf->mag2_limit_count < x)
 		{
 		mf->mag2_limit_count += 2 * mreg->sparkle_count / 3;
@@ -209,7 +210,7 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 	|  distribution/concentration within the region to filter for final
 	|  motion detection.
 	*/
-	mreg->motion = 0;
+	mreg->motion = MOTION_NONE;
 	if (cvec->mag2_count >= mf->mag2_limit_count)
 		{
 		cvec->x /= cvec->mag2_count;
@@ -228,11 +229,11 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 		if (cvec->vertical)
 			mf->vertical_count += 1;
 
-		/* Get a box that will hold at least 2x mag2_limit_count vectors
+		/* Get a box that will hold at least 2x mag2_count vectors
 		|  and count the vectors within the box.
 		*/
 		for (cvec->box_w = 4, cvec->box_h = 4;
-				cvec->box_w * cvec->box_h <= 2 * cvec->mag2_count;   )
+					cvec->box_w * cvec->box_h <= IN_BOX_COUNT_MIN; )
 			{
 			if (cvec->box_h <= cvec->box_w)
 				cvec->box_h += 2;
@@ -272,34 +273,59 @@ get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
 				    && cvec->mag2 < 5 * mf->mag2_limit
 				    && mreg->reject_count < cvec->mag2_count / 2
 				   )
-					mreg->motion = 1;
+					mreg->motion = MOTION_TYPE_DIR_SMALL;
 				}
-			else if (   cvec->in_box_count > cvec->mag2_count * 7 / 10
-			         || (   cvec->in_box_count > cvec->mag2_count * 5 / 10
-			             && mreg->reject_count < cvec->mag2_count * 4 / 10
-			            )
-			        )
-				mreg->motion = 2;
+			else
+				if (   cvec->in_box_count > cvec->mag2_count * 7 / 10
+			        || (   cvec->in_box_count > cvec->mag2_count * 5 / 10
+			            && mreg->reject_count < cvec->mag2_count * 4 / 10
+			           )
+			       )
+				mreg->motion = MOTION_TYPE_DIR_NORMAL;
 			}
-			/* else assume it's not concentrated enough for a motion cvec */
-
-		if (   mreg->motion > 0
-		    && composite_vector_best(cvec, &mf->best_region_vector)
-		   )
-			mf->best_region_vector = *cvec;
+		/* Flag it if a density of count+rejects is sufficient for a burst
+		|  detect (which still has to pass a total count check).
+		*/
+		if (mf->any_count_expma < 100.0)
+			{
+			if (cvec->in_box_count + cvec->in_box_rejects > 4 * IN_BOX_COUNT_MIN / 10)
+				mreg->motion |= MOTION_TYPE_BURST_DENSITY;
+			}
+		else if (mf->any_count_expma < 300.0)
+			{
+			if (cvec->in_box_count + cvec->in_box_rejects > 7 * IN_BOX_COUNT_MIN / 10)
+				mreg->motion |= MOTION_TYPE_BURST_DENSITY;
+			}
+		else
+			if (cvec->in_box_count + cvec->in_box_rejects > 9 * IN_BOX_COUNT_MIN / 10)
+				mreg->motion |= MOTION_TYPE_BURST_DENSITY;
 
 		if (pikrellcam.verbose_motion)
 			{
 			printf(
-"cvec[%d]: x,y(%d,%d) dx,dy(%d,%d) mag2,count(%d,%d) reject:%d box:%dx%d\n",
+"cvec[%d]: x,y(%d,%d) dx,dy(%d,%d) mag2,count,lim(%d,%d,%d) rej,spkl,vert(%d,%d,%d)\n",
 				mreg->region_number,
 				cvec->x, cvec->y, cvec->vx, cvec->vy, cvec->mag2,
-				cvec->mag2_count, mreg->reject_count,
-				cvec->box_w, cvec->box_h);
+				cvec->mag2_count, mf->mag2_limit_count, mreg->reject_count,
+				mreg->sparkle_count, cvec->vertical);
+			mt = "----";
+			mtb = "------";
+			if (mreg->motion & MOTION_TYPE_DIR_SMALL)
+				mt = "dirS";
+			else if (mreg->motion & MOTION_TYPE_DIR_NORMAL)
+				mt = "dirN";
+			if (mreg->motion & MOTION_TYPE_BURST_DENSITY)
+				mtb = "burstD";
+			/* in_box density is what counts are compared to, not in_size
+			*/
 			printf(
-"   in_box[count:%d rej:%d] motion:%d vetical:%d sparkle:%d limit_count:%d\n",
-				cvec->in_box_count, cvec->in_box_rejects, mreg->motion,
-				cvec->vertical, mreg->sparkle_count, mf->mag2_limit_count);
+"   box:%dx%d in_box[cnt:%d rej:%d] density[dir:%.1f burst:%.1f]  **motion[%s,%s]\n",
+				cvec->box_w, cvec->box_h,
+				cvec->in_box_count, cvec->in_box_rejects,
+				(float) cvec->in_box_count / (float) cvec->mag2_count,
+				(float) (cvec->in_box_count + cvec->in_box_rejects)
+						/ (float) IN_BOX_COUNT_MIN,
+				mt, mtb);
 			}
 		}
 	else
@@ -333,7 +359,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	MotionRegion    *mreg;
 	CompositeVector *cvec, *frame_vec;
 	SList           *mrlist;
-	int             motion_count, fail_count;
+	int             motion_count, fail_count, direction_motion;
+	boolean         burst_density_pass;
 	char            tbuf[50], *msg;
 	int             x0, y0, x1, y1, t;
 	static int      mfp_number, motion_burst_frame;
@@ -351,7 +378,6 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	mf->vertical_count = 0;
 
 	memset(mf->trigger, 0, MF_TRIGGER_SIZE);
-	mf->best_region_vector = zero_cvec;
 	mf->motion_area.x0 = mf->motion_area.y0 = mf->motion_area.x1 = mf->motion_area.y1 = 0;
 	mf->mag2_limit  = pikrellcam.motion_magnitude_limit * pikrellcam.motion_magnitude_limit;
 	mf->mag2_limit_count = pikrellcam.motion_magnitude_limit_count;
@@ -371,6 +397,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 
 	motion_count = 0;
 	fail_count = 0;
+	burst_density_pass = FALSE;
 	mf->frame_vector = zero_cvec;
 	frame_vec = &mf->frame_vector;
 	mf->cvec_count = 0;
@@ -379,13 +406,17 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		{
 		mreg = (MotionRegion *) mrlist->data;
 		cvec = &mreg->vector;
+		direction_motion = mreg->motion & (MOTION_TYPE_DIR_SMALL | MOTION_TYPE_DIR_NORMAL);
 
 		if (   cvec->mag2_count > 0
-		    && mreg->motion == 0
+		    && !direction_motion
 		   )
 			fail_count += 1;
-		else if (mreg->motion > 0)
+		else if (direction_motion)
 			motion_count += 1;
+
+		if (mreg->motion & MOTION_TYPE_BURST_DENSITY)
+			burst_density_pass = TRUE;
 
 		if (cvec->mag2_count > 0)
 			{
@@ -443,15 +474,19 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	mf->sparkle_expma = EXPMA_SMOOTHING * (float) mf->sparkle_count +
 							(1.0 - EXPMA_SMOOTHING) * mf->sparkle_expma;
 
+	mf->motion_status = MOTION_NONE;
+
 	/* Burst motion triggers on counts above the any_count_expma
 	|  background count noise.
 	*/
-	if (frame_vec->mag2_count + mf->reject_count >
-				pikrellcam.motion_burst_count
-					+ (int) mf->any_count_expma + 60 * (int) mf->sparkle_expma)
+	if (   burst_density_pass
+	    && frame_vec->mag2_count + mf->reject_count >
+				pikrellcam.motion_burst_count + (int) mf->any_count_expma
+	   )
 		{
 		if (motion_burst_frame < pikrellcam.motion_burst_frames)
 			++motion_burst_frame;
+		mf->motion_status = MOTION_PENDING_BURST;
 		}
 	else
 		{
@@ -459,14 +494,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		|  activity that caused any pass or fail cvecs.  It already
 		|  excludes sparkles.
 		*/
-		if (motion_count == 0 && fail_count == 0)
-			mf->any_count_expma = 0.03 * (float) mf->any_count +
-					(1.0 - 0.03) * mf->any_count_expma;
+		if (motion_count == 0)
+			mf->any_count_expma = 0.02 * (float) mf->any_count +
+					(1.0 - 0.02) * mf->any_count_expma;
 		if (motion_burst_frame > 0)
 			--motion_burst_frame;
 		}
-
-	mf->motion_status = MOTION_NONE;
 
 	if (   motion_count > 0
 	    && fail_count == 0
@@ -479,15 +512,15 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			{
 			mf->frame_window = pikrellcam.camera_adjust.video_fps *
 					pikrellcam.motion_times.confirm_gap / pikrellcam.mjpeg_divider;
-			mf->motion_status = MOTION_PENDING;
+			mf->motion_status |= MOTION_PENDING_DIR;
 			}
 		else
-			mf->motion_status = (MOTION_DETECTED | MOTION_VECTOR);
+			mf->motion_status = (MOTION_DETECTED | MOTION_DIRECTION);
 		}
 
-	if (motion_burst_frame == pikrellcam.motion_burst_frames)	/* overrides pending */
+	if (motion_burst_frame == pikrellcam.motion_burst_frames)
 		{
-		mf->motion_status &= ~MOTION_PENDING;
+		mf->motion_status &= ~(MOTION_PENDING_DIR | MOTION_PENDING_BURST);
 		mf->motion_status |= (MOTION_DETECTED | MOTION_BURST);
 		mf->frame_window = 0;
 		}
@@ -499,32 +532,37 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	   )
 		{
 		printf(
-"frame:   x,y(%d,%d) dx,dy(%d,%d) mag2,count(%d,%d) any_expma: %.1f burst:%d\n",
+"frame:   x,y(%d,%d) dx,dy(%d,%d) mag2:%d count,rej(%d,%d) any[%d,%.1f] burst:%d\n",
 			frame_vec->x, frame_vec->y, frame_vec->vx, frame_vec->vy,
-			frame_vec->mag2, frame_vec->mag2_count, mf->any_count_expma,
-			motion_burst_frame);
+			frame_vec->mag2, frame_vec->mag2_count, mf->reject_count,
+			mf->any_count, mf->any_count_expma, motion_burst_frame);
 		}
 	if (pikrellcam.verbose_motion && (fail_count > 0 || motion_count > 0))
 		{
-		printf("any:%d reject:%d sparkle:%d sparkle_expma:%.1f\n",
-			mf->any_count, mf->reject_count,
-			mf->sparkle_count, mf->sparkle_expma);
-
 		strftime(tbuf, sizeof(tbuf), "%T", &pikrellcam.tm_local);
-		if ((mf->motion_status & (MOTION_VECTOR | MOTION_BURST))
-				    == (MOTION_VECTOR | MOTION_BURST))
+		msg = "";
+		if ((mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+				    == (MOTION_DIRECTION | MOTION_BURST))
 			msg = "***MOTION BOTH***";
-		else if (mf->motion_status & MOTION_VECTOR)
-			msg = "***MOTION VECTOR***";
+		else if (mf->motion_status & MOTION_DIRECTION)
+			msg = "***MOTION DIRECTION***";
 		else if (mf->motion_status & MOTION_BURST)
 			msg = "***MOTION BURST***";
-		else if (mf->motion_status == MOTION_PENDING)
-			msg = "***motion pending***";
 		else
-			msg = "";
+			{
+			if ((mf->motion_status & (MOTION_PENDING_DIR | MOTION_PENDING_BURST))
+						== (MOTION_PENDING_DIR | MOTION_PENDING_BURST))
+				msg = "***motion pending (dir|burst)***";
+			else if (mf->motion_status & MOTION_PENDING_DIR)
+				msg = "***motion pending (dir)***";
+			else if (mf->motion_status & MOTION_PENDING_BURST)
+				msg = "***motion pending (burst)***";
+			}
 
-		printf("%s [%d] motion count:%d fail:%d window:%d  %s\n\n",
-			tbuf, mfp_number,  motion_count, fail_count, mf->frame_window, msg);
+		printf("%s [%d] regions[motion:%d fail:%d] spkl[%d,%.1f] window:%d  %s\n\n",
+			tbuf, mfp_number,  motion_count, fail_count,
+			mf->sparkle_count, mf->sparkle_expma,
+			mf->frame_window, msg);
 		}
 	++mfp_number;
 	if (motion_burst_frame == pikrellcam.motion_burst_frames)
@@ -545,9 +583,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			*/
 			video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
 			mf->do_preview_save = TRUE;
-			mf->best_motion_vector = mf->best_region_vector;
 			mf->preview_frame_vector = mf->frame_vector;
 			mf->preview_motion_area = mf->motion_area;
+			pikrellcam.video_notify = FALSE;
+			pikrellcam.still_notify = FALSE;
+			pikrellcam.timelapse_notify = FALSE;
+
 			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
 				{
 				motion_preview_area_fixup();
@@ -558,7 +599,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			mf->direction_detects = 0;
 			mf->max_burst_count = 0;
 			mf->first_burst_count = 0;
-			if (mf->motion_status & MOTION_VECTOR)
+			if (mf->motion_status & MOTION_DIRECTION)
 				{
 				mf->direction_detects = 1;
 				}
@@ -580,10 +621,9 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			*/
 			vcb->motion_sync_time = pikrellcam.t_now + pikrellcam.motion_times.post_capture;
 			if (   !strcmp(pikrellcam.motion_preview_save_mode, "best")
-			    && composite_vector_best(&mf->best_region_vector, &mf->best_motion_vector)
+			    && composite_vector_better(&mf->frame_vector, &mf->preview_frame_vector)
 			   )
 				{
-				mf->best_motion_vector = mf->best_region_vector;
 				mf->preview_frame_vector = mf->frame_vector;
 				mf->preview_motion_area = mf->motion_area;
 				mf->do_preview_save = TRUE;
@@ -591,7 +631,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				|  in video_record_stop().
 				*/
 				}
-			if (mf->motion_status & MOTION_VECTOR)
+			if (mf->motion_status & MOTION_DIRECTION)
 				++mf->direction_detects;
 			if (mf->motion_status & MOTION_BURST)
 				{

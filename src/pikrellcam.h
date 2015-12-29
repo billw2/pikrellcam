@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.4"
+#define	PIKRELLCAM_VERSION	"2.1.5"
 
 
 //TCP Stream Server
@@ -237,11 +237,18 @@ typedef struct
 	MotionRegion;
 
 
-#define	MOTION_NONE      0
-#define	MOTION_PENDING   1
-#define	MOTION_DETECTED  2
-#define	MOTION_VECTOR    4
-#define	MOTION_BURST     8
+#define	MOTION_NONE          0
+#define	MOTION_DETECTED      1
+#define	MOTION_DIRECTION     2
+#define	MOTION_BURST         4
+#define	MOTION_PENDING_DIR   8
+#define	MOTION_PENDING_BURST 0x10
+
+/* Possible motion types for a region
+*/
+#define MOTION_TYPE_DIR_SMALL      1
+#define MOTION_TYPE_DIR_NORMAL     2
+#define MOTION_TYPE_BURST_DENSITY  4
 
 #define EVENT_MOTION_BEGIN            1
 #define EVENT_MOTION_END              2
@@ -265,8 +272,6 @@ typedef struct
 	CompositeVector	frame_vector,
 					preview_frame_vector,
 					final_preview_vector;
-	CompositeVector	best_region_vector,
-					best_motion_vector;
 	int				cvec_count;
 	int16_t			*trigger;
 	int				n_regions,

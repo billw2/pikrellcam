@@ -209,10 +209,23 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	block can control the video record, still, time lapse and other sub systems.
 	</li>
 	<li>A simple feed of the preview jpeg can be viewed without control panels or button/control bars.<br>
-	Just connect to:
+	Just point your browser to:
 	<br>&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>http://your_pi:port_num/live.php</span>
+	<br>or
+	<br>&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>http://pi:password@your_pi:port_num/live.php</span>
+	<br>where port_num is the nginx port configured in the install.  If the port was left at
+	the default 80, you can omit the <span style='font-weight:700'>:port_num</span> from the URL.
 	</li>
-	<li>h264 video stream - to be documented.
+	<li>An alternate way to view the preview is with a tcp stream connection which additionally
+	allows viewing using vlc or Android MJPEG viewer apps such as tinycam monitor, etc.
+	Open the MJPEG network stream using the URL:
+	<br>&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>http://pi:password@your_pi:port_num/mjpeg_stream.php</span>
+	</li>
+	<li>To be able to view the h264 tcp video stream some extra install and
+	setup are required.  Follow the
+	<nobr><a href="https://www.raspberrypi.org/forums/viewtopic.php?p=862399#p862399">
+	rtsp live video setup instructions</a></nobr> on the forum and you can view the stream
+	with vlc.
 	</li>
 	</ul>
 </div>
@@ -236,28 +249,52 @@ motion:
 		After the motion region composite vectors are calculated, the component motion vectors are
 		filtered for direction and density.  This provides high sensitivity and noise
 		immunity for small to medium sized objects.  Motion detection is tested independently for
-		each motion region.  Detection of larger or very close objects can sometimes be missed
-		with vector direction filtering.
+		each motion region.
+		To adjust direction detects, set the
+		Vector_Magnitude and Vector_Count values using the OSD.  The values should be set
+		lower in environments where small animal detection is desired or they can be
+		adjusted higher for moderate sized object detection.  The combination of direction
+		filtering and density checks make this detection method very resistant to
+		camera noise and is why it is good for small object detection as long as
+		there is good placement of motion detect regions to exclude wind blown vegetation
+		or moving shadows of the vegetation.  However, when PiKrellCam does detect
+		camera sparkle noise and the configured Vector_Count is low, the Vector_Count
+		does get a small dynamic adjustment higher to provide a noise safety margin.
 		<p>
 		<span style='font-weight:700'>Motion Vector Burst Detects</span><br>
 		For large (or close) objects,
 		the individual camera motion vectors can have large direction distributions.
 		This is because individual vectors
 		in larger areas can begin to match pixels in
-		directions other than the overall object direction.
+		directions other than the overall object direction and direction detection can
+		sometimes miss these events.
 		So instead of using direction filtering, burst detection looks for a sudden
 		large increase in the number of motion vectors sustained over a number of frames.
-		This method generates composite vectors for motion regions as does direction detection,
-		but it does not reject vectors failing direction and density tests.
-		The region composite vectors are combined into an overall frame
-		composite vector which is then used for burst detection.
+		This method uses the same region composite vectors as direction
+		detection, but it does not exclude vectors failing the direction test.
+		All region composite vectors are combined into an overall frame
+		composite vector. Motion burst detection is to compare the frame composite vector
+		count to the Burst_Count limit and to require at least one motion region
+		to pass a moderate density test which is used to help reduce false detects of
+		the large noise counts the camera can generate in certain dim light situations.
+		The burst detect configurations Burst_Count and Burst_Frames are a
+		coarse adjustment for detection of relatively larger and faster moving
+		objects and they should be set according to what the noise environment
+		of the camera allows. For outdoor cameras this noise period occurs in the
+		minutes before sunrise and after sunset.  For indoor cameras any noise
+		periods will depend on lighting conditions.  Since burst detection does not
+		have the benefit of direction filtering to reduce noise and its density test
+		is relaxed, an
+		exponential moving average of background noise counts is calculated and
+		used to provide additional noise margin.
+		The compared to Burst_Count is dynamically adjusted higher by this average. 
 		</div>
 <p>
 You can see the results of PiKrellCam's vector processing on the OSD by turning on
 the showing of Regions and Vectors.  Watching this display will allow you to tune
-your configured vector limit values to your camera environment.  To get a better
-look at the vectors, temporarily raise the mjpeg_divider value so the OSD will
-update more slowly.  
+your configured vector limit values to your camera environment.  To
+get a better look at the vectors, you can temporarily raise the mjpeg_divider
+value so the OSD will update more slowly.  
 <p>
 <span style='font-size: 1.2em; font-weight: 680;'>Example Motion Detects</span>
 <img src="images/vector0.jpg" alt="vector0.jpg"> 
@@ -286,7 +323,7 @@ update more slowly.
 			is an exponential moving average of the <span style='font-weight:700'>any</span>
 			count EXCLUDING any counts from a region when they were greater than the
 			limit count.  So the moving average measures background noise over sparkles.
-			A burst count must exceed the average by burst limit count for a burst detect.
+			A burst count must exceed the average by the Burst_Count limit for a burst detect.
 			</li>
 			<li><span style='font-weight:700'>rej:22</span> There were 22 total frame vectors
 			that passed the magnitude limit count but failed the direction compare test to
@@ -432,7 +469,7 @@ button.  This is required for the change to be saved in the configuration file.
 			increased risk of false detects.
 			For detecting
 			people at medium distances or cars, the value can be set from 10 on up.
-			Burst detects of larger objects have an additional count requirement.
+			Burst detects of larger objects have a separate count requirement.
 			</li>
 			<li><span style='font-weight:700'>Burst_Count</span> - sets the minimum count of
 			individual motion vectors required for a frame composite vector burst detect.
@@ -440,7 +477,9 @@ button.  This is required for the change to be saved in the configuration file.
 			it may be difficult to observe the effect as this value is changed.  If the camera
 			view is noisy, the value probably should be adjusted higher, but if the view is
 			normally quiet with well placed motion regions, the value can probably be left at
-			a low value.
+			a low value.  For a detect, the total frame vector count must exceed the
+			background count exponential moving average by the Burst_Count, and at least
+			one motion region must pass a density test.
 			</li>
 			<li><span style='font-weight:700'>Burst_Frames</span> - sets the minimum number of
 			frames of sustained burst counts required for a burst motion detect.  Frames are

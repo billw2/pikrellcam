@@ -476,8 +476,8 @@ video_record_stop(VideoCircularBuffer *vcb)
 			pikrellcam.video_header_size, pikrellcam.video_size);
 	if (vcb->state & VCB_STATE_MOTION_RECORD)
 		{
-		if ((mf->first_detect & (MOTION_BURST | MOTION_VECTOR))
-				== (MOTION_BURST | MOTION_VECTOR))
+		if ((mf->first_detect & (MOTION_BURST | MOTION_DIRECTION))
+				== (MOTION_BURST | MOTION_DIRECTION))
 			detect = "both";
 		else if (mf->first_detect & MOTION_BURST)
 			detect = "burst";
@@ -612,6 +612,8 @@ typedef enum
 	display_cmd,        /* Placement above here can affect OSD.  If menu */
 		                /* or adjustment is showing, above commands redirect */
 	                    /* to cancel the menu or adjustment. */
+	still_quality,
+	video_bitrate,
 	video_fps,
 	video_mp4box_fps,
 	inform,
@@ -654,6 +656,8 @@ static Command commands[] =
 	/* Below commands are not redirected to abort a menu or adjustment */
 	{ "tl_inform_convert",    tl_inform_convert,   1 },
 
+	{ "still_quality", still_quality,  1 },
+	{ "video_bitrate", video_bitrate,  1 },
 	{ "video_fps", video_fps,  1 },
 	{ "video_mp4box_fps", video_mp4box_fps,  1 },
 	{ "inform", inform,    1 },
@@ -903,6 +907,28 @@ command_process(char *command_line)
 				n = 24;
 			camera_adjust_temp.video_fps = n;
 			pikrellcam.camera_adjust.video_fps = n;
+			camera_restart();
+			pikrellcam.config_modified = TRUE;
+			break;
+
+		case video_bitrate:
+			if ((n = atoi(args)) < 1000000)
+				n = 1000000;
+			if (n > 25000000)
+				n = 25000000;
+			camera_adjust_temp.video_bitrate = n;
+			pikrellcam.camera_adjust.video_bitrate = n;
+			camera_restart();
+			pikrellcam.config_modified = TRUE;
+			break;
+
+		case still_quality:
+			if ((n = atoi(args)) < 5)
+				n = 5;
+			if (n > 100)
+				n = 100;
+			camera_adjust_temp.still_quality = n;
+			pikrellcam.camera_adjust.still_quality = n;
 			camera_restart();
 			pikrellcam.config_modified = TRUE;
 			break;
