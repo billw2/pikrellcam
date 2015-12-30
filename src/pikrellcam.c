@@ -720,15 +720,16 @@ command_process(char *command_line)
 	switch (cmd->code)
 		{
 		case record:
+			n = sscanf(args, "%127s %63[^\n]", arg1, arg2);
 			pthread_mutex_lock(&vcb->mutex);
-			if (!strcmp(args, "pause"))
+			if (!strcmp(arg1, "pause"))
 				{
 				if (vcb->state == VCB_STATE_MANUAL_RECORD)
 					vcb->pause = TRUE;
 				else
 					vcb->pause = FALSE;
 				}
-			else if (config_boolean_value(args) == TRUE)
+			else if (config_boolean_value(arg1) == TRUE)
 				{
 				if (vcb->pause)
 					vcb->pause = FALSE;
@@ -736,6 +737,11 @@ command_process(char *command_line)
 					{
 					if (vcb->state == VCB_STATE_MOTION_RECORD)
 						video_record_stop(vcb);
+					vcb->manual_pre_capture = 0;
+					vcb->max_record_time = 0;
+					if (n == 2)
+						sscanf(arg2, "%d %d",
+							&vcb->manual_pre_capture, &vcb->max_record_time);
 					video_record_start(vcb, VCB_STATE_MANUAL_RECORD_START);
 					}
 				}

@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.5"
+#define	PIKRELLCAM_VERSION	"2.1.6"
 
 
 //TCP Stream Server
@@ -241,8 +241,9 @@ typedef struct
 #define	MOTION_DETECTED      1
 #define	MOTION_DIRECTION     2
 #define	MOTION_BURST         4
-#define	MOTION_PENDING_DIR   8
-#define	MOTION_PENDING_BURST 0x10
+#define	MOTION_EXTERNAL      8
+#define	MOTION_PENDING_DIR   0x10
+#define	MOTION_PENDING_BURST 0x20
 
 /* Possible motion types for a region
 */
@@ -292,6 +293,8 @@ typedef struct
 			burst_detects,
 			first_burst_count,
 			max_burst_count;
+
+	boolean	external_trigger;
 
 	Area	motion_area,	/* Geometric area convering passing vectors */
 			preview_motion_area;	/* Copy to preserve values for preview */
@@ -350,6 +353,7 @@ typedef struct
 
 	int8_t	   *data; 		/* h.264 video data array      */
 	int			size;		/* size in bytes of data array */
+	int         seconds;	/* max seconds in the buffer */
 	int			head,
 				tail;
 				
@@ -358,8 +362,11 @@ typedef struct
 				cur_frame_index;
 	boolean		in_keyframe,
 				pause;
+	int         manual_pre_capture,
+				max_record_time;
 
 	time_t		record_start,
+				record_event_time,
 				motion_last_detect_time,
 				motion_sync_time;
 	}
@@ -456,7 +463,8 @@ typedef struct
 			motion_magnitude_limit,
 			motion_magnitude_limit_count,
 			motion_burst_count,
-			motion_burst_frames;
+			motion_burst_frames,
+			motion_record_time_limit;
 	char	*on_motion_begin_cmd,
 			*on_motion_end_cmd,
 			*motion_regions_name;

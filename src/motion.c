@@ -524,6 +524,14 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		mf->motion_status |= (MOTION_DETECTED | MOTION_BURST);
 		mf->frame_window = 0;
 		}
+	if (mf->external_trigger)
+		{
+		mf->external_trigger = FALSE;
+		mf->motion_status &= ~(MOTION_PENDING_DIR | MOTION_PENDING_BURST);
+		mf->motion_status |= (MOTION_DETECTED | MOTION_EXTERNAL);
+		mf->frame_window = 0;
+		}
+
 	if (mf->frame_window > 0)
 		mf->frame_window -= 1;
 
@@ -548,6 +556,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			msg = "***MOTION DIRECTION***";
 		else if (mf->motion_status & MOTION_BURST)
 			msg = "***MOTION BURST***";
+		else if (mf->motion_status & MOTION_EXTERNAL)
+			msg = "***MOTION EXTERNAL***";
 		else
 			{
 			if ((mf->motion_status & (MOTION_PENDING_DIR | MOTION_PENDING_BURST))
@@ -584,7 +594,14 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
 			mf->do_preview_save = TRUE;
 			mf->preview_frame_vector = mf->frame_vector;
-			mf->preview_motion_area = mf->motion_area;
+			if (mf->motion_status & MOTION_EXTERNAL)
+				{
+				mf->preview_motion_area.x0 = mf->preview_motion_area.y0 = 0;
+				mf->preview_motion_area.x1 = mf->width - 1;
+				mf->preview_motion_area.y1 = mf->height - 1;
+				}
+			else
+				mf->preview_motion_area = mf->motion_area;
 			pikrellcam.video_notify = FALSE;
 			pikrellcam.still_notify = FALSE;
 			pikrellcam.timelapse_notify = FALSE;
@@ -755,22 +772,22 @@ atof_range(float *result, char *value, double low, double high)
 	return FALSE;
 	}
 
-#define	ADD_REGION		0
-#define MOVE_REGION		1
-#define MOVE_COARSE		2
-#define MOVE_FINE		3
-#define ASSIGN_REGION	4
-#define	SAVE_REGIONS	5
-#define LOAD_REGIONS	6
-#define LOAD_REGIONS_SHOW	7
-#define LIST_REGIONS	8
-#define DELETE_REGIONS	9
-#define	SET_LIMITS		10
-#define	SET_BURST		11
-#define	SELECT_REGION	12
-#define	SHOW_REGIONS	13
-#define	SHOW_VECTORS	14
-
+#define ADD_REGION        0
+#define MOVE_REGION       1
+#define MOVE_COARSE       2
+#define MOVE_FINE         3
+#define ASSIGN_REGION     4
+#define SAVE_REGIONS      5
+#define LOAD_REGIONS      6
+#define LOAD_REGIONS_SHOW 7
+#define LIST_REGIONS      8
+#define DELETE_REGIONS    9
+#define SET_LIMITS       10
+#define SET_BURST        11
+#define SELECT_REGION    12
+#define SHOW_REGIONS     13
+#define SHOW_VECTORS     14
+#define TRIGGER          15
 
 typedef struct
 	{
@@ -796,7 +813,8 @@ static MotionCommand motion_commands[] =
 	{ "delete_regions", DELETE_REGIONS, 1 },
 	{ "select_region", SELECT_REGION,    1 },
 	{ "limits", SET_LIMITS,    2 },
-	{ "burst", SET_BURST,    2 }
+	{ "burst", SET_BURST,    2 },
+	{ "trigger", TRIGGER,    0 }
 	};
 
 #define N_MOTION_COMMANDS	(sizeof(motion_commands) / sizeof(MotionCommand))
@@ -1129,6 +1147,10 @@ motion_command(char *cmd_line)
 			if (n > 20)
 				n = 20;
 			pikrellcam.motion_burst_frames = n;
+			break;
+
+		case TRIGGER:
+			mf->external_trigger = TRUE;
 			break;
 		}
 	}

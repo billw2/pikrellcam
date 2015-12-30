@@ -360,6 +360,8 @@ motion_draw(uint8_t *i420)
 			{
 			if (mf->motion_status & MOTION_BURST)
 				msg = "burst motion";
+			else if (mf->motion_status & MOTION_EXTERNAL)
+				msg = "external motion";
 			else
 				msg = "motion";
 			}
@@ -704,7 +706,8 @@ Adjustment	motion_time_adjustment[] =
 	{ "Confirm_Gap",  0, 30,  1, 0, 0, 0, "", NULL, &motion_times_temp.confirm_gap },
 	{ "Pre_Capture",  1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.pre_capture },
 	{ "Event_Gap",    5, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
-	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture }
+	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture },
+	{ "Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
 	};
 
 #define N_MOTION_TIME_ADJUSTMENTS \

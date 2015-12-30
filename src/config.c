@@ -606,9 +606,15 @@ static Config  config[] =
 	  "#",
 	"motion_burst_frames",  "3", FALSE, {.value = &pikrellcam.motion_burst_frames},      config_value_int_set},
 
+	{ "# Time length limit of motion video record excluding pre_capture time.\n"
+	  "# If zero, there is no time limit or else the minimum is 10 seconds.\n"
+	  "#",
+	"motion_record_time_limit",  "0", FALSE, {.value = &pikrellcam.motion_record_time_limit},      config_value_int_set},
+
 	{ "# Percent to dim image when drawing motion vectors.  Range 30 - 60\n"
 	  "#",
 	"motion_vectors_dimming", "45", FALSE, {.value = &pikrellcam.motion_vectors_dimming}, config_value_int_set},
+
 
 	{ "# Require a second motion detect within this period of seconds before\n"
 	  "# triggering a real motion detect event.  Set to zero to not require a\n"
@@ -968,7 +974,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 12;
+	pikrellcam.config_sequence_new = 13;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -997,6 +1003,11 @@ config_load(char *config_file)
 		pikrellcam.motion_burst_count = 20;
 	if (pikrellcam.motion_burst_frames < 2)
 		pikrellcam.motion_burst_frames = 2;
+
+	if (   pikrellcam.motion_record_time_limit != 0
+	    && pikrellcam.motion_record_time_limit < 10
+	   )
+		pikrellcam.motion_record_time_limit = 10;
 
 	if (pikrellcam.motion_vectors_dimming < 30)
 		pikrellcam.motion_vectors_dimming = 30;

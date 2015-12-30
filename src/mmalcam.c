@@ -369,6 +369,7 @@ circular_buffer_init()
 	seconds = MAX(pikrellcam.motion_times.event_gap,
 							pikrellcam.motion_times.pre_capture) + 5;
 	size = pikrellcam.camera_adjust.video_bitrate * seconds / 8;
+	vcb->seconds = seconds;
 
 	if (size != vcb->size)
 		{
@@ -442,7 +443,8 @@ void
 video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
-	int            i, end_space, event = 0;
+	int            i, n, end_space, event = 0;
+	boolean        force_stop;
 	time_t         t_cur = pikrellcam.t_now;
 	static int     fps_count;
 	static time_t  t_prev;
@@ -547,9 +549,11 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb->tail = vcb->key_frame[vcb->pre_frame_index].position;
 			vcb_video_write(vcb);
 			vcb->record_start = t_cur - pikrellcam.motion_times.pre_capture;
+			vcb->record_event_time = t_cur;
 			vcb->motion_sync_time = t_cur + pikrellcam.motion_times.post_capture;
 //			vcb->frame_count = vcb->key_frame[vcb->pre_frame_index].frame_count;
 			vcb->state = VCB_STATE_MOTION_RECORD;
+			vcb->max_record_time = pikrellcam.motion_record_time_limit;
 
 			/* Schedule any motion begin command.
 			*/
@@ -564,8 +568,33 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
 			pikrellcam.video_header_size = vcb->h264_header_position;
 			pikrellcam.video_size = vcb->h264_header_position;
-			vcb->tail = vcb->key_frame[vcb->cur_frame_index].position;
-			vcb->record_start = t_cur;
+			n = vcb->cur_frame_index;
+			if (vcb->manual_pre_capture > vcb->seconds - 1)
+				vcb->manual_pre_capture = vcb->seconds - 1;
+			while (t_cur - vcb->key_frame[n].t_frame < vcb->manual_pre_capture)
+				{
+				if (vcb->key_frame[n].t_frame == 0)
+					{
+					n = (n + 1) % KEYFRAME_SIZE;
+					break;
+					}
+				if (--n < 0)
+					n = KEYFRAME_SIZE - 1;
+				if (n == vcb->cur_frame_index)
+					break;
+				}
+			if (t_cur - vcb->key_frame[n].t_frame > vcb->manual_pre_capture)
+				n = (n + 1) % KEYFRAME_SIZE;
+
+			vcb->tail = vcb->key_frame[n].position;
+			if (n != vcb->cur_frame_index)
+				{
+				vcb_video_write(vcb);
+				vcb->record_start = vcb->key_frame[n].t_frame;
+				}
+			else
+				vcb->record_start = t_cur;
+			vcb->record_event_time = t_cur;
 			vcb->state = VCB_STATE_MANUAL_RECORD;
 			event |= EVENT_PREVIEW_SAVE;
 			}
@@ -598,10 +627,19 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 		/* And write video data to a video file according to record state.
 		*/
+		if (   vcb->max_record_time > 0
+		    && t_cur - vcb->record_event_time >= vcb->max_record_time
+		   )
+			force_stop = TRUE;
+		else
+			force_stop = FALSE;
+
 		if (vcb->state == VCB_STATE_MANUAL_RECORD)
 			{
 			if (!vcb->pause)
 				vcb_video_write(vcb);	/* Continuously write video data */
+			if (force_stop)
+				video_record_stop(vcb);
 			}
 		else if (vcb->state == VCB_STATE_MOTION_RECORD)
 			{
@@ -616,7 +654,9 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			*/
 			if (t_cur <= vcb->motion_sync_time)
 				vcb_video_write(vcb);
-			else if (t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap)
+			if (   force_stop
+		        || t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
+		       )
 				{
 				/* For motion recording, preview_save_mode "first" has been
 				|  handled in motion_frame_process().  But if not "first",

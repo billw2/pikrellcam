@@ -254,10 +254,9 @@ motion:
 		Vector_Magnitude and Vector_Count values using the OSD.  The values should be set
 		lower in environments where small animal detection is desired or they can be
 		adjusted higher for moderate sized object detection.  The combination of direction
-		filtering and density checks make this detection method very resistant to
-		camera noise and is why it is good for small object detection as long as
-		there is good placement of motion detect regions to exclude wind blown vegetation
-		or moving shadows of the vegetation.  However, when PiKrellCam does detect
+		filtering and density checks make this detection method resistant to
+		camera noise and is why it is good for small object detection.
+		However, when PiKrellCam detects
 		camera sparkle noise and the configured Vector_Count is low, the Vector_Count
 		does get a small dynamic adjustment higher to provide a noise safety margin.
 		<p>
@@ -275,7 +274,7 @@ motion:
 		All region composite vectors are combined into an overall frame
 		composite vector. Motion burst detection is to compare the frame composite vector
 		count to the Burst_Count limit and to require at least one motion region
-		to pass a moderate density test which is used to help reduce false detects of
+		to pass a density test which is used to help reduce false detects of
 		the large noise counts the camera can generate in certain dim light situations.
 		The burst detect configurations Burst_Count and Burst_Frames are a
 		coarse adjustment for detection of relatively larger and faster moving
@@ -283,8 +282,7 @@ motion:
 		of the camera allows. For outdoor cameras this noise period occurs in the
 		minutes before sunrise and after sunset.  For indoor cameras any noise
 		periods will depend on lighting conditions.  Since burst detection does not
-		have the benefit of direction filtering to reduce noise and its density test
-		is relaxed, an
+		have the benefit of direction filtering to reduce noise, an
 		exponential moving average of background noise counts is calculated and
 		used to provide additional noise margin.
 		The compared to Burst_Count is dynamically adjusted higher by this average. 
@@ -519,6 +517,13 @@ button.  This is required for the change to be saved in the configuration file.
 			that will be recorded after the last occurring motion event.  This time must be
 			less than or equal to the Event_Gap time.
 			</li>
+			<li><span style='font-weight:700'>Time_Limit</span> - range is 10 - 1800
+			seconds (30 minutes) and is the seconds of motion video
+			that will be recorded after the first occurring motion event.  So the total
+			video length will be the Pre_Capture time + the Time_Limit.
+			If this is set to zero, there will be no time limit enforced.  This limit
+			does not apply to manual recordings - see FIFO examples for that.
+			</li>
 			</ul>
 			<p>
 			<div class='indent1'>
@@ -597,6 +602,12 @@ button.  This is required for the change to be saved in the configuration file.
 			<span style='font-weight:700'>timelapse_video_name</span>
 		- these name formats are configurable, but they probably should not be because
 		changing them can cause problems... expand on this.
+		</li>
+		<li><span style='font-weight:700'>motion_record_time_limit</span>
+		- This value limits the time in seconds of motion video recordings and can be
+		set in seconds from 10 to 1800 (30 minutes) or set to zero for no record time limit.
+		This time limit does not apply to manual recordings, but see the FIFO command
+		examples for how to have a time limited manual record.
 		</li>
 		<li> Todo
 		</li>
@@ -786,6 +797,8 @@ a communication pipe named
 List of <span style='font-weight:700'>FIFO</span> commands:
 <pre>
 record on
+record on pre_capture_time
+record on pre_capture_time time_limit
 record pause
 record off
 still
@@ -796,6 +809,9 @@ tl_show_status [on|off|toggle]
 motion_enable [on|off|toggle]
 motion limits magnitude count
 motion burst count frames
+motion trigger
+motion load_regions name
+motion save_regions name
 motion list_regions
 motion show_regions [on|off|toggle]
 motion show_vectors [on|off|toggle]
@@ -807,6 +823,8 @@ display [command] - commands sent by the web page to display OSD menus. Not inte
 
 tl_inform_convert
 video_fps fps
+video_bitrate bitrate
+still_quality quality
 video_mp4box_fps fps
 inform "some string" row justify font xs ys
 	echo inform \"Have a nice day.\" 3 3 1 > FIFO
@@ -842,9 +860,39 @@ echo "record on" > ~/pikrellcam/www/FIFO
 ...
 echo "record off" > ~/pikrellcam/www/FIFO
 </pre>
+	</li>
+	<li>Start a manual record that will have up to 5 seconds of pre capture video.
+	The pre capture time is subject to what is available in the video circular
+	buffer, so if a record is started right after a previous manual or motion video
+	has ended there may not be asked for pre capture time available.  Also the
+	pre capture time is limited by the size of the video circular buffer which is
+	a function of the greater of the motion detect Pre_Capture or Event_Gap times
+	plus a 5 second margin.
+	For example, if the Event_Gap is 10 seconds and Pre_Capture less than that,
+	a manual record pre capture time of up to 14 seconds is possible.
+<pre>
+echo "record on 5" > ~/pikrellcam/www/FIFO
+</pre>
+	</li>
+	<li>Start a manual record that will have up to 10 seconds of pre capture video and
+	will have a maximum record time after the pre capture of 6 seconds.  So the total
+	video will be 16 seconds long subject to pre capture time available in the video
+	circular buffer.  The record time is wall time and does not consider pauses.
+<pre>
+echo "record on 10 6" > ~/pikrellcam/www/FIFO
+</pre>
+	</li>
+	<li>
 	Still jpegs are created when a still command is sent to the FIFO.
 <pre>
 	echo "still" > ~/pikrellcam/www/FIFO"
+</pre>
+	<li>
+	You have a script or program that looks at a GPIO output from a infrared motion
+	detector.  The script can trigger a motion record event that uses all of the
+	configured motion detect times with:
+<pre>
+	echo "motion trigger" > ~/pikrellcam/www/FIFO"
 </pre>
 	</li>
 	</ul>
