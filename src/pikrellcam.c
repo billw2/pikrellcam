@@ -549,6 +549,11 @@ video_record_stop(VideoCircularBuffer *vcb)
 		}
 	event_add("preview dispose", pikrellcam.t_now, 0,
 					event_preview_dispose, NULL);
+
+	mf->external_trigger_mode = EXT_TRIG_MODE_DEFAULT;
+	mf->external_trigger_pre_capture = 0;
+	mf->external_trigger_time_limit = 0;
+
 	vcb->state = VCB_STATE_NONE;
 	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;

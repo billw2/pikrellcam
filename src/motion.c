@@ -360,7 +360,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	CompositeVector *cvec, *frame_vec;
 	SList           *mrlist;
 	int             motion_count, fail_count, direction_motion;
-	boolean         burst_density_pass;
+	boolean         burst_density_pass, motion_enabled;
 	char            tbuf[50], *msg;
 	int             x0, y0, x1, y1, t;
 	static int      mfp_number, motion_burst_frame;
@@ -578,7 +578,15 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	if (motion_burst_frame == pikrellcam.motion_burst_frames)
 		motion_burst_frame = 0;
 
-	if ((mf->motion_status & MOTION_DETECTED)  && mf->motion_enable)
+	motion_enabled = mf->motion_enable
+						|| (mf->external_trigger_mode & EXT_TRIG_MODE_ENABLE);
+
+	if (   (   (mf->motion_status & MOTION_DETECTED)
+	        && motion_enabled
+	        && (mf->external_trigger_mode & EXT_TRIG_MODE_TIMES) == 0
+	       )
+	    || ( (mf->motion_status & MOTION_EXTERNAL) && motion_enabled)
+	   )
 		{
 		vcb->motion_last_detect_time = pikrellcam.t_now;
 
@@ -637,7 +645,9 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			|  If mode "best" and better composite vector, save a new preview.
 			*/
 			vcb->motion_sync_time = pikrellcam.t_now + pikrellcam.motion_times.post_capture;
-			if (   !strcmp(pikrellcam.motion_preview_save_mode, "best")
+
+			if (   !(mf->motion_status & MOTION_EXTERNAL)
+			    && !strcmp(pikrellcam.motion_preview_save_mode, "best")
 			    && composite_vector_better(&mf->frame_vector, &mf->preview_frame_vector)
 			   )
 				{
@@ -898,6 +908,9 @@ motion_command(char *cmd_line)
 	struct dirent *dp;
 	DIR           *dfd;
 
+	arg1[0] = '\0';
+	arg2[0] = '\0';
+	arg3[0] = '\0';
 	n = sscanf(cmd_line, "%63s %31s %31s %31s %31s %31s",
 					buf, arg1, arg2, arg3, arg4, arg5);
 	if (n < 1 || buf[0] == '#')
@@ -908,7 +921,7 @@ motion_command(char *cmd_line)
 		mcmd = &motion_commands[i];
 		if (!strcmp(mcmd->name, buf))
 			{
-			if (mcmd->n_args == n - 1)
+			if (mcmd->n_args <= n - 1)
 				id = mcmd->id;
 			break;
 			}
@@ -1151,6 +1164,20 @@ motion_command(char *cmd_line)
 
 		case TRIGGER:
 			mf->external_trigger = TRUE;
+			mf->external_trigger_mode = EXT_TRIG_MODE_DEFAULT;
+			mf->external_trigger_pre_capture = 0;
+			mf->external_trigger_time_limit = 0;
+			if (arg1[0] && atoi(arg1) > 0)
+				mf->external_trigger_mode = EXT_TRIG_MODE_ENABLE;
+			if (arg2[0])
+				{
+				mf->external_trigger_mode |= EXT_TRIG_MODE_TIMES;
+				mf->external_trigger_pre_capture = atoi(arg2);
+				if (arg3[0])
+					mf->external_trigger_time_limit = atoi(arg3);
+				else
+					mf->external_trigger_time_limit = pikrellcam.motion_times.post_capture;
+				}
 			break;
 		}
 	}

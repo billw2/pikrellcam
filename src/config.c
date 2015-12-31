@@ -636,6 +636,7 @@ static Config  config[] =
 	"motion_pre_capture",   "5", TRUE, {.value = &pikrellcam.motion_times.pre_capture},  config_value_int_set },
 
 	{ "# Seconds of video that will be recorded after the last motion event.\n"
+	  "# motion_post_caputure must be <= motion_event_gap.\n"
 	  "#",
 	"motion_post_capture",  "5", TRUE, {.value = &pikrellcam.motion_times.post_capture}, config_value_int_set },
 
@@ -1014,6 +1015,8 @@ config_load(char *config_file)
 	if (pikrellcam.motion_vectors_dimming > 60)
 		pikrellcam.motion_vectors_dimming = 60;
 
+	if (pikrellcam.motion_times.post_capture > pikrellcam.motion_times.event_gap)
+		pikrellcam.motion_times.event_gap = pikrellcam.motion_times.post_capture;
 
 	camera_adjust_temp = pikrellcam.camera_adjust;
 	motion_times_temp = pikrellcam.motion_times;

@@ -401,11 +401,22 @@ motion_draw(uint8_t *i420)
 			t_record = pikrellcam.t_now - vcb->record_start;
 		else
 			t_record = vcb->motion_sync_time - vcb->record_start;
-		t_hold = pikrellcam.motion_times.event_gap -
-				(pikrellcam.t_now - vcb->motion_last_detect_time);
-		snprintf(info, sizeof(info), "REC (Motion) %d:%02d  hold %d:%02d",
-					t_record / 60, t_record % 60,
-					t_hold / 60, t_hold % 60);
+		if (mf->external_trigger_time_limit > 0)
+			{
+			t_hold = vcb->max_record_time -
+					(pikrellcam.t_now - vcb->record_event_time);
+			snprintf(info, sizeof(info), "REC (Motion) %d:%02d  end %d:%02d",
+						t_record / 60, t_record % 60,
+						t_hold / 60, t_hold % 60);
+			}
+		else
+			{
+			t_hold = pikrellcam.motion_times.event_gap -
+					(pikrellcam.t_now - vcb->motion_last_detect_time);
+			snprintf(info, sizeof(info), "REC (Motion) %d:%02d  hold %d:%02d",
+						t_record / 60, t_record % 60,
+						t_hold / 60, t_hold % 60);
+			}
 		}
 	else if (vcb->state & VCB_STATE_MANUAL_RECORD)
 		{
@@ -705,7 +716,7 @@ Adjustment	motion_time_adjustment[] =
 	{
 	{ "Confirm_Gap",  0, 30,  1, 0, 0, 0, "", NULL, &motion_times_temp.confirm_gap },
 	{ "Pre_Capture",  1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.pre_capture },
-	{ "Event_Gap",    5, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
+	{ "Event_Gap",    1, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
 	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture },
 	{ "Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
 	};
@@ -758,6 +769,8 @@ apply_adjustment(void)
 		{
 		pikrellcam.motion_times.confirm_gap = motion_times_temp.confirm_gap;
 		pikrellcam.motion_times.post_capture = motion_times_temp.post_capture;
+		if (pikrellcam.motion_times.post_capture > motion_times_temp.event_gap)
+			motion_times_temp.event_gap = pikrellcam.motion_times.post_capture;
 
 		if (   motion_times_temp.pre_capture != pikrellcam.motion_times.pre_capture
 		    || motion_times_temp.event_gap != pikrellcam.motion_times.event_gap

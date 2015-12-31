@@ -809,7 +809,8 @@ tl_show_status [on|off|toggle]
 motion_enable [on|off|toggle]
 motion limits magnitude count
 motion burst count frames
-motion trigger
+motion trigger enable
+motion trigger enable pre_capture time_limit
 motion load_regions name
 motion save_regions name
 motion list_regions
@@ -848,6 +849,12 @@ quit
 echo "motion_enable [on|off|toggle]" > ~/pikrellcam/www/FIFO
 </pre>
 	</li>
+	<li>
+	Still jpegs are created when a still command is sent to the FIFO.
+<pre>
+echo "still" > ~/pikrellcam/www/FIFO"
+</pre>
+	</li>
 	<li>From the command line or a script, a manual video record can be managed with (a
 	<span style='font-weight:700'>record on</span> after a <span style='font-weight:700'>record pause</span>
 	resumes the existing record):
@@ -883,16 +890,41 @@ echo "record on 10 6" > ~/pikrellcam/www/FIFO
 </pre>
 	</li>
 	<li>
-	Still jpegs are created when a still command is sent to the FIFO.
+	The motion trigger command is used to trigger a motion event from a script.
+	It has two usages and the first is
+	<nobr><span style='font-weight:700'>motion trigger enable</span></nobr>
+	where <span style='font-weight:700'>enable</span> can be
+	<span style='font-weight:700'>0</span> to use the configured motion enable,
+	or it can be <span style='font-weight:700'>1</span> to force motion enable on
+	for this trigger.  If
+	<span style='font-weight:700'>enable</span> is omitted, it defaults to
+	<span style='font-weight:700'>0</span>.  This is a trigger event that
+	works in parallel with motion direction and burst detection and it uses
+	all the configured motion times and motion commands.
+	The event gap time applies, so
+	detects or triggers after an initial FIFO trigger can keep the video going:
 <pre>
-	echo "still" > ~/pikrellcam/www/FIFO"
+echo "motion trigger" > ~/pikrellcam/www/FIFO"
+# or force motion enable on
+echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
 </pre>
-	<li>
-	You have a script or program that looks at a GPIO output from a infrared motion
-	detector.  The script can trigger a motion record event that uses all of the
-	configured motion detect times with:
+	The second usage
+	<nobr><span style='font-weight:700'>motion trigger enable pre_capture time_limit</span></nobr>
+	is a special case motion trigger event that records a
+	one shot motion video with a given pre capture and time limit.  This usage
+	does not use the configured motion times but does run configured motion
+	commands.  If this FIFO command is given when there is already
+	a motion video in progress, the configured motion times will be in use and the
+	custom times cannot be applied.  The trigger command then reduces to its first
+	use case as if no custom times were given.  For this example, assume that the
+	configured motion enable is either off or, if on, that no other video is
+	in progress.  Then issue a motion trigger command that
+	forces motion enable on and records a
+	motion video with a 4 second pre_capture and a 5 second time_limit for
+	a total video length of 9 seconds (subject to the same circular buffer
+	constraints as the record FIFO command):
 <pre>
-	echo "motion trigger" > ~/pikrellcam/www/FIFO"
+echo "motion trigger 1 4 5" > ~/pikrellcam/www/FIFO"
 </pre>
 	</li>
 	</ul>

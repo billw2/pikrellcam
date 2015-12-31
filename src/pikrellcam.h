@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.6"
+#define	PIKRELLCAM_VERSION	"2.1.7"
 
 
 //TCP Stream Server
@@ -256,6 +256,10 @@ typedef struct
 #define EVENT_PREVIEW_SAVE            4
 #define EVENT_MOTION_PREVIEW_SAVE_CMD 8
 
+#define EXT_TRIG_MODE_DEFAULT   0
+#define EXT_TRIG_MODE_ENABLE    1
+#define EXT_TRIG_MODE_TIMES     2
+
 typedef struct
 	{
 	int				motion_status;
@@ -295,6 +299,9 @@ typedef struct
 			max_burst_count;
 
 	boolean	external_trigger;
+	int		external_trigger_mode,
+			external_trigger_pre_capture,
+			external_trigger_time_limit;
 
 	Area	motion_area,	/* Geometric area convering passing vectors */
 			preview_motion_area;	/* Copy to preserve values for preview */
