@@ -3,6 +3,33 @@ function scroll_to_selected()
 	{
 	document.getElementById("selected").scrollIntoView(true);
 	}
+
+
+function select_all(source)
+	{
+	checkboxes = document.getElementsByName('file_list[]');
+	for (var c in checkboxes)
+		{
+		checkboxes[c].checked = source.checked;
+		}
+	checkboxlist = document.getElementsByName('checkbox_list[]');
+	for (var c in checkboxlist)
+		{
+		checkboxlist[c].checked = source.checked;
+		}
+	}
+
+function select_day(source, ymd)
+	{
+//alert("select_day" + ymd);
+	checkboxes = document.getElementsByName('file_list[]');
+	for (var c in checkboxes)
+		{
+		var val = checkboxes[c].value;
+		if (val.substring(0, 10) == ymd)
+			checkboxes[c].checked = source.checked;
+		}
+	}
 </script>
 
 <style type="text/css">
@@ -692,7 +719,7 @@ function restart_page($selected)
 				$next_select = $media_array[$k - 1]['file_name'];	// look back one
 			if ("$ymd_header" != "$ymd")
 				{
-				echo "<td style='vertical-align: bottom; padding-bottom:6px;'>";
+				echo "<td style='vertical-align: bottom; padding-bottom:6px; padding-top:18px'>";
 				$date_string = date('D - M j Y', $media_array[$k]['mtime']);
 				echo "<span style='margin-left: 4px; font-size: 1.0em; font-weight: 500; color: $default_text_color;'>
 						$date_string</span>";
@@ -704,21 +731,27 @@ function restart_page($selected)
 					$next_file = "&file=$next_select";
 				else
 					$next_file = "";
-				if ("$media_mode" != "archive")
+				if ("$media_type" == "thumbs")
+					echo "<input style='margin-left: 32px' type='checkbox' name='checkbox_list[]'
+						onClick=\"select_day(this, '$ymd')\"/>";
+				else
 					{
-					echo "<input type='button' value='Archive Day'
-						class='btn-control'
+					if ("$media_mode" != "archive")
+						{
+						echo "<input type='button' value='Archive Day'
+							class='btn-control'
+							style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
+							onclick='if (confirm(\"Archive day $ymd?\"))
+							  {window.location=\"media-archive.php?$env&dir=$dir&archive_date=$ymd$next_file\";}'>";
+						if ($n_columns > 2 && "$media_type" != "thumbs")
+							echo "</td><td>";
+						}
+					echo "<input type='button' value='Delete Day'
+						class='btn-control alert-control'
 						style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
-						onclick='if (confirm(\"Archive day $ymd?\"))
-						  {window.location=\"media-archive.php?$env&dir=$dir&archive_date=$ymd$next_file\";}'>";
-					if ($n_columns > 2 && "$media_type" != "thumbs")
-						echo "</td><td>";
+						onclick='if (confirm(\"Delete day $ymd?\"))
+						  {window.location=\"media-archive.php?$env&dir=$dir&delete_day=$ymd$next_file\";}'>";
 					}
-				echo "<input type='button' value='Delete Day'
-					class='btn-control alert-control'
-					style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
-					onclick='if (confirm(\"Delete day $ymd?\"))
-					  {window.location=\"media-archive.php?$env&dir=$dir&delete_day=$ymd$next_file\";}'>";
 				echo "</td>";
 
 				for ($last = $k; $last < $media_array_size && $media_array[$last]['date'] == $ymd; ++$last)
@@ -746,7 +779,7 @@ function restart_page($selected)
 						}
 					$out = "<fieldset style=\"display:inline; $border_color margin:1px; padding:2px 0px 1px 1px; vertical-align:middle; font-size: 0.88em\">";
 					$out .= "<span style=\"color: $color;\">$display_name &nbsp</span>";
-					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"></span>";
+					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"/></span>";
 					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
 					echo "$out";
 					if ("$scrolled" == "yes")
@@ -833,6 +866,8 @@ function restart_page($selected)
 				onclick=\"return confirm('Delete selected thumbs/videos?');\">
 			Delete</button>";
 		echo "<span style='float:right;'>";
+		echo "Select All";
+		echo "<input style='margin-right:16px;' type='checkbox' onClick='select_all(this)'/>";
 		echo "Files:&thinsp;$media_array_size";
 		echo "<a style='margin-left:32px;' href='media-archive.php?$env&toggle_scroll'>
 			Toggle Scrolled</a>";
