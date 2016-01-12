@@ -86,11 +86,13 @@ function media_dir_array_create($media_dir)
 				$date = explode("-", $parts[1]);	// $parts[1] is yyyy-mm-dd
 				if (count($date) == 3)
 					{
-					$time = explode(".", $parts[2]); // $parts[2] is hh.mm.ss
-					if (count($time) != 3)
-						$time = explode(":", $parts[2]); // $parts[2] is hh:mm:ss
-					if (count($time) == 3)
+					$parts[2] = str_replace(':', '.', $parts[2]);
+					$time = explode(".", $parts[2]); // $parts[2] is hh.mm.ss or hh.mm
+					$n = count($time);
+					if ($n == 3)
 						$mtime = mktime($time[0], $time[1], $time[2], $date[1], $date[2], $date[0]);
+					else if ($n == 2)
+						$mtime = mktime($time[0], $time[1], 0, $date[1], $date[2], $date[0]);
 					}
 				}
 			if ($mtime == 0)
@@ -732,7 +734,7 @@ function restart_page($selected)
 				else
 					$next_file = "";
 				if ("$media_type" == "thumbs")
-					echo "<input style='margin-left: 32px' type='checkbox' name='checkbox_list[]'
+					echo "<input style='margin-left: 16px' type='checkbox' name='checkbox_list[]'
 						onClick=\"select_day(this, '$ymd')\"/>";
 				else
 					{
@@ -777,15 +779,31 @@ function restart_page($selected)
 						$border_color = "border-color: $selected_text_color;";
 						echo "<a id='selected' class='anchor' style='display:inline'></a>";
 						}
-					$out = "<fieldset style=\"display:inline; $border_color margin:1px; padding:2px 0px 1px 1px; vertical-align:middle; font-size: 0.88em\">";
+					$out = "<fieldset style=\"display:inline; $border_color margin:1px; padding:2px 0px 1px 1px; vertical-align:top; font-size: 0.88em\">";
 					$out .= "<span style=\"color: $color;\">$display_name &nbsp</span>";
 					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"/></span>";
 					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
+					if (substr($fname, 0, 3) == "man")
+						$out .= "<span style=\"color: $color;\">Manual</span><br>";
+					if (substr($fname, 0, 2) == "tl")
+						{
+						$period = "---";
+						$parts = explode("_", $fname);
+						if (count($parts) == 4)
+							{
+							$tail = explode(".", $parts[3]);
+							if (count($tail) == 2)
+								$period = $tail[0];
+							}
+						if (substr($period, 0, 1) == "0")
+							$period = "---";
+						$out .= "<span style=\"color: $color;\">Timelapse: $period</span><br>";
+						}
 					echo "$out";
 					if ("$scrolled" == "yes")
 						{
 						echo "<a href=\"media-archive.php?$env&file=$fname\">";
-						echo "<img src=\"$thumb_path\" style='padding:1px 5px 2px 5px'></a></fieldset>";
+						echo "<img src=\"$thumb_path\" style='padding:1px 5px 2px 5px'/></a></fieldset>";
 						}
 					else
 						{

@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Generate missing thumbs for videos.  Provides thumbs for manual or timelapse
+# videos recorded before pikrellcam version 2.1.9
+# Recovers thumbs (and labels "Recovered") for motion videos with no thumbs.
+# Deletes thumbs with no matching video.
+
+MEDIA_DIRECTORY=$1
+ARCHIVE_DIR=$2
+LOG=$3
+TEST=$4
+
+#MEDIA_DIRECTORY=/home/pi/pikrellcam/www/media
+#ARCHIVE_DIR=/home/pi/pikrellcam/www/media/archive
+
+
+function check_thumb
+	{
+	TMP_DIR=/var/run/pikrellcam
+	BASE=`basename $1`
+	PREFIX=${BASE:0:3}
+	DIR=`dirname $1`
+
+	if [[ $BASE == *"mp4" ]]
+	then
+		# Delete longest match of substring /videos from back of $DIR.
+		MEDIA_DIR=${DIR%%/videos}
+		THUMBS_DIR=$MEDIA_DIR/thumbs
+		THUMB_JPEG=${BASE%.mp4}.th.jpg
+
+		if [ ! -f $THUMBS_DIR/$THUMB_JPEG ]
+		then
+#			echo "  avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG" >>$LOG
+			if [ "$TEST" != "test" ]
+			then
+				avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG
+			fi
+			if [ "$PREFIX" == "mot" ]
+			then
+				echo "  Recovered motion thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+				if [ "$TEST" != "test" ]
+				then
+					convert -crop 500x500+100+100 -resize 150x150 \
+						$TMP_DIR/$THUMB_JPEG $TMP_DIR/${THUMB_JPEG}.tmp
+					convert -annotate +8+26 "Recovered" -pointsize 18 \
+						$TMP_DIR/${THUMB_JPEG}.tmp $THUMBS_DIR/$THUMB_JPEG
+					rm $TMP_DIR/${THUMB_JPEG}.tmp
+				fi
+			else
+				echo "  Generated timelapse or manual thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+				if [ "$TEST" != "test" ]
+				then
+					convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMBS_DIR/$THUMB_JPEG
+				fi
+			fi
+			if [ "$TEST" != "test" ]
+			then
+				rm $TMP_DIR/$THUMB_JPEG
+			fi
+		fi
+	elif [[ $BASE == *"th.jpg" ]]
+	then
+		# Delete longest match of substring /thumbs from back of $DIR.
+		MEDIA_DIR=${DIR%%/thumbs}
+		VIDEOS_DIR=$MEDIA_DIR/videos
+		VIDEO=${BASE%.th.jpg}.mp4
+		if [ ! -f $VIDEOS_DIR/$VIDEO ]
+		then
+			echo "  Deleted thumb with no video: $1" >> $LOG
+			if [ "$TEST" != "test" ]
+			then
+				rm $1
+			fi
+		fi
+	fi
+	}
+
+echo "fix_thumbs ($TEST): checking $MEDIA_DIRECTORY ...(working)..." >> $LOG
+cd $MEDIA_DIRECTORY
+find . | while read file; do check_thumb "$file"; done
+
+MEDIA_DIR_LEN=${#MEDIA_DIRECTORY}
+MATCH_LEN=`expr match "$ARCHIVE_DIR" "$MEDIA_DIRECTORY"`
+
+if [ $MATCH_LEN -ne $MEDIA_DIR_LEN ]
+then
+	echo "fix_thumbs ($TEST): checking $ARCHIVE_DIR" >> $LOG
+	cd $ARCHIVE_DIR
+	find . | while read file; do check_thumb "$file"; done
+else
+	echo "fix_thumbs ($TEST): Archive directory is under media directory so archive is already checked." >> $LOG
+fi
+
+echo "fix_thumbs ($TEST): DONE!" >> $LOG

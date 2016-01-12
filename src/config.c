@@ -701,37 +701,60 @@ static Config  config[] =
 
 	{ "\n# --------------------- Video Record Options -----------------------\n"
 	  "#\n"
-	  "# Motion and manual record video filename format.\n"
-	  "# NOTE: PHP code on the web page tries to extract a video time from\n"
-	  "#     the video name so there is restricted flexibility for changing\n"
-	  "#     this format.  In particular, the PHP code expects at least:\n"
-	  "#       xxx_xxx_%H.%M.%S_xxx.mp4\n"
-	  "#     where the '_' chars are required and '.mp4' may be '.h264'\n"
-	  "# You can use strftime() % time specifiers.\n"
-	  "#     Note: only a recent gpac release can handle ':' in the filename.\n"
-	  "#     So, the time format may not be able to use %T specifier.\n"
-	  "#         %F is %Y-%m-%d   %T is %H:%M:%S\n"
-	  "# A video_filename may use these pikrellcam substitution vvariables:\n"
-	  "#     $M - The video_manual_tag or video_motion_tag string\n"
-	  "#     $N - The video_manual_sequence  or video_motion_sequence number\n"
+	  "# Motion record video name format.\n"
+	  "# PHP web page code depends on parsing this name format so there is\n"
+	  "# very little flexibility for changing it.\n"
+	  "# strftime() specifiers must not be changed except for possibly using %T.\n"
+	  "# But only a recent gpac release can handle ':' in a video filename\n"
+	  "# and you may not be able to use the %T specifier which is %H:%M:%S\n"
+	  "# The %F specifier is the same as %Y-%m-%d and should not be changed.\n"
+	  "# The final name must be of the form:\n"
+	  "#   hhh_date_time_ttt.mp4\n"
+	  "# where the hhh and ttt fields must not contain the '_' character.\n"
+	  "# The format may use substitution variables in the hhh and ttt fields:\n"
+	  "#     $N - The motion video sequence number\n"
+	  "#     $H - The hostname\n"
+	  "# \n"
+	  "# A possible edit you can make to the default would be to add using the\n"
+	  "# hostname variable or replace the $N sequence number with the hostname\n"
+	  "# variable.  For example, if your hostname is rpi0, the current sequence\n"
+	  "# number is 99, these formats produce these motion video file names:\n"
+	  "#   motion_%F_%H.%M.%S_$N.mp4    => motion_2016-01-09_10.44.08_99.mp4\n"
+	  "#   motion-$H_%F_%H.%M.%S_$N.mp4 => motion-rpi0_2016-01-09_10.44.08_99.mp4\n"
+	  "#   motion_%F_%H.%M.%S_$H.mp4    => motion_2016-01-09_10.44.08_rpi0.mp4\n"
+	  "#   $H_%F_%H.%M.%S_$N.mp4        => rpi0_2016-01-09_10.44.08_99.mp4\n"
+	  "# or if ':' in names is supported by your version of gpac:\n"
+	  "#   motion_%F_%T_$N.mp4          => motion_2016-01-09_10:44:08_99.mp4\n"
+	  "# \n"
 	  "# If the name has a .mp4 suffix, the video file will be boxed into a\n"
 	  "# mp4 container using the MP4Box program.  Otherwise you should give the\n"
 	  "# name a .h264 suffix since that is the format of the Pi camera video\n"
-	  "# output.  Note that omxplayer can play a raw h264 video, but that other\n"
-	  "# programs like vlc and mplayer will need a mp4 video.\n"
+	  "# output.  But h264 videos cannot be played from the web page or programs\n"
+	  "# like vlc and mplayer so changing to h264 is for special case use and\n"
+	  "# not recommended or otherwise supported.\n"
 	  "#",
-	"video_filename", "$M_%F_%H.%M.%S_$N.mp4", TRUE,
-	                               {.string = &pikrellcam.video_filename }, config_string_set },
+	"video_motion_name_format", "motion_%F_%H.%M.%S_$N.mp4", TRUE,
+		{.string = &pikrellcam.video_motion_name_format}, config_string_set },
 
-	{ "# The string to substitute into a video_filename for the $M variable\n"
-	  "# when there is a manually initiated video record.\n"
+	{ "# Manual record video name format.\n"
+	  "# This format is similar to the video_motion_name_format except it has\n"
+	  "# the added restriction that it must begin with \"man\" so that the\n"
+	  "# web page can differentiate motion videos from manual videos.\n"
+	  "# The final name must be of the form:\n"
+	  "#   manhhh_date_time_ttt.mp4\n"
+	  "# where the hhh and ttt fields must not contain the '_' character.\n"
+	  "# The format may use substitution variables in the hhh and ttt fields:\n"
+	  "#     $N - The manual video sequence number\n"
+	  "#     $H - The hostname\n"
+	  "# \n"
+	  "# So some possibilities are:\n"
+	  "#   manual_%F_%H.%M.%S_$N.mp4    => manual_2016-01-09_10.44.08_99.mp4\n"
+	  "#   man-$H_%F_%H.%M.%S_$N.mp4    => man-rpi0_2016-01-09_10.44.08_99.mp4\n"
+	  "#   manual_%F_%H.%M.%S_$H.mp4    => manual_2016-01-09_10.44.08_rpi0.mp4\n"
+	  "#   man_%F_%H.%M.%S_$H-$N.mp4    => man_2016-01-09_10.44.08_rpi0-99.mp4\n"
 	  "#",
-	"video_manual_tag", "manual", TRUE, {.string = &pikrellcam.video_manual_tag}, config_string_set },
-
-	{ "# The string to substitute into a video_filename for the $M variable\n"
-	  "# when there is a motion detect initiated video record.\n"
-	  "#",
-	"video_motion_tag", "motion", TRUE, {.string = &pikrellcam.video_motion_tag},      config_string_set },
+	"video_manual_name_format", "manual_%F_%H.%M.%S_$N.mp4", TRUE,
+		{.string = &pikrellcam.video_manual_name_format}, config_string_set },
 
 	{ "# Pixel width of videos recorded.\n"
 	  "#",
@@ -783,16 +806,22 @@ static Config  config[] =
 
 	{ "\n# ------------------ Still Capture Options -----------------------\n"
 	  "#\n"
-	  "# Still filename format.  See comments about strftime() above.\n"
-	  "# NOTE: PHP code on the web page tries to extract a still time from\n"
-	  "#     the still name so there is restricted flexibility for changing\n"
-	  "#     this format.  In particular, the PHP code expects at least:\n"
-	  "#       xxx_xxx_%H.%M.%S_xxx.jpg\n"
-	  "#     where the '_' chars are required.\n"
-	  "# A still_filename may use this pikrellcam substitution variable:\n"
+	  "# Still file name format.\n"
+	  "# This name is parsed by the PHP web page so restrictions are similar\n"
+	  "# to the video_motion_name_format described above and must be of the form:\n"
+	  "#   hhh_date_time_ttt.mp4\n"
+	  "# where the hhh and ttt fields must not contain the '_' character.\n"
+	  "#\n"
+	  "# still_name_format may use substitution variables in hhh and ttt fields:\n"
 	  "#     $N - The still capture sequence number\n"
+	  "#     $H - The hostname\n"
+	  "#\n"
+	  "# Examples:\n"
+	  "#   image_%F_%H.%M.%S_$N.jpg    => image_2016-01-09_10.44.08_99.jpg\n"
+	  "#   im-$H_%F_%H.%M.%S_$N.jpg    => im-rpi0_2016-01-09_10.44.08_99.jpg\n"
+	  "#   still_%F_%H.%M.%S_$H.jpg    => still_2016-01-09_10.44.08_rpi0.jpg\n"
 	  "#",
-	"still_filename", "image_%F_%H.%M.%S_$N.jpg", TRUE, {.string = &pikrellcam.still_filename}, config_string_set },
+	"still_name_format", "image_%F_%H.%M.%S_$N.jpg", TRUE, {.string = &pikrellcam.still_name_format}, config_string_set },
 
 	{ "# Width of a still capture in pixels.  Max value 2592\n"
 	  "#",
@@ -815,23 +844,32 @@ static Config  config[] =
 	  "#",
 	"on_still_capture", "", TRUE, {.string = &pikrellcam.on_still_capture_cmd}, config_string_set },
 
-	{ "# Timelapse video name format.  See comments about strftime() above.\n"
-	  "# A timelapse_video_name may use this pikrellcam substitution variable:\n"
-	  "#     $n - The timelapse capture series number (printed as %05d)\n"
-	  "# This video name is used in $T in the on_timelapse_end command.\n"
+	{ "# Timelapse name format.\n"
+	  "# PHP web page code depends on parsing this name format so there is\n"
+	  "# very little flexibility for changing it.\n"
+	  "# The name must begin with the characters \"tl\" and the strftime()\n"
+	  "# specifiers should not be changed except for possibly using %T as\n"
+	  "# described above.  The $n variable should not be changed and is:\n"
+	  "#     $n - a timelapse id which defaults to the period in seconds.\n"
+	  "# So about the only possible edit you can make here is to add in the\n"
+	  "# hostname with a format like:\n"
+	  "#     tl-$H_%F_%H.%M.%S_$n.mp4\n"
+	  "# This video name is used in $T in the timelapse_convert command.\n"
 	  "#",
-	"timelapse_video_name", "tl_%F_%H.%M_$n.mp4", TRUE, {.string = &pikrellcam.timelapse_video_name}, config_string_set },
+	"video_timelapse_name_format", "tl_%F_%H.%M.%S_$n.mp4", TRUE, {.string = &pikrellcam.video_timelapse_name_format}, config_string_set },
 
 	{ "# Command to run when a time lapse series is ended.\n"
-	  "# The default on_timelapse_end command converts captures in the\n"
-	  "# media_dir/timelapse directory to a video which is saved in\n"
-	  "# the media_dir/videos directory.\n"
-	  "# See the timelapse-end script in the scripts directory.\n"
+	  "# The default timelapse_convert command is in the scripts-dist directory\n"
+	  "# and converts captures in the media_dir/timelapse directory to a video\n"
+	  "# which is saved in the media_dir/videos directory.\n"
+	  "# If you want to use your own timelapse convert script, create the\n"
+	  "# script in the scripts directory and set this timelapse_convert to\n"
+	  "# use it (change the $c to $C and the script name to your script).\n"
 	  "# NOTE: $l embeds a '%' qualifier in the command string so it\n"
 	  "# can only be used as the last $X variable.\n"
 	  "#",
-	"on_timelapse_end", "$C/timelapse-end $L $T $n $G $P $l", TRUE,
-						{.string = &pikrellcam.on_timelapse_end_cmd}, config_string_set },
+	"timelapse_convert", "$c/_timelapse-convert $m $T $n $G $P $l", TRUE,
+						{.string = &pikrellcam.timelapse_convert_cmd}, config_string_set },
 
 
 	{ "\n# ------------------- Miscellaneous Options  -----------------------\n"
@@ -975,7 +1013,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 13;
+	pikrellcam.config_sequence_new = 15;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

@@ -508,19 +508,22 @@ button.  This is required for the change to be saved in the configuration file.
 			since the last motion detect event before a motion video record can end.
 			When an Event_Gap period does expire without a new motion event occurring,
 			the video will end with an end time of the last motion detect time plus the
-			Post_Capture time.  Set this higher for animals or walking people that may pause for
+			Post_Capture time (but see Post_Capture).
+			Set this higher for animals or walking people that may pause for
 			periods of time before resuming motion.  Set lower for active scenes where events
 			are frequent and you want to bias towards shorter videos
 			that capture more events separately.
 			</li>
 			<li><span style='font-weight:700'>Post_Capture</span> - seconds of video
 			that will be recorded after the last occurring motion event.  This time must be
-			less than or equal to the Event_Gap time.
+			less than or equal to the Event_Gap time because post capture time is accumulated
+			in the circular buffer while the video is recording.  An expiring Event_Gap time
+			ends the video immediately and no more Post_Capture time can be accumulated.
 			</li>
 			<li><span style='font-weight:700'>Time_Limit</span> - range is 10 - 1800
-			seconds (30 minutes) and is the seconds of motion video
+			seconds (30 minutes) and is the maximum seconds of motion video
 			that will be recorded after the first occurring motion event.  So the total
-			video length will be the Pre_Capture time + the Time_Limit.
+			video length max will be the Pre_Capture time + the Time_Limit.
 			If this is set to zero, there will be no time limit enforced.  This limit
 			does not apply to manual recordings - see FIFO examples for that.
 			</li>
@@ -597,11 +600,12 @@ button.  This is required for the change to be saved in the configuration file.
 		to get a larger preview image.  Values of 800 or 896 work OK.  If this is changed,
 		the motion_area_min_side value in pikrellcam.conf should be correspondingly scaled.
 		</li>
-		<li><span style='font-weight:700'>video_filename</span>,
-			<span style='font-weight:700'>still_filename</span> and
-			<span style='font-weight:700'>timelapse_video_name</span>
-		- these name formats are configurable, but they probably should not be because
-		changing them can cause problems... expand on this.
+		<li><span style='font-weight:700'>video_motion_name_format</span><br>
+			<span style='font-weight:700'>video_manual_name_format</span><br>
+			<span style='font-weight:700'>video_timelapse_name_format</span><br>
+			<span style='font-weight:700'>still_name_format</span>
+		- these file name formats are configurable with restrictions which are described in
+		detail in pikrellcam.conf where they are configured.
 		</li>
 		<li><span style='font-weight:700'>motion_record_time_limit</span>
 		- This value limits the time in seconds of motion video recordings and can be
@@ -874,7 +878,7 @@ echo "record off" > ~/pikrellcam/www/FIFO
 	has ended there may not be asked for pre capture time available.  Also the
 	pre capture time is limited by the size of the video circular buffer which is
 	a function of the greater of the motion detect Pre_Capture or Event_Gap times
-	plus a 5 second margin.
+	plus a 4 second margin.
 	For example, if the Event_Gap is 10 seconds and Pre_Capture less than that,
 	a manual record pre capture time of up to 14 seconds is possible.
 <pre>
@@ -911,7 +915,7 @@ echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
 	The second usage
 	<nobr><span style='font-weight:700'>motion trigger enable pre_capture time_limit</span></nobr>
 	is a special case motion trigger event that records a
-	one shot motion video with a given pre capture and time limit.  This usage
+	one shot motion video with a custom pre capture and time limit.  This usage
 	does not use the configured motion times but does run configured motion
 	commands.  If this FIFO command is given when there is already
 	a motion video in progress, the configured motion times will be in use and the

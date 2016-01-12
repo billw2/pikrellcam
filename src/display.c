@@ -490,7 +490,7 @@ motion_draw(uint8_t *i420)
 		}
 	if (time_lapse.convert_name && *time_lapse.convert_name)
 		{
-		snprintf(info, sizeof(info), "Converting: %s %.3fM ",
+		snprintf(info, sizeof(info), "Converting: %s.mp4 %.3fM ",
 				time_lapse.convert_name,
 				(float) time_lapse.convert_size / 1000000.0);
 		i420_print(&top_status_area, normal_font, 0xff, 2, 0, 0,

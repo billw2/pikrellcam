@@ -1,13 +1,21 @@
 #!/bin/bash
 
+# Note: as of PiKellCam version 2.1.9, timelapse-end is obsolete.  It was
+#   renamed to timelapse-convert and modified to generate timelapse thumbnails.
+#
 # Script to run commands on timelapse files when a timelapse is ended.
-# This script should be configured in ~/.pikrellcam/pikrellcam.conf and not
-#   in the at-command.conf file.  Eg in pikrellcam.conf:
-#   on_timelapse_end $C/timelapse-end $L $T $n $G $P $l
+# This script is configured to run in ~/.pikrellcam/pikrellcam.conf
+# and the default is to run this in the scripts-dist directory:
+#   timelapse_convert $c/_timelapse-convert $m $T $n $G $P $l
+#
+# To customize this script, do not edit it in the scripts-dist directory.
+# Copy it to timelapse-convert (or any name) in the scripts directory, edit
+# it, and change the configuration in pikrellcam.conf to:
+#   timelapse_convert $C/timelapse-convert $m $T $n $G $P $l
 #
 # Argument substitution done by PiKrellCam before running this script:
 #   $C - scripts directory so this script is found.
-#   $L - the timelapse directory full path
+#   $m - the media directory full path
 #   $T - the timelapse video filename full path output name.  The path puts the
 #        video in the video directory.
 #   $n - the timelapse series just ended printed as %05d.
@@ -20,10 +28,10 @@
 #        will be the sequence numbers for the timelapse snapshots.
 #        In this case the $l variable will be:  tl_00022_%05d.jpg.
 #        WARNING: Since a '%' is embeded in the string, the $l must be the
-#        last variable given in the on_timelapse_end string.
+#        last variable given in the timelapse_convert string.
 #
 
-TIMELAPSE_DIR=$1
+MEDIA_DIR=$1
 VIDEOFILE_MP4=$2
 SERIES=$3
 LOG_FILE=$4
@@ -35,21 +43,25 @@ FILENAME_FORMAT=$6
 #
 
 DATE=`date +"%F %T"`
-echo "  $DATE Timelapse-end: converting $FILENAME_FORMAT to $VIDEOFILE_MP4" >> $LOG_FILE
+echo "  $DATE timelapse-convert: converting $FILENAME_FORMAT to $VIDEOFILE_MP4" >> $LOG_FILE
 
-echo "tl_inform_convert $SERIES.mp4" > $COMMAND_FIFO
+echo "tl_inform_convert start $SERIES" > $COMMAND_FIFO
 
-cd $TIMELAPSE_DIR
+cd $MEDIA_DIR/timelapse
 nice -2 avconv -r 6 -i $FILENAME_FORMAT \
 		-b:v 6M -maxrate 6M -minrate 1M -bufsize 4M \
 		-r 6 -vcodec libx264 -crf 20 -g 4 \
 		$SERIES.mp4
 
 mv $SERIES.mp4 $VIDEOFILE_MP4
-echo "tl_inform_convert done" > $COMMAND_FIFO
 
+BASE=`basename $VIDEOFILE_MP4`
+THUMB_JPEG=${BASE%.mp4}.th.jpg
+convert -resize 150 tl_${SERIES}_00001.jpg $MEDIA_DIR/thumbs/$THUMB_JPEG 
+
+echo "tl_inform_convert done $SERIES" > $COMMAND_FIFO
 
 rm tl_${SERIES}_*.jpg
 
 DATE=`date +"%F %T"`
-echo "  $DATE Timelapse-end: $VIDEOFILE_MP4 done" >> $LOG_FILE
+echo "  $DATE timelapse-convert: $VIDEOFILE_MP4 done" >> $LOG_FILE

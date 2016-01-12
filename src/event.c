@@ -114,10 +114,10 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				fmt_arg = pikrellcam.thumb_dir;
 				break;
 			case 'T':
-				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
+				snprintf(buf, sizeof(buf), "%d", time_lapse.period);
 				name = media_pathname(pikrellcam.video_dir,
-						pikrellcam.timelapse_video_name,
-						'n',  buf, '\0', NULL);
+						pikrellcam.video_timelapse_name_format,
+						'n',  buf, 'H', pikrellcam.hostname);
 				snprintf(buf, sizeof(buf), "%s", name);
 				free(name);
 				fmt_arg = buf;
@@ -147,8 +147,11 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'P':
 				fmt_arg = pikrellcam.command_fifo;
 				break;
+			case 'c':
+				fmt_arg = pikrellcam.scripts_dist_dir;
+				break;
 			case 'C':
-				fmt_arg = pikrellcam.script_dir;
+				fmt_arg = pikrellcam.scripts_dir;
 				break;
 			case 'G':
 				fmt_arg = pikrellcam.log_file;

@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.8"
+#define	PIKRELLCAM_VERSION	"2.1.9"
 
 
 //TCP Stream Server
@@ -435,7 +435,8 @@ typedef struct
 			*thumb_dir,
 			*still_dir,
 			*timelapse_dir,
-			*script_dir,
+			*scripts_dir,
+			*scripts_dist_dir,
 			*command_fifo,
 			*state_filename;
 
@@ -488,7 +489,8 @@ typedef struct
 	CameraAdjust
 			camera_adjust;
 
-	char	*video_filename,
+	char	*video_motion_name_format,
+			*video_manual_name_format,
 			*video_h264,
 			*video_last,
 			*video_pathname,
@@ -509,19 +511,19 @@ typedef struct
 			mjpeg_divider;
 	boolean	mjpeg_rename_holdoff;
 
-	char	*still_filename,
+	char	*still_name_format,
 			*still_last;
 	int		still_sequence;
 	boolean	still_capture_event;
 	char	*on_still_capture_cmd;
 
-	char	*timelapse_video_name,
+	char	*video_timelapse_name_format,
 			*timelapse_video_last,
 			*timelapse_video_pending,
 			*timelapse_format,
 			*timelapse_jpeg_last,
 			*timelapse_status_file;
-	char	*on_timelapse_end_cmd;
+	char	*timelapse_convert_cmd;
 
 	char	*annotate_format_string;
 	boolean	annotate_enable,
