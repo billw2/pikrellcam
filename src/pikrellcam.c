@@ -497,13 +497,13 @@ video_record_stop(VideoCircularBuffer *vcb)
 	if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 		printf("***Motion record stop: %s\n", pikrellcam.video_pathname);
 
+	st_h264.st_size = 0;
+	stat(pikrellcam.video_h264, &st_h264);
+
 	if (pikrellcam.video_mp4box)
 		{
 		statvfs("/tmp", &st);
 		tmp_space = st.f_bfree * st.f_frsize;
-
-		st_h264.st_size = 0;
-		stat(pikrellcam.video_h264, &st_h264);
 
 		if (tmp_space > 4 * (unsigned long) st_h264.st_size / 3)
 			tmp_dir = "/tmp";
@@ -525,7 +525,8 @@ video_record_stop(VideoCircularBuffer *vcb)
 			free(thumb_name);
 			}
 
-		asprintf(&cmd, "(MP4Box %s -tmp %s -fps %d -add %s %s %s && rm %s %s)",
+		if (st_h264.st_size > 0)  // can be 0 if no space left
+			asprintf(&cmd, "(MP4Box %s -tmp %s -fps %d -add %s %s %s && rm %s %s)",
 				pikrellcam.verbose ? "" : "-quiet",
 				tmp_dir,
 				pikrellcam.camera_adjust.video_mp4box_fps,
@@ -533,11 +534,15 @@ video_record_stop(VideoCircularBuffer *vcb)
 				pikrellcam.verbose ? "" : "2> /dev/null",
 				pikrellcam.video_h264,
 				thumb_cmd ? thumb_cmd : "");
+		else
+			asprintf(&cmd, "rm %s", pikrellcam.video_h264);
+
 		if (thumb_cmd)
 			free(thumb_cmd);
 
 		if (   (vcb->state & VCB_STATE_MOTION_RECORD)
 		    && *pikrellcam.on_motion_end_cmd
+		    && st_h264.st_size > 0
 		   )
 			event = exec_child_event("motion end command", cmd, NULL);
 		else
@@ -567,7 +572,9 @@ video_record_stop(VideoCircularBuffer *vcb)
 			event->data = pikrellcam.on_motion_end_cmd;
 			event->func = event_motion_end_cmd;
 			}
-		else if (*pikrellcam.on_motion_end_cmd)	/* a h264 video save */
+		else if (   *pikrellcam.on_motion_end_cmd	/* a h264 video save */
+		         && st_h264.st_size > 0
+		        )
 			event_add("motion end command", pikrellcam.t_now, 0,
 					event_motion_end_cmd, pikrellcam.on_motion_end_cmd);
 		}

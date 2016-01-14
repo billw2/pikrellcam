@@ -726,12 +726,14 @@ static Config  config[] =
 	  "# or if ':' in names is supported by your version of gpac:\n"
 	  "#   motion_%F_%T_$N.mp4          => motion_2016-01-09_10:44:08_99.mp4\n"
 	  "# \n"
-	  "# If the name has a .mp4 suffix, the video file will be boxed into a\n"
-	  "# mp4 container using the MP4Box program.  Otherwise you should give the\n"
-	  "# name a .h264 suffix since that is the format of the Pi camera video\n"
-	  "# output.  But h264 videos cannot be played from the web page or programs\n"
-	  "# like vlc and mplayer so changing to h264 is for special case use and\n"
-	  "# not recommended or otherwise supported.\n"
+	  "# Unsupported option:\n"
+	  "# By default video files are boxed into a .mp4 video but it is possible\n"
+	  "# to leave the video in the Pi camera raw video .h264 format if the .mp4\n"
+	  "# in the name format is replaced with .h264.\n"
+	  "# But h264 videos cannot be played from the web page or programs\n"
+	  "# like vlc and mplayer so changing to h264 should be done only if you\n"
+	  "# have a way to manage the videos.  PiKrellCam webpages do not support\n"
+	  "# or manage .h264 videos.\n"
 	  "#",
 	"video_motion_name_format", "motion_%F_%H.%M.%S_$N.mp4", TRUE,
 		{.string = &pikrellcam.video_motion_name_format}, config_string_set },

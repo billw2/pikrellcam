@@ -72,6 +72,13 @@ function check_thumb
 				rm $1
 			fi
 		fi
+	elif [[ $BASE == *".mp4.h264" ]]
+	then
+		echo "  Deleted stray .h264 left from failed MP4Box: $1" >> $LOG
+		if [ "$TEST" != "test" ]
+		then
+			rm $1
+		fi
 	fi
 	}
 

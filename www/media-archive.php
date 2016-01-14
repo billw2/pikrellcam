@@ -204,11 +204,18 @@ function delete_file($media_dir, $fname)
 		unlink("$media_dir/stills/$fname");
 	else
 		{
-		$thumb = str_replace(".mp4", ".th.jpg", $fname);
-		$csv = str_replace(".mp4", ".csv", $fname);
 		unlink("$media_dir/videos/$fname");
+
+		$thumb = str_replace(".mp4", ".th.jpg", $fname);
 		unlink("$media_dir/thumbs/$thumb");
-		unlink("$media_dir/videos/$csv");
+
+		$h264 = "$media_dir/videos/$fname" . ".h264";
+		if (is_file("$h264"))	// stray xxx.mp4.h264 possible if MP4Box failed or no space
+			unlink("$h264");
+
+		$csv = "$media_dir/videos/". str_replace(".mp4", ".csv", $fname);
+		if (is_file("$csv"))
+			unlink("$csv");
 		}
 	if ("$media_mode" == "archive")
 		delete_empty_media_dir($media_dir);
