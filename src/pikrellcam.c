@@ -132,6 +132,51 @@ log_printf(char *fmt, ...)
 	}
 
 void
+annotate_string_add(char *cmd, char *id, char *str)
+	{
+	AnnotateString *annotate;
+	SList          *list;
+	char           *c;
+
+	for (list = pikrellcam.annotate_list; list; list = list->next)
+		{
+		annotate = (AnnotateString *) list->data;
+		if (!strcmp(annotate->id, id))
+			break;
+		}
+	if (!list)
+		{
+		annotate = calloc(1, sizeof(AnnotateString));
+		annotate->id = strdup(id);
+		pikrellcam.annotate_list = slist_append(pikrellcam.annotate_list, annotate);
+		}
+	annotate->prepend = (strcmp(cmd, "prepend") == 0);
+	dup_string(&annotate->string, str);
+	for (c = annotate->string; *c != '\0'; ++c)
+		if (*c == pikrellcam.annotate_string_space_char)
+			*c = ' ';
+	}
+
+void
+annotate_string_remove(char *id)
+	{
+	AnnotateString *annotate;
+	SList          *list;
+
+	for (list = pikrellcam.annotate_list; list; list = list->next)
+		{
+		annotate = (AnnotateString *) list->data;
+		if (!strcmp(annotate->id, id))
+			{
+			pikrellcam.annotate_list = slist_remove(pikrellcam.annotate_list, annotate);
+			free(annotate->id);
+			free(annotate->string);
+			break;
+			}
+		}
+	}
+
+void
 camera_start(void)
 	{
 	MMAL_STATUS_T status;
@@ -656,6 +701,7 @@ typedef enum
 	save_config,
 	archive_video,
 	archive_still,
+	annotate_string,
 	delete_log,
 	fix_thumbs,
 	upgrade,
@@ -703,8 +749,9 @@ static Command commands[] =
 	{ "archive_still", archive_still,    1 },
 	{ "delete_log", delete_log,    0 },
 	{ "fix_thumbs", fix_thumbs,    1 },
+	{ "annotate_string", annotate_string, 1 },
 	{ "upgrade", upgrade,    0 },
-	{ "quit",        quit,    0 },
+	{ "quit",       quit,    0 },
 	};
 
 #define COMMAND_SIZE	(sizeof(commands) / sizeof(Command))
@@ -714,7 +761,7 @@ command_process(char *command_line)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	Command	*cmd;
-	char	command[64], args[128], arg1[128], arg2[64], buf[128], *path;
+	char	command[64], args[128], arg1[128], arg2[64], arg3[64], buf[128], *path;
 	int		i, n;
 
 	if (!command_line || *command_line == '\0')
@@ -1033,6 +1080,18 @@ command_process(char *command_line)
 							pikrellcam.install_dir, args);
 				exec_no_wait(buf, NULL);
 				}
+			break;
+
+		case annotate_string:		/* annotate_string cmd id text */
+			n = sscanf(args, "%127s %63s %63s", arg1, arg2, arg3);
+			if (n == 2 && !strcmp(arg1, "remove"))
+				annotate_string_remove(arg2);
+			else if (n == 2 && !strcmp(arg1, "spacechar"))
+				pikrellcam.annotate_string_space_char = arg2[0];
+			else if (n == 3)
+				annotate_string_add(arg1, arg2, arg3);
+			else
+				log_printf("Wrong number of args for command: %s\n", command);
 			break;
 
 		case upgrade:

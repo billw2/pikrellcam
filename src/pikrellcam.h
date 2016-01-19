@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.10"
+#define	PIKRELLCAM_VERSION	"2.1.11"
 
 
 //TCP Stream Server
@@ -161,6 +161,16 @@ typedef struct
 	}
 	AtCommand;
 
+
+  /* ------------------ Annotate Strings ---------------
+  */
+typedef struct
+	{
+	char    *id,
+	        *string;
+	boolean prepend;
+	}
+	AnnotateString;
 
   /* ------------------ Motion Detection ---------------
   */
@@ -525,11 +535,15 @@ typedef struct
 			*timelapse_status_file;
 	char	*timelapse_convert_cmd;
 
-	char	*annotate_format_string;
+	char	*annotate_format_string,
+			annotate_string_space_char;
+	SList	*annotate_list;
 	boolean	annotate_enable,
 			annotate_show_motion,
-			annotate_show_frame,
-			annotate_black_bg;
+			annotate_show_frame;
+	char	*annotate_text_background_color;
+	int		annotate_text_brightness,
+			annotate_text_size;
 
 	boolean	video_notify,
 			still_notify,

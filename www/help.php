@@ -121,8 +121,6 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	<li>Wait for motion to be detected and watch the OSD for the video record progress.<br>
 		After the video ends, view it by going to the Thumbs (or Videos) page by clicking:
 		<span style='font-weight:700'>Media:</span> <span class='btn-control'>Thumbs</span>
-		<br>Manually recorded videos cannot yet be viewed from the Thumbs page, so for them
-		go to the Videos page.
 	</li>
 	<li>On the button bar, click the buttons
 		<span style='font-weight:700'>Show:</span>
@@ -634,8 +632,34 @@ button.  This is required for the change to be saved in the configuration file.
 <p>
 <span style='font-size: 1.2em; font-weight: 650;'>~/pikrellcam/www/config-user.php</span>
 	<div class='indent1'>
-	Read this file for configuration options to change the web pages background image,
-	text colors and scroll area heights.
+	Edit this file to change web page appearance and some web page behavior.  If the file
+	is edited, reload web pages to see the results.
+	<ul>
+	<li> The image used for the web page background can be changed to another PiKrellCam
+	distribution image or to your custom background image.  Any custom background image name
+	must begin with <span style='font-weight:700'>bg_</span>
+	or else the image will be deleted by git when you do an upgrade.
+	</li>
+	<li> Web page text colors can be changed.  If the background is changed to a
+	darker image like <span style='font-weight:700'>images/passion.jpg</span> the text
+	colors could be set brighter.  For example, you could try these changes:
+<pre>
+define("DEFAULT_TEXT_COLOR", "#ffffff");
+define("SELECTED_TEXT_COLOR", "#500808");
+define("MEDIA_TEXT_COLOR", "#0000EE");
+define("MANUAL_VIDEO_TEXT_COLOR", "#085008");
+define("LOG_TEXT_COLOR", "#ffffff");
+
+define("BACKGROUND_IMAGE", "images/passion.jpg");
+</pre>
+	</li>
+	<li> The height of various scrolled views can be changed to match your normal browser
+	size.
+	</li>
+	<li> Other options such as <span style='font-weight:700'>VIDEO_URL</span>
+	are not described here but are described in the file.
+	</li>
+	</ul>
 	</div>
 </div>
 
@@ -690,9 +714,25 @@ the line:
 MOUNT_DISK=sda1
 </pre>
 <p>
-This assumes there is a single USB disk plugged into the Pi and it appears as <nobr>/dev/sda</nobr>.  This
-USB disk should have a linux filesystem on <nobr>/dev/sda1</nobr> so that pikrellcam can create directories with the
-needed permissions.  With a disk mounted, you can see:
+This assumes there is a single USB disk plugged into the Pi and it appears as
+<nobr>/dev/sda</nobr>.  If this USB disk has a linux filesystem on
+<nobr>/dev/sda1</nobr>, pikrellcam can create directories with the
+needed permissions.  However, if the filesystem is not a linux filesystem
+(eg. VFAT or FAT32) then pikrellcam cannot set up the needed permissions for the
+web interface to work and media files will not be shown
+unless the proper permissions are specified when
+the partition is mounted.  For this case, the mount command or fstab entry
+should specify umask or dmask/fmask permissions of 0002.  For example,
+use a mount command like:
+<pre>
+sudo mount -t vfat /dev/sda1 /media/mountdir -o rw,user,umask=0002
+</pre>
+or, if using fstab, the entry should be like:
+<pre>
+/dev/sda1   /media/mountdir    vfat    rw,user,umask=0002   0   0
+</pre>
+You can use dmask=0002,fmask=0002 in place of umask=0002.<br>
+With a disk mounted, you can see:
 <pre>
 pi@rpi2: ~$ df -h
 Filesystem      Size  Used Avail Use% Mounted on
@@ -708,11 +748,12 @@ pikrellcam.conf to reference an absolute path.
 
 <span style='font-size: 1.5em; font-weight: 500;'>Archiving</span><hr>
 <div class='indent0'>
-The main media directory can be considered a temporary staging directory where media
-files are reviewed for keeping or deleting.  Over time the number of files to keep can become
+The main media directory can be where you always manage media files, or it
+can be considered a temporary staging directory where media
+files are reviewed for archiving or deleting.  Over time the number of files to keep can become
 large, difficult to review, and the web page may become sluggish with large numbers of files
 to load at a time.  So an archiving interface is provided in pikrellcam so that media files
-can be managed in smaller groups of days.
+can be managed in smaller groups of days.  
 <p>
 Archiving means to move media files out of the main media flat directory and into the archive
 tree directory where files are stored by day.
@@ -733,15 +774,15 @@ disk.  You could simply mount a disk on <nobr>~/pikrellcam/media/archive</nobr> 
 <pre>
 archive_dir /mnt/somedisk/archive
 </pre>
-The archive directory tree is by year, month and day with each day two digits:
+The archive directory tree is by year, month and day with each month and day two digits:
 <pre>
 .../archive/2015/11/13
 or
 .../archive/2015/07/04
 </pre>
 Where 13 is a media directory for November 13.  It has the media file sub directories videos,
-thumbs, and stills.  When you archive a single file or day or thumb selections from the web page,
-the web server sends a command to pikrellcam to archive those files and the pikrellcam program
+thumbs, and stills.  When you archive files from the web page,
+the web server sends a command to pikrellcam to archive the files and the pikrellcam program
 does the archiving.  Since pikrellcam runs as the user pi, pikrellcam has the sudo permission to
 create the appropriate directory structure for archiving.
 Since the web server runs as the user www-data, pikrellcam creates directories with write permission
@@ -834,8 +875,15 @@ video_mp4box_fps fps
 inform "some string" row justify font xs ys
 	echo inform \"Have a nice day.\" 3 3 1 > FIFO
 	echo inform timeout 3
-archive_video
-archive_still
+archive_video [day|today|yesterday|video.mp4] yyyy-mm-dd
+archive_still [day|today|yesterday|video.mp4] yyyy-mm-dd
+annotate_text_background_color [none|rrggbb]   # rrggbb is hex color value 000000 - ffffff
+annotate_text_brightness value   # value is integer 0 - 255, 255 default
+annotate_text_size  value        # value is integer 6 - 160, 32 default
+annotate_string [prepend|append] id string
+annotate_string remove id
+annotate_string spacechar c
+fix_thumbs [fix|test]
 delete_log
 upgrade
 quit
@@ -931,6 +979,58 @@ echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
 echo "motion trigger 1 4 5" > ~/pikrellcam/www/FIFO"
 </pre>
 	</li>
+	<li>The <span style='font-weight:700'>fix_thumbs</span> command provides
+	a consistency check/repair function for video and thumb files.  It creates
+	missing thumbs for motion and manual videos and any motion thumbs will have
+	"Recovered" text annotated on them to indicate that they are not original
+	motion area thumbs.
+	Also thumbs with no video and stray .h264 files will be deleted.
+	<br>
+	This command exists as a recovery path for
+	<ul>
+	<li>A bug around PiKrellCam 2.0.0: deleting a thumb did not delete its video.
+	</li>
+	<li> Before version 2.1.10: there could be stray h264 files if the media file system ran out of space.
+	</li>
+	<li>Before version 2.1.9: manual and timelapse videos did not generate thumbs.
+	</li>
+	</ul>
+	First, use the "test" argument and watch
+	the log page (reload it) until you see "DONE" to see if there are any problems.
+	If the log lists any repair actions you want, redo the command with the
+	"fix" argument.  If fixing, this command can take some time to complete.
+<pre>
+echo "fix_thumbs test" > ~/pikrellcam/www/FIFO
+echo "fix_thumbs fix" > ~/pikrellcam/www/FIFO
+</pre>
+	</li>
+	<li>The <span style='font-weight:700'>annotate_string</span> command dynamically
+	appends, prepends or removes a string to the date string text drawn on videos.
+	Here is a demo example script.  Copy the text to a file, make the file executable
+	and run it while watching the OSD (a '_' is the default space character for strings
+	and in this example adds a space after the hostname and before the temperature):
+<pre>
+#!/bin/bash
+echo annotate_text_background_color 808080 > ~/pikrellcam/www/FIFO
+echo annotate_text_size 42 > ~/pikrellcam/www/FIFO
+
+# use the ds18b20 script if you actually have a ds18b20 connected to your pi.
+# TEMP=`read_ds18b20`, otherwise simulate a temperature.
+TEMP="29.1C"
+echo annotate_string append id1 _$TEMP > ~/pikrellcam/www/FIFO; sleep 3
+echo annotate_string prepend id2 ${HOSTNAME}_ > ~/pikrellcam/www/FIFO; sleep 3
+TEMP="30.4C"
+echo annotate_string append id1 _$TEMP > ~/pikrellcam/www/FIFO; sleep 3
+echo annotate_string remove id2 > ~/pikrellcam/www/FIFO; sleep 3
+echo annotate_string remove id1 > ~/pikrellcam/www/FIFO
+
+echo annotate_text_background_color none > ~/pikrellcam/www/FIFO
+echo inform \"End of annotate_string demo\" 3 3 1 > ~/pikrellcam/www/FIFO
+echo inform timeout 3 > ~/pikrellcam/www/FIFO
+</pre>
+	</li>
+	Multiple scripts may independently display their own data or information strings in the
+	annotation text as long as they use unique ids.
 	</ul>
 </div>
 
@@ -1017,14 +1117,27 @@ N - timelapse sequence last number
 D - current_minute dawn sunrise sunset dusk
 Z - pikrellcam version
 </pre>
-
+If the command string is an internal @command, only the $H substitution variable is
+recognized.
+<p>
 <span style='font-size: 1.2em; font-weight: 650;'>Examples</span>
 <div class='indent1'>
 <ul>
 <li>
-At each PiKrellCam startup, load a motion detect regions file:
+At each PiKrellCam startup
+	<ol>
+	<li>Load a motion detect regions file named
+	<span style='font-weight:700'>driveway</span>.
+	</li>
+	<li> Prepend the hostname to the annotated text date string drawn on each video
+	<br>
+	(<span style='font-weight:700'>start1</span> is just an id string and
+	the '_' character is replaced with a space).
+	</li>
+	</ol>
 <pre>
-daily   start   "@motion load_regions driveway"
+daily  start  "@motion load_regions driveway"
+daily  start  "@annotate_string prepend start1 $H_"
 </pre>
 </li>
 <li>
@@ -1060,13 +1173,19 @@ and have the at-command:
 <pre>
 daily    23:00  "$C/do-archive"
 </pre>
-The do-archive script could be run as an at-command as shown or cron could be used..
-</li>
-</ul>
+	The do-archive script could be run as an at-command as shown or cron could be used..
+	</li>
+	<li>
+	If you have ds18b20 temperature chips connected, append temperature readings
+	to the video annotated text date string.
+	The ds18b20.py script is in the PiKrellCam scripts directory and can be edited
+	to add labels to temperature values.
+<pre>
+daily minute "$C/ds18b20.py F fifo"
+</pre>
+	</li>
+	</ul>
 </div>
 </div>
-
-
-
 </div>
 

@@ -814,7 +814,10 @@ function restart_page($selected)
 						}
 					else
 						{
-						echo "<a href=\"$path\">";
+						if ("$video_url" == "")
+							echo "<a href=\"$path\">";
+						else
+							echo "<a href=\"$video_url$fname\">";
 						echo "<img src=\"$thumb_path\" style='padding:1px 10px 2px 10px'/></a></fieldset>";
 						}
 					}

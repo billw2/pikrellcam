@@ -45,13 +45,17 @@ static unsigned int	   mjpeg_encoder_send_count,
 static void
 annotate_text_update(void)
 	{
-	char			buf[MMAL_CAMERA_ANNOTATE_MAX_TEXT_LEN_V2];
-	static boolean	annotating;
-	static time_t	t_prev;
-	MMAL_PARAMETER_CAMERA_ANNOTATE_V2_T	annotate =
+	SList           *list;
+	AnnotateString  *annotate;
+	char            buf[MMAL_CAMERA_ANNOTATE_MAX_TEXT_LEN_V3];
+	char            *s;
+	int				R, G, B;
+	static boolean  annotating;
+	static time_t   t_prev;
+	MMAL_PARAMETER_CAMERA_ANNOTATE_V3_T	mmal_annotate =
 	 		{{
 			MMAL_PARAMETER_ANNOTATE,
-			sizeof(MMAL_PARAMETER_CAMERA_ANNOTATE_V2_T)
+			sizeof(MMAL_PARAMETER_CAMERA_ANNOTATE_V3_T)
 			}};
 
 	if (   (t_prev == pikrellcam.t_now)
@@ -66,21 +70,59 @@ annotate_text_update(void)
 		buf[0] = '\0';
 		strftime(buf, sizeof(buf), pikrellcam.annotate_format_string,
 						&pikrellcam.tm_local);
-		strcpy(annotate.text, buf);
-		annotate.enable = MMAL_TRUE;
+		for (list = pikrellcam.annotate_list; list; list = list->next)
+			{
+			annotate = (AnnotateString *) list->data;
+			if (annotate->prepend)
+				asprintf(&s, "%s %s", annotate->string, buf);
+			else
+				asprintf(&s, "%s %s", buf, annotate->string);
+			snprintf(buf, sizeof(buf), "%s", s);
+			free(s);
+			}
+		strcpy(mmal_annotate.text, buf);
+		mmal_annotate.enable = MMAL_TRUE;
 		}
 	else
-		annotate.enable = MMAL_FALSE;
+		mmal_annotate.enable = MMAL_FALSE;
 
-	annotate.show_shutter          = MMAL_FALSE;
-	annotate.show_analog_gain      = MMAL_FALSE;
-	annotate.show_lens             = MMAL_FALSE;
-	annotate.show_caf              = MMAL_FALSE;
-	annotate.show_motion           = pikrellcam.annotate_show_motion;
-	annotate.show_frame_num        = pikrellcam.annotate_show_frame;
-	annotate.black_text_background = pikrellcam.annotate_black_bg;
+	mmal_annotate.show_shutter          = MMAL_FALSE;
+	mmal_annotate.show_analog_gain      = MMAL_FALSE;
+	mmal_annotate.show_lens             = MMAL_FALSE;
+	mmal_annotate.show_caf              = MMAL_FALSE;
+	mmal_annotate.show_motion           = pikrellcam.annotate_show_motion;
+	mmal_annotate.show_frame_num        = pikrellcam.annotate_show_frame;
 
-	if (mmal_port_parameter_set(camera.control_port, &annotate.hdr)
+	mmal_annotate.custom_text_colour = MMAL_TRUE;
+	mmal_annotate.custom_text_Y = pikrellcam.annotate_text_brightness;
+	mmal_annotate.custom_text_U = 0x80;
+	mmal_annotate.custom_text_V = 0x80;
+
+	if (!strcmp(pikrellcam.annotate_text_background_color, "none"))
+		{
+		mmal_annotate.enable_text_background = MMAL_FALSE;
+		mmal_annotate.custom_background_colour = MMAL_FALSE;
+		}
+	else
+		{
+		s = pikrellcam.annotate_text_background_color;
+		if (*s == '#')
+			++s;
+		R = strtoul(s, &s, 16) & 0xffffff;
+		G = (R & 0xff00) >> 8;
+		B = R & 0xff;
+		R >>= 16;
+
+		mmal_annotate.custom_background_Y = R * 0.299 + G * 0.587 + B * 0.114;
+		mmal_annotate.custom_background_U = R * -0.168736 + G * -0.331264 + B * 0.500 + 128;
+		mmal_annotate.custom_background_V = R *	0.500 + G * -0.418688 + B * -0.081312 + 128;
+
+		mmal_annotate.enable_text_background = MMAL_TRUE;
+		mmal_annotate.custom_background_colour = MMAL_TRUE;
+		}
+	mmal_annotate.text_size = (uint8_t) pikrellcam.annotate_text_size;
+
+	if (mmal_port_parameter_set(camera.control_port, &mmal_annotate.hdr)
 			!= MMAL_SUCCESS)
 		printf("Could not set annotation");
 	}

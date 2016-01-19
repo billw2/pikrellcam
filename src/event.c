@@ -630,6 +630,7 @@ event_process(void)
 			tmp_link;
 	int		minute_tick, five_minute_tick, ten_minute_tick,
 			fifteen_minute_tick, thirty_minute_tick, hour_tick, day_tick;
+	char    *cmd;
 	struct tm		*tm_now;
 	static struct tm tm_prev;
 	static time_t	t_prev;
@@ -832,7 +833,12 @@ event_process(void)
 			   )
 				{
 				if (*(at->command) == '@')
-					command_process(at->command + 1);
+					{
+					cmd = strdup(at->command + 1);
+					cmd = substitute_var(cmd, 'H', pikrellcam.hostname);
+					command_process(cmd);
+					free(cmd);
+					}
 				else
 					exec_no_wait(at->command, NULL);
 				}

@@ -796,7 +796,7 @@ static Config  config[] =
 	{ "# Quality factor (up to 100) affects the quality and size of the stream jpeg.\n"
 	  "# Set this lower if you need to reduce the stream bandwidth.\n"
 	  "#",
-	"mjpeg_quality",  "20",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
+	"mjpeg_quality",  "14",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
 
 	{ "# Divide the video_fps by this to get the stream jpeg file update rate.\n"
 	  "# This will also be the motion frame check rate for motion detection.\n"
@@ -896,9 +896,12 @@ static Config  config[] =
 	{ "\n# ------------------- Annotate Text Options  -----------------------\n"
 	  "#\n"
 	  "# Format for a date string that can be superimposed on videos and stills.\n"
+	  "# Custom strings from scripts can be prepended or appended to this date string\n"
+	  "# using the annotate_string FIFO command.  See the Help web page.\n"
 	  "#",
 	"annotate_format_string",  "%a %b %e, %l:%M.%S %p", FALSE,
 	                           {.string = &pikrellcam.annotate_format_string}, config_string_set },
+
 	{ "# Enables drawing the annotate date string.\n"
 	  "#",
 	"annotate_enable",      "on", FALSE, {.value = &pikrellcam.annotate_enable},      config_value_bool_set },
@@ -911,9 +914,19 @@ static Config  config[] =
 	  "#",
 	"annotate_show_frame",  "off", FALSE, {.value = &pikrellcam.annotate_show_frame},  config_value_bool_set },
 
-	{ "# Draw text characters with black background.\n"
+	{ "# Annotate text background color.  Set to \"none\" for no background.\n"
+	  "# Otherwise, set to a hex rgb value, eg \"000000\" for black or \"808080\" for gray.\n"
 	  "#",
-	"annotate_black_bg",    "off", FALSE, {.value = &pikrellcam.annotate_black_bg },   config_value_bool_set },
+	"annotate_text_background_color",    "none", FALSE, {.string = &pikrellcam.annotate_text_background_color },   config_string_set },
+
+	{ "# Annotate text brightness. Range: integer from 0 - 255\n"
+	  "# Text cannot be set to a color, only to a brightness..\n"
+	  "#",
+	"annotate_text_brightness",    "255", FALSE, {.value = &pikrellcam.annotate_text_brightness },   config_value_int_set },
+
+	{ "# Annotate text size. Range: integer from 6 - 160\n"
+	  "#",
+	"annotate_text_size",    "32", FALSE, {.value = &pikrellcam.annotate_text_size },   config_value_int_set },
 	};
 
 #define CONFIG_SIZE (sizeof(config) / sizeof(Config))
@@ -1057,6 +1070,17 @@ config_load(char *config_file)
 
 	if (pikrellcam.motion_times.post_capture > pikrellcam.motion_times.event_gap)
 		pikrellcam.motion_times.event_gap = pikrellcam.motion_times.post_capture;
+
+	if (pikrellcam.annotate_text_size < 6)
+		pikrellcam.annotate_text_size = 6;
+	else if (pikrellcam.annotate_text_size > 160)
+		pikrellcam.annotate_text_size = 160;
+	if (pikrellcam.annotate_text_brightness < 0)
+		pikrellcam.annotate_text_size = 0;
+	else if (pikrellcam.annotate_text_brightness > 255)
+		pikrellcam.annotate_text_size = 255;
+
+	pikrellcam.annotate_string_space_char = '_';
 
 	camera_adjust_temp = pikrellcam.camera_adjust;
 	motion_times_temp = pikrellcam.motion_times;
