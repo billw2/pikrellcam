@@ -778,19 +778,19 @@ event_process(void)
 				minute_offset = -atoi(p + 1);
 
 			if (!strcmp(at->at_time, "start"))
-				minute_at = start ? minute_now : 0;
+				minute_at = start ? minute_now : -1;
 			else if (!strcmp(at->at_time, "minute"))
 				minute_at = minute_now;
 			else if (!strcmp(at->at_time, "5minute"))
-				minute_at = five_minute_tick ? minute_now : 0;
+				minute_at = five_minute_tick ? minute_now : -1;
 			else if (!strcmp(at->at_time, "10minute"))
-				minute_at = ten_minute_tick ? minute_now : 0;
+				minute_at = ten_minute_tick ? minute_now : -1;
 			else if (!strcmp(at->at_time, "15minute"))
-				minute_at = fifteen_minute_tick ? minute_now : 0;
+				minute_at = fifteen_minute_tick ? minute_now : -1;
 			else if (!strcmp(at->at_time, "30minute"))
-				minute_at = thirty_minute_tick ? minute_now : 0;
+				minute_at = thirty_minute_tick ? minute_now : -1;
 			else if (!strcmp(at->at_time, "hour"))
-				minute_at = hour_tick ? minute_now : 0;
+				minute_at = hour_tick ? minute_now : -1;
 			else if (!strncmp(at->at_time, "dawn", 4))
 				minute_at = sun.dawn + minute_offset;
 			else if (!strncmp(at->at_time, "dusk", 4))
@@ -810,7 +810,7 @@ event_process(void)
 					minute_at += strtol(p + 1, NULL, 10);
 				else
 					{
-					minute_at = 0;	/* error in at_time string */
+					minute_at = -1;	/* error in at_time string */
 					log_printf("Error in at_command: [%s] bad at_time: [%s]\n",
 							at->command, at->at_time);
 					}

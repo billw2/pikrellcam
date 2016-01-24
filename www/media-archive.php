@@ -589,9 +589,9 @@ function restart_page($selected)
 			}
 		if ("$scrolled" == "yes")
 			{
-			// Offset to left of center 30px (compensate for 150px thumb)
+			// Offset a div under the thumb a bit to the left
 			echo "<div style='margin: auto; overflow: visible;'>";
-			echo   "<div style='margin-right:30px; margin-top: 6px'>";
+			echo   "<div style='margin-right:6px; margin-top: 6px'>";
 			echo "<selected>&nbsp; $file_name</selected>";
 
 			$idx = $index + 1;

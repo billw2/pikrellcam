@@ -53,15 +53,14 @@ def read_temp(device):
 try:
 	id = 0
 	if output == "fifo":
-		out_string = "_"
 		sep = "_"
 	else:
-		out_string = ""
 		sep = " "
+	out_string = ""
 	devices = open("/sys/bus/w1/devices/w1_bus_master1/w1_master_slaves")
 	for device in devices.readlines():
 		t = read_temp(device)
-		out_string = out_string + label[id] + "{:.1f}".format(t) + mode + sep
+		out_string = sep + out_string + label[id] + "{:.1f}".format(t) + mode
 		id += 1
 	devices.close()
 	if output == "fifo":
