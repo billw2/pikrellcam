@@ -714,44 +714,45 @@ typedef struct
 	char		*name;
 	CommandCode	code;
 	int			n_args;
+	boolean     do_log;
 	}
 	Command;
 
 static Command commands[] =
 	{
-	{ "record",      record,       1 },
-	{ "record_pause", record_pause, 0 },
-	{ "pause",       record_pause, 0 },
-	{ "still",       still,        0 },
+	{ "record",      record,        1, TRUE },
+	{ "record_pause", record_pause, 0, TRUE },
+	{ "pause",       record_pause,  0, TRUE },
+	{ "still",       still,         0, TRUE },
 
-	{ "tl_start",    tl_start,   1 },
-	{ "tl_end",      tl_end,     0 },
-	{ "tl_hold",    tl_hold,   1 },
-	{ "tl_show_status",  tl_show_status,   1 },
+	{ "tl_start",    tl_start,   1, TRUE },
+	{ "tl_end",      tl_end,     0, TRUE },
+	{ "tl_hold",    tl_hold,     1, TRUE },
+	{ "tl_show_status",  tl_show_status,   1, FALSE },
 
-	{ "motion",        motion_cmd,     1 },
-	{ "motion_enable", motion_enable,  1 },
+	{ "motion",        motion_cmd,     1, TRUE },
+	{ "motion_enable", motion_enable,  1, TRUE },
 
 	/* Above commands are redirected to abort a menu or adjustment display
 	*/
-	{ "display",       display_cmd,     1 },
+	{ "display",       display_cmd,     1, FALSE },
 
 	/* Below commands are not redirected to abort a menu or adjustment */
-	{ "tl_inform_convert",    tl_inform_convert,   1 },
+	{ "tl_inform_convert",    tl_inform_convert,   1, FALSE },
 
-	{ "still_quality", still_quality,  1 },
-	{ "video_bitrate", video_bitrate,  1 },
-	{ "video_fps", video_fps,  1 },
-	{ "video_mp4box_fps", video_mp4box_fps,  1 },
-	{ "inform", inform,    1 },
-	{ "save_config", save_config,    0 },
-	{ "archive_video", archive_video,    1 },
-	{ "archive_still", archive_still,    1 },
-	{ "delete_log", delete_log,    0 },
-	{ "fix_thumbs", fix_thumbs,    1 },
-	{ "annotate_string", annotate_string, 1 },
-	{ "upgrade", upgrade,    0 },
-	{ "quit",       quit,    0 },
+	{ "still_quality", still_quality,  1, TRUE },
+	{ "video_bitrate", video_bitrate,  1, TRUE },
+	{ "video_fps", video_fps,  1, TRUE },
+	{ "video_mp4box_fps", video_mp4box_fps,  1, TRUE },
+	{ "inform", inform,    1, FALSE },
+	{ "save_config", save_config,    0, TRUE },
+	{ "archive_video", archive_video,    1, TRUE },
+	{ "archive_still", archive_still,    1, TRUE },
+	{ "delete_log", delete_log,    0, TRUE },
+	{ "fix_thumbs", fix_thumbs,    1, TRUE },
+	{ "annotate_string", annotate_string, 1, FALSE },
+	{ "upgrade", upgrade,    0, TRUE },
+	{ "quit",       quit,    0, TRUE },
 	};
 
 #define COMMAND_SIZE	(sizeof(commands) / sizeof(Command))
@@ -783,7 +784,7 @@ command_process(char *command_line)
 			break;
 			}
 		}
-	if (!cmd || (cmd->code != display_cmd && cmd->code != inform))
+	if (cmd && cmd->do_log)
 		log_printf("command_process: %s\n", command_line);
 	if (!cmd)
 		{
