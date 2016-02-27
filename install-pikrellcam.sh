@@ -118,7 +118,7 @@ IS_WHEEZY=`echo "$DEB_VERSION <= $WHEEZY" | bc`
 
 if [ $IS_WHEEZY -gt 0 ]
 then
-	if ! dpkg-query -l realpath &> /dev/null
+	if ! dpkg -s realpath 2>/dev/null | grep Status | grep -q installed
 	then
 		echo "Installing package: realpath"
 		sudo apt-get install -y realpath
