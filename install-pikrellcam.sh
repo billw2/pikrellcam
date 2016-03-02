@@ -89,9 +89,6 @@ fi
 echo ""
 echo "Starting PiKrellCam install..."
 
-WHEEZY=7.8
-DEB_VERSION=`cat /etc/debian_version`
-
 # =============== apt install needed packages ===============
 #
 PACKAGE_LIST=""
@@ -114,7 +111,10 @@ else
 fi
 
 
-IS_WHEEZY=`echo "$DEB_VERSION <= $WHEEZY" | bc`
+JESSIE=8.0
+DEB_VERSION=`cat /etc/debian_version`
+IS_WHEEZY=`echo "$DEB_VERSION < $JESSIE" | bc`
+
 
 if [ $IS_WHEEZY -gt 0 ]
 then
@@ -242,16 +242,11 @@ then
 	sudo sed -i  '/access_log/c\	access_log off;' /etc/nginx/nginx.conf
 fi
 
-WHEEZY=7.8
-DEB_VERSION=`cat /etc/debian_version`
-
-IS_JESSIE=`echo "$DEB_VERSION > $WHEEZY" | bc`
-
-if [ $IS_JESSIE -gt 0 ]
+if [ $IS_WHEEZY -gt 0 ]
 then
-	NGINX_SITE=etc/nginx-jessie-site-default
-else
 	NGINX_SITE=etc/nginx-wheezy-site-default
+else
+	NGINX_SITE=etc/nginx-jessie-site-default
 fi
 
 echo "Installing /etc/nginx/sites-available/pikrellcam"
