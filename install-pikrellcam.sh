@@ -35,6 +35,16 @@ then
 	sudo chmod 775 media media/archive media/videos media/thumbs media/stills
 fi
 
+if [ ! -h www/media ]
+then
+	ln -s $PWD/media www/media
+fi
+
+if [ ! -h www/archive ]
+then
+	ln -s $PWD/media/archive www/archive
+fi
+
 echo ""
 echo "Set the port for the nginx web server."
 echo "If you already have a web server configuration using the default"
