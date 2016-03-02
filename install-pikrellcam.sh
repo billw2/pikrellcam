@@ -25,6 +25,8 @@ then
 	bad_install "directory www"
 fi
 
+sudo chown .www-data $PWD/www
+sudo chmod 775 $PWD/www
 
 echo ""
 echo "Set the port for the nginx web server."
