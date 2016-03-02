@@ -36,8 +36,6 @@ function config_user_save()
 	global $archive_initial_view, $archive_thumbs_scrolled, $media_thumbs_scrolled;
 	global $video_url;
 
-	if (!is_writable("config-user.php"))  // first run needed to set permission
-		return;
 	$file = fopen("config-user.php", "w");
 	if (!$file)
 		return;
