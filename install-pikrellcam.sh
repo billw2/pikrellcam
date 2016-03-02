@@ -28,6 +28,13 @@ fi
 sudo chown .www-data $PWD/www
 sudo chmod 775 $PWD/www
 
+if [ ! -d media ]
+then
+	mkdir media media/archive media/videos media/thumbs media/stills
+	sudo chown .www-data media media/archive media/videos media/thumbs media/stills
+	sudo chmod 775 media media/archive media/videos media/thumbs media/stills
+fi
+
 echo ""
 echo "Set the port for the nginx web server."
 echo "If you already have a web server configuration using the default"
