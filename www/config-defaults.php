@@ -37,6 +37,9 @@ function config_user_save()
 	global $video_url;
 
 	$file = fopen("config-user.php", "w");
+	if (!$file)
+        return;
+
 	fwrite($file, "<?php\n"
 		. "// If this file is edited, reload web pages to see the results.\n"
 		."//\n"

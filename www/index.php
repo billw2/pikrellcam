@@ -4,9 +4,12 @@
 //error_reporting(-1);
 
 
-	require_once(dirname(__FILE__) . '/config.php');
+require_once(dirname(__FILE__) . '/config.php');
+
+if (file_exists("config-user.php"))
 	include_once(dirname(__FILE__) . '/config-user.php');
-	include_once(dirname(__FILE__) . '/config-defaults.php');	
+
+include_once(dirname(__FILE__) . '/config-defaults.php');	
 
 function time_lapse_period()
 	{
