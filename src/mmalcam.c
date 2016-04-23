@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -186,8 +186,8 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	static FILE            *file	= NULL;
 	static char            *fname_part;
 	boolean                do_preview_save = FALSE;
-	static char	       *tcp_buf;
-	static int	       tcp_buf_offset;
+	static char	           *tcp_buf;
+	static int	           tcp_buf_offset;
 
 
 	if (!fname_part)
@@ -200,10 +200,11 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		{
 		mmal_buffer_header_mem_lock(buffer);
 		n = fwrite(buffer->data, 1, buffer->length, file);
-		if (tcp_buf) {
+		if (tcp_buf)
+			{
 			memcpy(tcp_buf + tcp_buf_offset, buffer->data, buffer->length);
 			tcp_buf_offset += buffer->length;
-		}
+			}
 		mmal_buffer_header_mem_unlock(buffer);
 		if (n != buffer->length)
 			{
@@ -213,11 +214,12 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		}
 	if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
 		{
-		if (tcp_buf) {
+		if (tcp_buf)
+			{
 			mjpeg_server_queue_put(tcp_buf, tcp_buf_offset);
 			tcp_buf = NULL;
 			tcp_buf_offset = 0;
-		}
+			}
 
 		if (debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
 			printf("%s fps %d\n", data->name, 1000000 / utime);
@@ -226,16 +228,16 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			fclose(file);
 			file = NULL;
 
-		pthread_mutex_lock(&mjpeg_encoder_count_lock);
-		++mjpeg_encoder_recv_count;
-		if (mjpeg_do_preview_save == 1)
-			{
-			mjpeg_do_preview_save = 0;
-			do_preview_save = TRUE;
-			}
-		else if (mjpeg_do_preview_save > 1)
-			--mjpeg_do_preview_save;
-		pthread_mutex_unlock(&mjpeg_encoder_count_lock);
+			pthread_mutex_lock(&mjpeg_encoder_count_lock);
+			++mjpeg_encoder_recv_count;
+			if (mjpeg_do_preview_save == 1)
+				{
+				mjpeg_do_preview_save = 0;
+				do_preview_save = TRUE;
+				}
+			else if (mjpeg_do_preview_save > 1)
+				--mjpeg_do_preview_save;
+			pthread_mutex_unlock(&mjpeg_encoder_count_lock);
 
 			/* When adding an event_preview_save, set a rename holdoff that
 			|  will be reset when the preview_save is done.  Don't do
@@ -280,11 +282,13 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	{
 	CameraObject			*data = (CameraObject *) port->userdata;
 	int						n;
+	static int		bytes_written;
 
 	if (buffer->length && still_jpeg_encoder.file)
 		{
 		mmal_buffer_header_mem_lock(buffer);
 		n = fwrite(buffer->data, 1, buffer->length, still_jpeg_encoder.file);
+		bytes_written += n;
 		mmal_buffer_header_mem_unlock(buffer);
 		if (n != buffer->length)
 			{
@@ -295,12 +299,25 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
 		{
 		fclose(still_jpeg_encoder.file);
-		still_jpeg_encoder.file = NULL;
 		if (pikrellcam.still_capture_event)
 			event_add("still capture command", pikrellcam.t_now, 0,
 					event_still_capture_cmd,
 					pikrellcam.on_still_capture_cmd);
+		else if (pikrellcam.timelapse_capture_event)
+			{
+			if (bytes_written > 0)
+				time_lapse.sequence += 1;
+			else if (pikrellcam.timelapse_jpeg_last)
+				{
+				unlink(pikrellcam.timelapse_jpeg_last);
+				dup_string(&pikrellcam.timelapse_jpeg_last, "failed");
+				}
+			}
 		pikrellcam.still_capture_event = FALSE;
+		pikrellcam.timelapse_capture_event = FALSE;
+		bytes_written = 0;
+		pikrellcam.state_modified = TRUE;
+		still_jpeg_encoder.file = NULL;
 		}
 	return_buffer_to_port(port, buffer);
 	}

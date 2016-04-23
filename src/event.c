@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@ static pthread_mutex_t	event_mutex;
 static SList			*event_list,
 						*at_command_list;
 
+static boolean     exec_with_session = TRUE;
+
 typedef struct
 	{
 	boolean initialized;
@@ -59,6 +61,13 @@ typedef struct
 
 static Sun	sun;
 
+
+void
+set_exec_with_session(boolean set)
+	{
+	exec_with_session = set;
+	}
+
   /* exec a command with the given arg.  Any strftime() % replacements should
   |  have been done before calling this so there will remain only pikrellcam
   |  specific $X conversions.  Change all '$X' to '%s' and printf in what we
@@ -67,10 +76,11 @@ static Sun	sun;
 static int
 exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 	{
-	struct tm *tm_now;
-	CompositeVector *frame_vec = &motion_frame.final_preview_vector;
-	char	specifier, *fmt, *fmt_arg, *copy, *cmd_line, *name, buf[BUFSIZ];
-	int		t, i, status = 0;
+	struct tm		*tm_now;
+	PresetPosition	*pos;
+	CompositeVector	*frame_vec = &motion_frame.final_preview_vector;
+	char			specifier, *fmt, *fmt_arg, *copy, *cmd_line, *name, buf[BUFSIZ];
+	int				t, i, status = 0;
 
 	if (!command || !*command)
 		return -1;
@@ -147,6 +157,14 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'P':
 				fmt_arg = pikrellcam.command_fifo;
 				break;
+			case 'p':
+				pos = (PresetPosition *) slist_nth_data(pikrellcam.preset_position_list,
+								pikrellcam.preset_position_index);
+				snprintf(buf, sizeof(buf), "%d %d",
+						pikrellcam.preset_position_index + 1,
+						pos ? pos->settings_index + 1 : 1);
+				fmt_arg = buf;
+				break;
 			case 'c':
 				fmt_arg = pikrellcam.scripts_dist_dir;
 				break;
@@ -212,7 +230,8 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 		{			/* child - execute command in background */
 		for (i = getdtablesize(); i > 2; --i)
 			close(i);
-		setsid();		/* new session group - ie detach */
+		if (exec_with_session)
+			setsid();		/* new session group - ie detach */
 		execl("/bin/sh", "sh", "-c", cmd_line, " &", NULL);
 		_exit (EXIT_FAILURE);
 		}
@@ -429,15 +448,49 @@ state_file_write(void)
 	{
 	static char         *fname_part;
 	FILE                *f;
+	MotionFrame			*mf = &motion_frame;
 	VideoCircularBuffer *vcb = &video_circular_buffer;
+	PresetPosition		*pos;
+	PresetSettings		*settings = NULL;
 	char                *state;
+	int					pan, tilt;
 
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.state_filename);
 	f = fopen(fname_part, "w");
 
-	fprintf(f, "motion_enable %s\n",
-			motion_frame.motion_enable ? "on" : "off");
+	fprintf(f, "motion_enable %s\n", mf->motion_enable ? "on" : "off");
+	fprintf(f, "show_preset %s\n",   mf->show_preset ? "on" : "off");
+	fprintf(f, "show_vectors %s\n",  mf->show_vectors ? "on" : "off");
+
+	servo_get_position(&pan, &tilt);
+	pos = preset_find_at_position(pan, tilt);
+	if (pos)
+		{
+		fprintf(f, "preset %d %d\n", pikrellcam.preset_position_index + 1,
+					pos ? pos->settings_index + 1 : 1);
+		settings = (PresetSettings *) slist_nth_data(pos->settings_list, pos->settings_index);
+		if (settings)
+			{
+			fprintf(f, "magnitude_limit %d\n", settings->mag_limit);
+			fprintf(f, "magnitude_count %d\n", settings->mag_limit_count);
+			fprintf(f, "burst_count %d\n", settings->burst_count);
+			fprintf(f, "burst_frames %d\n", settings->burst_frames);
+			}
+		}
+	else
+		{
+		fprintf(f, "preset 0 0\n");
+		fprintf(f, "magnitude_limit 0\n");
+		fprintf(f, "magnitude_count 0\n");
+		fprintf(f, "burst_count 0\n");
+		fprintf(f, "burst_frames 0\n");
+		}
+	if (pikrellcam.have_servos)
+		{
+		fprintf(f, "pan %d\n", pan);
+		fprintf(f, "tilt %d\n", tilt);
+		}
 
 	if (vcb->state & VCB_STATE_MOTION)
 		state = "motion";
@@ -452,6 +505,7 @@ state_file_write(void)
 	fprintf(f, "still_last %s\n",
 			pikrellcam.still_last ? pikrellcam.still_last : "none");
 
+	fprintf(f, "show_timelapse %s\n", time_lapse.show_status ? "on" : "off");
 	fprintf(f, "timelapse_period %d\n", time_lapse.period);
 	fprintf(f, "timelapse_active %s\n",
 			time_lapse.activated ? "on" : "off");
@@ -490,6 +544,7 @@ event_count_down_add(char *name, int count,
 	event = calloc(1, sizeof(Event));
 	event->name = name;
 	event->count = count;
+	event->period = 0;			/* one time event */
 	event->func = func;
 	event->data = data;
 
@@ -498,8 +553,8 @@ event_count_down_add(char *name, int count,
 	pthread_mutex_unlock(&event_mutex);
 
 	if (pikrellcam.verbose)
-		printf("Event add [%s] period=%d\n",
-						event->name, (int) event->period);
+		printf("Event count down add [%s] count=%d\n",
+						event->name, (int) event->count);
 	return event;
 	}
 
@@ -529,6 +584,17 @@ event_add(char *name, time_t time, time_t period,
 	return event;
 	}
 
+void
+event_list_lock(void)
+	{
+	pthread_mutex_lock(&event_mutex);
+	}
+
+void
+event_list_unlock(void)
+	{
+	pthread_mutex_unlock(&event_mutex);
+	}
 
 Event *
 event_find(char *name)
@@ -846,6 +912,8 @@ event_process(void)
 		start = FALSE;
 		if (pikrellcam.config_modified)
 			config_save(pikrellcam.config_file);
+		if (pikrellcam.preset_modified)
+			preset_config_save();
 		}
 	}
 

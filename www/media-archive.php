@@ -60,10 +60,10 @@ function eng_filesize($bytes, $decimals = 1)
 
 function media_dir_array_create($media_dir)
 	{
-	global	$archive_root, $media_mode, $media_type;
+	global	$archive_root, $media_mode, $media_type, $media_subdir;
 
 	$media_array = array();
-	$file_dir = "$media_dir/$media_type";		// videos, thumbs, or stills
+	$file_dir = "$media_dir/$media_subdir";		// videos, thumbs, or stills
 
 	if (is_dir($file_dir))
 		{
@@ -98,9 +98,9 @@ function media_dir_array_create($media_dir)
 			if ($mtime == 0)
 				$mtime = filemtime("$file_dir" . "/" . "$file_name");
 			$ymd = date("Y-m-d", $mtime);
-			if ("$media_type" == "videos" || "$media_type" == "thumbs")
+			if ("$media_type" == "videos")
 				{
-				if ("$media_type" == "videos")
+				if ("$media_subdir" == "videos")
 					{
 					$thumb_name = str_replace(".mp4", ".th.jpg", $file_name);
 					$short_name = date('H:i:s', $mtime) . "$extension";
@@ -195,12 +195,12 @@ function media_array_index($name)
 
 function delete_file($media_dir, $fname)
 	{
-	global	$media_mode, $media_type;
+	global	$media_mode, $media_subdir;
 
 	if (!is_dir($media_dir))
 		return;
 
-	if ("$media_type" == "stills")
+	if ("$media_subdir" == "stills")
 		unlink("$media_dir/stills/$fname");
 	else
 		{
@@ -229,7 +229,7 @@ function delete_day($media_dir, $ymd)
 	if (!is_dir($media_dir))
 		return;
 
-	if ("$media_type" == "videos" || "$media_type" == "thumbs")
+	if ("$media_type" == "videos")
 		{
 		array_map('unlink', glob("$media_dir/videos/*$ymd*.mp4"));
 		array_map('unlink', glob("$media_dir/videos/*$ymd*.csv"));
@@ -248,7 +248,7 @@ function delete_all_files($media_dir)
 
 	if (!is_dir($media_dir))
 		return;
-	if ("$media_type" == "videos" || "$media_type" == "thumbs")
+	if ("$media_type" == "videos")
 		{
 		array_map('unlink', glob("$media_dir/videos/*.mp4"));
 		array_map('unlink', glob("$media_dir/videos/*.csv"));
@@ -329,7 +329,7 @@ function wait_files_gone($key, $pat)
 			break;
 		else if ("$key" == "day")
 			{
-			if ("$media_type" == "videos" || "$media_type" == "thumbs")
+			if ("$media_type" == "videos")
 				{
 				if (   count(glob("$media_dir/videos/*$pat*")) == 0
 				    && count(glob("$media_dir/thumbs/*$pat*")) == 0
@@ -397,9 +397,11 @@ function restart_page($selected)
 	$year = "";
 
 	if (isset($_GET["newtype"]))
-		$media_type = $_GET["newtype"];	// "videos", "stills", or "thumbs"
+		$media_type = $_GET["newtype"];	// "videos" or "stills"
 	else if (isset($_GET["type"]))
-		$media_type = $_GET["type"];	// "videos", "stills", or "thumbs"
+		$media_type = $_GET["type"];	// "videos" or "stills"
+	if ("$media_type" == "thumbs")
+		$media_type = "videos";			// transition from old version
 
 	if (isset($_GET["label"]))			// Descriptive label of media_mode
 		$label = $_GET["label"];
@@ -424,6 +426,27 @@ function restart_page($selected)
 		$media_dir = "media";
 		$env = "mode=$media_mode&type=$media_type";
 		}
+
+	if (isset($_GET["videos_mode_list"]))
+		{
+		$videos_mode = "list";
+		config_user_save();
+		}
+	if (isset($_GET["videos_mode_thumbs"]))
+		{
+		$videos_mode = "thumbs";
+		config_user_save();
+		}
+	if ("$media_type" == "stills")
+		$media_subdir = "stills";
+	else if ("$videos_mode" == "thumbs")
+		$media_subdir = "thumbs";
+	else
+		$media_subdir = "videos";
+
+//echo "<script type='text/javascript'>alert('$media_dir $media_type $media_subdir $videos_mode');</script>";
+//echo "<script type='text/javascript'>alert('$env');</script>";
+
 
 	if (isset($_GET["toggle_scroll"]))
 		{
@@ -500,7 +523,7 @@ function restart_page($selected)
 		$fname = $_GET["archive"];	// mp4 passed for videos or thumbs type
 		$ymd = $_GET["date"];
 		$fifo = fopen(FIFO_FILE,"w");
-		if ("$media_type" == "videos" || "$media_type" == "thumbs")
+		if ("$media_type" == "videos")
 			{
 			fwrite($fifo, "archive_video $fname $ymd");
 			$subdir = "videos";
@@ -519,7 +542,7 @@ function restart_page($selected)
 		{
 		$ymd = $_GET["archive_date"];
 		$fifo = fopen(FIFO_FILE,"w");
-		if ("$media_type" == "videos" || "$media_type" == "thumbs")
+		if ("$media_type" == "videos")
 			fwrite($fifo, "archive_video day $ymd");
 		else
 			fwrite($fifo, "archive_still day $ymd");
@@ -554,7 +577,7 @@ function restart_page($selected)
 	media_array_create();
 	$index = media_array_index("$selected");
 
-	if (   "$media_type" == "thumbs" &&
+	if (   "$media_subdir" == "thumbs" &&
 	       (   ("$media_mode" == "archive" && "$archive_thumbs_scrolled" == "no")
 	        || ("$media_mode" == "media" && "$media_thumbs_scrolled" == "no")
 	       )
@@ -572,20 +595,20 @@ function restart_page($selected)
 			echo "<a href=$file_path target='_blank'>
 					<img src=\"$file_path\"
 					style='max-width:100%;'
-				    style='border:6px groove silver;'>
+				    style='border:4px groove silver;'>
 			      </a>";
 		else if ("$scrolled" == "yes")
 			{
 			$thumb_path = $media_array[$index]['thumb_path'];
-			echo "<video controls width='640' style='border:6px groove silver;'>
+			echo "<video controls width='640' style='border:4px groove silver;'>
 				    <source src=\"$file_path\" type='video/mp4'>
 				    Your browser does not support the video tag.
 				  </video>";
 			if (is_file($thumb_path))
-				echo "<img src=\"$thumb_path\" style='border:6px groove silver;'>";
+				echo "<img src=\"$thumb_path\" style='border:4px groove silver;'>";
 			else
 				echo "<img src=\"$background_image\"
-					style='width:150px; height:150px; border:6px groove silver;'>";
+					style='width:150px; height:150px; border:4px groove silver;'>";
 			}
 		if ("$scrolled" == "yes")
 			{
@@ -657,44 +680,35 @@ function restart_page($selected)
 
 	echo "<span style=\"font-size: 1.2em; font-weight: 500;\">
 			$media_label</span>";
-	$uctype = ucfirst($media_type);
 	if ("$media_type" == "videos")
 		{
-		echo "<span style=\"margin-left: 16px; font-size: 1.2em; font-weight: 500;\">
-				$uctype</span>";
-		echo "<a href=\"media-archive.php?newtype=thumbs&$env\"
-				class='btn-control' style='margin-left:8px;'>Thumbs</a>";
-		echo "<a href=\"media-archive.php?newtype=stills&$env\"
-				class='btn-control' style='margin-left:8px;'>Stills</a>";
-		}
-	else if ("$media_type" == "thumbs")
-		{
-		echo "<a href=\"media-archive.php?newtype=videos&$env\"
-				class='btn-control' style='margin-left:16px;'>Videos</a>";
-		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">
-				$uctype</span>";
+		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">Videos</span>";
 		echo "<a href=\"media-archive.php?newtype=stills&$env\"
 				class='btn-control' style='margin-left:8px;'>Stills</a>";
 		}
 	else if ("$media_type" == "stills")
 		{
 		echo "<a href=\"media-archive.php?newtype=videos&$env\"
-				class='btn-control' style='margin-left:16px;'>Videos</a>";
-		echo "<a href=\"media-archive.php?newtype=thumbs&$env\"
-				class='btn-control' style='margin-left:8px;'>Thumbs</a>";
-		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">
-				$uctype</span>";
+				class='btn-control' style='margin-left:8px;'>Videos</a>";
+		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">Stills</span>";
 		}
 
 	$disk_total = disk_total_space($archive_root);
 	$disk_free = disk_free_space($archive_root);
-	$used_percent = sprintf('%.1f',(($disk_total - $disk_free) / $disk_total) * 100);
+	$free_percent = sprintf('%.1f',($disk_free / $disk_total) * 100);
+
 	$total = eng_filesize($disk_total);
 	$free = eng_filesize($disk_free);
-	$used = eng_filesize($disk_total - $disk_free);
 
 	echo "<span style=\"float: top; margin-left:30px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
-		Disk:&thinsp;${total}B &nbsp Free:&thinsp;${free}B &nbsp Used:&thinsp;${used}B ($used_percent %)</span>";
+		Disk:&thinsp;${total}B &nbsp Free:&thinsp;${free}B&thinsp;($free_percent %)</span>";
+
+	echo "<span style='float:right;'>";
+	if ("$videos_mode" == "thumbs")
+		echo "<a href='media-archive.php?$env&videos_mode_list'>List View</a>";
+	else
+		echo "<a href='media-archive.php?$env&videos_mode_thumbs'>Thumbs View</a>";
+	echo "</span>";
 	echo "</div>";
 
 	if ($media_array_size == 0)
@@ -705,7 +719,7 @@ function restart_page($selected)
 
 		if ("$scrolled" == "yes")
 			{
-			if ("$media_type" == "videos" || "$media_type" == "thumbs")
+			if ("$media_type" == "videos")
 				$div_style = "overflow-y: scroll; height:${n_video_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
 			else
 				$div_style = "overflow-y: scroll; height:${n_still_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
@@ -713,7 +727,7 @@ function restart_page($selected)
 		else
 			$div_style = "margin: 20px; border: 4px";
 
-		if ("$media_type" == "thumbs")
+		if ("$media_subdir" == "thumbs")
 			echo "<form method=\"POST\" action=\"media-archive.php?$env\">";
 		echo "<div style=\"$div_style\">";
 		if ("$scrolled" == "yes")
@@ -734,13 +748,13 @@ function restart_page($selected)
 						$date_string</span>";
 				$ymd_header = $ymd;
 				$dir = $media_array[$k]['media_dir'];
-				if ($n_columns > 2 && "$media_type" != "thumbs")
+				if ($n_columns > 2 && "$media_subdir" != "thumbs")
 					echo "</td><td>";
 				if ("$next_select" != "")
 					$next_file = "&file=$next_select";
 				else
 					$next_file = "";
-				if ("$media_type" == "thumbs")
+				if ("$media_subdir" == "thumbs")
 					echo "<input style='margin-left: 16px' type='checkbox' name='checkbox_list[]'
 						onClick=\"select_day(this, '$ymd')\"/>";
 				else
@@ -752,7 +766,7 @@ function restart_page($selected)
 							style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
 							onclick='if (confirm(\"Archive day $ymd?\"))
 							  {window.location=\"media-archive.php?$env&dir=$dir&archive_date=$ymd$next_file\";}'>";
-						if ($n_columns > 2 && "$media_type" != "thumbs")
+						if ($n_columns > 2 && "$media_subdir" != "thumbs")
 							echo "</td><td>";
 						}
 					echo "<input type='button' value='Delete Day'
@@ -768,7 +782,7 @@ function restart_page($selected)
 				$n_rows = ceil(($last - $k) / $n_columns);
 				}
 
-			if ("$media_type" == "thumbs")
+			if ("$media_subdir" == "thumbs")
 				{
 				echo "<tr><td>";
 				for ($idx = $k; $idx < $last; ++$idx)
@@ -881,7 +895,7 @@ function restart_page($selected)
 		Archive Calendar</a>";
 
 	echo "<span style=\"color: $default_text_color;\">";
-	if ("$media_type" == "thumbs")
+	if ("$media_subdir" == "thumbs")
 		{
 		echo "<span style='margin-left: 50px;'>Selections:</span>";
 		if ("$media_mode" != "archive")
@@ -928,7 +942,7 @@ function restart_page($selected)
 	echo "</span>";
 
 	echo "</div>";
-	if ("$media_type" == "thumbs")
+	if ("$media_subdir" == "thumbs")
 		echo "</form>";
 
 	echo "</div></body></html>";

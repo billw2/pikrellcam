@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -40,16 +40,18 @@ MotionTimes		motion_times_temp;
 #define REPEAT_RIGHT_ARROW	6
 #define BACK				8
 #define PICTURE				9
+
+#define DISPLAY_MENU_NONE	0
 #define VIDEO_PRESET		10
 #define STILL_PRESET		11
-#define CAMERA_ADJUSTMENTS	12
 #define METERING			13
 #define EXPOSURE			14
 #define WHITE_BALANCE		15
 #define IMAGE_EFFECT		16
 #define MOTION_LIMIT		17
-#define MOTION_SETTING		18
+#define SETTINGS			18
 #define MOTION_TIME			19
+#define SERVO_SETTINGS		20
 
 typedef struct
 	{
@@ -68,10 +70,10 @@ static DisplayCommand display_commands[] =
 	{ "back",	  BACK			  },
 	{ "motion_time",    MOTION_TIME  },
 	{ "motion_limit",   MOTION_LIMIT  },
-	{ "motion_setting", MOTION_SETTING },
 	{ "video_presets",      VIDEO_PRESET		  },
 	{ "still_presets",      STILL_PRESET	  },
-	{ "camera_adjustments", CAMERA_ADJUSTMENTS  },
+	{ "settings",        SETTINGS },
+	{ "servo_settings",  SERVO_SETTINGS },
 	{ "picture",  PICTURE		  },
 	{ "metering", METERING		  },
 	{ "exposure", EXPOSURE		  },
@@ -94,8 +96,9 @@ typedef struct
 
 #define	N_INFORM_LINES	20
 
-InformLine	inform_line[N_INFORM_LINES];
-static int	inform_line_index;
+InformLine		inform_line[N_INFORM_LINES];
+static int		inform_line_index;
+static boolean	inform_shown;
 
 static int	display_state;
 static int	display_menu;
@@ -106,6 +109,8 @@ static DrawArea	top_status_area,
 				adj_control_area,
 				bottom_status_area;
 
+static boolean	adjustment_is_servo_limits(void);
+static int		pan_save, tilt_save;
 
   /* Draw on the I420 frame with my libglcd graphics library functions.
   |  They have a glcd namespace because I wrote the lib for a TFT LCD
@@ -224,6 +229,300 @@ i420_dim_frame(uint8_t *i420)
 		}
 	}
 
+#define SERVO_BAR_WIDTH      7
+#define SERVO_TICK_WIDTH     5
+#define SERVO_CORNER_MARGIN  35
+#define Y_MAP(da, y)    (da->height - (y) - 1 - SERVO_CORNER_MARGIN)
+#define X_MAP(da, x)    (da->width  - (x) - 1 - SERVO_CORNER_MARGIN)
+
+static void
+display_preset_setting(void)
+	{
+	PresetPosition	*pos;
+	char			buf[32];
+
+	if (pikrellcam.on_preset)
+		{
+		pos = (PresetPosition *) slist_nth_data(pikrellcam.preset_position_list, pikrellcam.preset_position_index);
+		snprintf(buf, sizeof(buf), "%d-%d", pos->settings_index + 1, pos->n_settings);
+		}
+	else
+		strcpy(buf, "---");
+	i420_print(&bottom_status_area, normal_font, 0xff, -1, 1, 2,
+				JUSTIFY_RIGHT(0), buf);
+	}
+
+static int
+display_servo_pan(void)
+	{
+	PresetPosition	*pos;
+	MotionFrame		*mf = &motion_frame;
+	SList			*list;
+	DrawArea		*da = draw_area;
+	int				x0, y0, x, y, dx, i, pan, tilt;
+	char			buf[16];
+
+	servo_get_position(&pan, &tilt);
+
+	dx = 2 * (pikrellcam.servo_pan_max - pikrellcam.servo_pan_min);
+	x0 = X_MAP(da, dx);
+	if (pikrellcam.servo_pan_max < 200)
+		x0 -= 2 * (200 - pikrellcam.servo_pan_max);
+	y0 = da->height - SERVO_BAR_WIDTH;
+	glcd_draw_rectangle(glcd, da, 0, x0, y0, dx, SERVO_BAR_WIDTH);
+	glcd_fill_rectangle(glcd, da, 0xf0, x0 + 1, y0 + 1,
+					dx - 2, SERVO_BAR_WIDTH - 2);
+
+	if (mf->show_preset || adjustment_is_servo_limits())
+		{
+		snprintf(buf, sizeof(buf), "%d", pan);
+		i420_draw_string(da, normal_font, 0xff,
+				x0 - strlen(buf) * normal_font->char_width - 4,
+				da->height - normal_font->char_height + 1, buf);
+		}
+
+	y = y0 + SERVO_BAR_WIDTH - 1;
+	if (pikrellcam.servo_pan_min > 101)
+		{
+		glcd_draw_h_line(glcd, da, 0, x0, y,
+					-2 * (pikrellcam.servo_pan_min - 100));
+		glcd_draw_h_line(glcd, da, 0xf0, x0, y - 1,
+					-2 * (pikrellcam.servo_pan_min - 100));
+		glcd_draw_h_line(glcd, da, 0, x0, y - 2,
+					-2 * (pikrellcam.servo_pan_min - 100));
+		}
+	if (pikrellcam.servo_pan_max < 199)
+		{
+		glcd_draw_h_line(glcd, da, 0, x0 + dx, y,
+					2 * (200 - pikrellcam.servo_pan_max));
+		glcd_draw_h_line(glcd, da, 0xf0, x0 + dx, y - 1,
+					2 * (200 - pikrellcam.servo_pan_max));
+		glcd_draw_h_line(glcd, da, 0, x0 + dx, y - 2,
+					2 * (200 - pikrellcam.servo_pan_max));
+		}
+	for (i = 30; i < 270; i += 10)
+		{
+		x = x0 + 2 * (i - pikrellcam.servo_pan_min);
+		if (i == 100 || i == 150 || i == 200)
+			{
+			glcd_draw_v_line(glcd, da, 0,    x - 2, y0 + SERVO_BAR_WIDTH / 2, SERVO_BAR_WIDTH / 2);
+			glcd_draw_v_line(glcd, da, 0,    x + 2, y0 + SERVO_BAR_WIDTH / 2, SERVO_BAR_WIDTH / 2);
+			glcd_draw_h_line(glcd, da, 0,    x - 1, y0 + SERVO_BAR_WIDTH / 2, 3);
+			glcd_draw_v_line(glcd, da, 0,    x,     y0, SERVO_BAR_WIDTH / 2);
+			glcd_draw_h_line(glcd, da, 0xe0, x - 1, y0 + SERVO_BAR_WIDTH - 1, 3);
+			glcd_draw_h_line(glcd, da, 0xe0, x - 1, y0 + SERVO_BAR_WIDTH - 2, 3);
+			}
+		else if (i <= pikrellcam.servo_pan_min || i >= pikrellcam.servo_pan_max)
+			continue;
+		else
+			glcd_draw_v_line(glcd, da, 0, x, y0 + SERVO_BAR_WIDTH / 2, SERVO_BAR_WIDTH / 2);
+		}
+
+	/* position pan markers for all positions */
+	for (list = pikrellcam.preset_position_list; list; list = list->next)
+		{
+		pos = (PresetPosition *) list->data;
+		x = x0 + 2 * (pos->pan - pikrellcam.servo_pan_min);
+		if (   (pos->pan == pan && pos->tilt == tilt)
+		    || pos == pikrellcam.preset_last_on
+		   )
+			glcd_fill_rectangle(glcd, da, 0x0, x - 2, y0 + 1,
+						5, SERVO_BAR_WIDTH - 1);
+		else
+			glcd_fill_rectangle(glcd, da, 0x0, x - 2, y0 + 1,
+						5, SERVO_BAR_WIDTH / 2);
+		glcd_draw_h_line(glcd, da, 0xe0, x - 2, y0 - 1, 5);
+		glcd_draw_pixel(glcd, da,  0xe0, x - 2, y0);
+		glcd_draw_pixel(glcd, da,  0xe0, x + 2, y0);
+		}
+
+	/* Pointer */
+	x = x0 + 2 * (pan - pikrellcam.servo_pan_min);
+	glcd_draw_v_line(glcd, da, 0,    x - 2, y0, SERVO_BAR_WIDTH / 2);
+	glcd_draw_v_line(glcd, da, 0,    x + 2, y0, SERVO_BAR_WIDTH / 2);
+	glcd_draw_h_line(glcd, da, 0,    x - 2, y0 + SERVO_BAR_WIDTH / 2, 5);
+	glcd_draw_pixel(glcd, da,  0,    x,     y0 + SERVO_BAR_WIDTH / 2 - 1);
+	glcd_draw_h_line(glcd, da, 0xff, x - 1, y0, 3);
+
+	glcd_draw_h_line(glcd, da, 0xff, x - 4, y0 - 1, 9);
+	glcd_draw_pixel(glcd, da,  0,    x - 5, y0 - 1);
+	glcd_draw_pixel(glcd, da,  0,    x + 5, y0 - 1);
+	glcd_draw_h_line(glcd, da, 0xff, x - 4, y0 - 2, 9);
+	glcd_draw_pixel(glcd, da,  0,    x - 5, y0 - 2);
+	glcd_draw_pixel(glcd, da,  0,    x + 5, y0 - 2);
+
+
+	glcd_draw_h_line(glcd, da, 0xff, x - 3, y0 - 3, 7);
+	glcd_draw_pixel(glcd, da,  0,    x - 4, y0 - 3);
+	glcd_draw_pixel(glcd, da,  0,    x + 4, y0 - 3);
+
+	glcd_draw_h_line(glcd, da, 0,    x - 3, y0 - 4, 7);
+	return x0;
+	}
+
+static void
+display_servo_tilt(void)
+	{
+	PresetPosition	*pos;
+	MotionFrame		*mf = &motion_frame;
+	DrawArea		*da = draw_area;
+	char			buf[16];
+	int             x0, y0, x, y, y1, dy, i, pan, tilt;
+
+	servo_get_position(&pan, &tilt);
+
+	x0 = da->width - SERVO_BAR_WIDTH;
+	y0 = (pikrellcam.servo_tilt_min > 100) ?
+				pikrellcam.servo_tilt_min - 100 : 0;
+	dy = 2 * (pikrellcam.servo_tilt_max - pikrellcam.servo_tilt_min);
+
+	y = Y_MAP(da, 2 * y0 + dy);
+	glcd_draw_rectangle(glcd, da, 0, x0, y,
+				SERVO_BAR_WIDTH, dy);
+	glcd_fill_rectangle(glcd, da, 0xf0, x0 + 1, y + 1,
+				SERVO_BAR_WIDTH - 2, dy - 2);
+
+	if (mf->show_preset || adjustment_is_servo_limits())
+		{
+		snprintf(buf, sizeof(buf), "%d", tilt);
+		y1 = y;
+		if (pikrellcam.servo_tilt_max < 199)
+			y1 -= 2 * (200 - pikrellcam.servo_tilt_max);
+		i420_draw_string(da, normal_font, 0xff,
+				da->width - strlen(buf) * normal_font->char_width - 2,
+				y1 - normal_font->char_height - 2, buf);
+		}
+
+	x = x0 + SERVO_BAR_WIDTH - 1;
+	if (pikrellcam.servo_tilt_min > 101)
+		{
+		glcd_draw_v_line(glcd, da, 0, x, y + dy,
+					2 * (pikrellcam.servo_tilt_min - 100));
+		glcd_draw_v_line(glcd, da, 0xf0, x - 1, y + dy,
+					2 * (pikrellcam.servo_tilt_min - 100));
+		glcd_draw_v_line(glcd, da, 0, x - 2, y + dy,
+					2 * (pikrellcam.servo_tilt_min - 100));
+		}
+	if (pikrellcam.servo_tilt_max < 199)
+		{
+		glcd_draw_v_line(glcd, da, 0, x, y,
+					-2 * (200 - pikrellcam.servo_tilt_max));
+		glcd_draw_v_line(glcd, da, 0xf0, x - 1, y,
+					-2 * (200 - pikrellcam.servo_tilt_max));
+		glcd_draw_v_line(glcd, da, 0, x - 2, y,
+					-2 * (200 - pikrellcam.servo_tilt_max));
+		}
+	for (i = 30; i < 270; i += 10)
+		{
+		if (pikrellcam.servo_tilt_min > 100)
+			y = i - 100;
+		else
+			y = i - pikrellcam.servo_tilt_min;
+		y = Y_MAP(da, 2 * y);
+
+		if (i == 100 || i == 150 || i == 200)
+			{
+			glcd_draw_h_line(glcd, da, 0,    x0 + SERVO_BAR_WIDTH / 2, y - 2, SERVO_BAR_WIDTH / 2);
+			glcd_draw_h_line(glcd, da, 0,    x0 + SERVO_BAR_WIDTH / 2, y + 2, SERVO_BAR_WIDTH / 2);
+			glcd_draw_v_line(glcd, da, 0,    x0 + SERVO_BAR_WIDTH / 2, y - 1, 3);
+			glcd_draw_h_line(glcd, da, 0,    x0,                       y, SERVO_BAR_WIDTH / 2);
+
+			glcd_draw_v_line(glcd, da, 0xe0, x0 + SERVO_BAR_WIDTH - 1, y - 1, 3);
+			glcd_draw_v_line(glcd, da, 0xe0, x0 + SERVO_BAR_WIDTH - 2, y - 1, 3);
+			}
+		else if (i <= pikrellcam.servo_tilt_min || i >= pikrellcam.servo_tilt_max)
+			continue;
+		else
+			glcd_draw_h_line(glcd, da, 0, x0 + SERVO_BAR_WIDTH / 2,    y, SERVO_BAR_WIDTH / 2);
+		}
+
+	/* Current position tilt marker */
+	pos = (PresetPosition *) slist_nth_data(pikrellcam.preset_position_list,
+				pikrellcam.preset_position_index);
+	if (pos)
+		{
+		if (pikrellcam.servo_tilt_min > 100)
+			y = pos->tilt - 100;
+		else
+			y = pos->tilt - pikrellcam.servo_tilt_min;
+		y = Y_MAP(da, 2 * y);
+		glcd_fill_rectangle(glcd, da, 0x0, x0 + 1, y - 2,
+					SERVO_BAR_WIDTH - 1, 5);
+		glcd_draw_v_line(glcd, da, 0xe0, x0 - 1, y - 2, 5);
+		glcd_draw_pixel(glcd, da,  0xe0, x0, y - 2);
+		glcd_draw_pixel(glcd, da,  0xe0, x0, y + 2);
+		}
+
+	/* Pointer */
+	if (pikrellcam.servo_tilt_min > 100)
+		y = tilt - 100;
+	else
+		y = tilt - pikrellcam.servo_tilt_min;
+	y = Y_MAP(da, 2 * y);
+
+	glcd_draw_h_line(glcd, da, 0,    x0,    y - 2, SERVO_BAR_WIDTH / 2);
+	glcd_draw_h_line(glcd, da, 0,    x0,    y + 2, SERVO_BAR_WIDTH / 2);
+	glcd_draw_v_line(glcd, da, 0,    x0 + SERVO_BAR_WIDTH / 2, y - 2, 5);
+	glcd_draw_pixel(glcd, da,  0,    x0 + SERVO_BAR_WIDTH / 2 - 1, y);
+	glcd_draw_v_line(glcd, da, 0xff, x - 1, y0, 3);
+
+	glcd_draw_v_line(glcd, da, 0xff, x0 - 1, y - 4, 9);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 1, y - 5);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 1, y + 5);
+	glcd_draw_v_line(glcd, da, 0xff, x0 - 2, y - 4, 9);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 2, y - 5);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 2, y + 5);
+
+
+	glcd_draw_v_line(glcd, da, 0xff, x0 - 3, y - 3, 7);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 3, y - 4);
+	glcd_draw_pixel(glcd, da,  0,    x0 - 3, y + 4);
+
+	glcd_draw_v_line(glcd, da, 0,    x0 - 4, y - 3, 7);
+	}
+
+static void
+display_preset_settings(void)
+	{
+	MotionFrame	*mf = &motion_frame;
+	char		info1[100];
+
+	if (pikrellcam.preset_modified_warning)
+		{
+		i420_print(&top_status_area, normal_font, 0xff, 0, 1, 0,
+				JUSTIFY_LEFT, "Settings changed off preset");
+		i420_print(&top_status_area, normal_font, 0xff, 1, 1, 0,
+				JUSTIFY_LEFT, "will not be saved unless:");
+		i420_print(&top_status_area, normal_font, 0xff, 2, 1, 0,
+				JUSTIFY_LEFT, "Setup->Preset->New");
+		}
+
+	snprintf(info1, sizeof(info1), "Mag %d  Cnt %d   Burst %d,%d",
+				(int) sqrt(mf->mag2_limit), mf->mag2_limit_count,
+				pikrellcam.motion_burst_count, pikrellcam.motion_burst_frames);
+	i420_print(&bottom_status_area, normal_font, 0xff,
+				pikrellcam.have_servos ? 1 : 2,
+				-6 * normal_font->char_width, 0,
+				JUSTIFY_RIGHT(0), info1);
+	}
+
+static void
+inform_draw(void)
+	{
+	int i;
+
+	inform_shown = FALSE;
+	for (i = 0; i < N_INFORM_LINES; ++i)
+		{
+		if (!inform_line[i].string)
+			continue;
+		inform_shown = TRUE;
+		i420_print(&inform_area, inform_line[i].font, 0xff,
+				inform_line[i].row, inform_line[i].xs, inform_line[i].ys,
+				inform_line[i].justify, inform_line[i].string);
+		}
+	}
+
 static void
 motion_draw(uint8_t *i420)
 	{
@@ -238,30 +537,23 @@ motion_draw(uint8_t *i420)
 	int16_t         color;			/* just B&W */
 	int             i, x, y, dx, dy, r, r_unit;
 	int             t_record, t_hold;
-	boolean         inform_shown = FALSE;
 
 	if (!glcd)
 		return;
 	da = draw_area;
 
 	if (mf->show_vectors)
-		{
 		i420_dim_frame(i420);
-		i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
-					JUSTIFY_RIGHT(0), "Vectors ON");
-		}
 
-	for (i = 0; i < N_INFORM_LINES; ++i)
+	if (mf->show_vectors)
 		{
-		if (!inform_line[i].string)
-			continue;
-		inform_shown = TRUE;
-		i420_print(&inform_area, inform_line[i].font, 0xff,
-				inform_line[i].row, inform_line[i].xs, inform_line[i].ys,
-				inform_line[i].justify, inform_line[i].string);
+		i = pikrellcam.have_servos ? 0 : 1;
+		x = pikrellcam.have_servos ? -12 : 0;
+		i420_print(&bottom_status_area, normal_font, 0xff, i, x, 0,
+					JUSTIFY_RIGHT(0), "Vectors: ON");
 		}
 
-	if (!inform_shown && mf->show_regions)
+	if (!inform_shown && (mf->show_preset || pikrellcam.preset_notify))
 		{
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
 			{
@@ -287,7 +579,10 @@ motion_draw(uint8_t *i420)
 				}
 			i420_draw_string(draw_area, font, 0xff, x + 2, y + 1, info);
 
-			if (mreg->vector.mag2_count >= mf->mag2_limit_count)
+			if (   pikrellcam.on_preset && !pikrellcam.servo_moving
+			    && mreg->vector.mag2_count >= mf->mag2_limit_count
+				&& !pikrellcam.preset_notify
+			   )
 				{
 				color = (mreg->motion > 0) ? 0xff : 0xb0;
 				snprintf(info, sizeof(info), "cnt: %d",
@@ -334,63 +629,49 @@ motion_draw(uint8_t *i420)
 					}
 				}
 			}
-		snprintf(info, sizeof(info), "Magnitude limit: %d",
-								(int) sqrt(mf->mag2_limit));
-		i420_print(&top_status_area, normal_font, 0xff, 0, 1, 0,
-					JUSTIFY_LEFT, info);
+		display_preset_settings();
 
-		snprintf(info, sizeof(info), "    Limit count: %d",
-								mf->mag2_limit_count);
-		i420_print(&top_status_area, normal_font, 0xff, 1, 1, 0,
-					JUSTIFY_LEFT, info);
-		if (pikrellcam.motion_regions_name)
+		if (pikrellcam.on_preset && !pikrellcam.preset_notify)
 			{
-			snprintf(info, sizeof(info), "   Regions name: %s",
-						pikrellcam.motion_regions_name);
-			i420_print(&top_status_area, normal_font, 0xff, 2, 1, 0,
-						JUSTIFY_LEFT, info);
-			}
-
-		if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
-			{
-			snprintf(status, sizeof(status), "confirming[%d]", mf->frame_window);
-			msg = status;
-			}
-		else if (mf->motion_status & MOTION_DETECTED)
-			{
-			if (mf->motion_status & MOTION_BURST)
-				msg = "burst motion";
-			else if (mf->motion_status & MOTION_EXTERNAL)
-				msg = "external motion";
+			if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
+				{
+				snprintf(status, sizeof(status), "confirming[%d]", mf->frame_window);
+				msg = status;
+				}
+			else if (mf->motion_status & MOTION_DETECTED)
+				{
+				if (mf->motion_status & MOTION_BURST)
+					msg = "burst motion";
+				else if (mf->motion_status & MOTION_EXTERNAL)
+					msg = "ext motion";
+				else
+					msg = "motion";
+				}
+			else if (mf->frame_vector.mag2_count > 0)
+				msg = "counts";
+			else if (mf->sparkle_count > 0 || mf->reject_count > 0)
+				msg = "noise";
 			else
-				msg = "motion";
-			}
-		else if (mf->frame_vector.mag2_count > 0)
-			msg = "counts";
-		else if (mf->sparkle_count > 0 || mf->reject_count > 0)
-			msg = "noise";
-		else
-			msg = "quiet";
+				msg = "quiet";
+			if (mf->frame_vector.mag2_count > 0)
+				snprintf(status, sizeof(status), "%s:%-3d", msg, mf->frame_vector.mag2_count);
+			else
+				snprintf(status, sizeof(status), "%s", msg);
 
-		snprintf(info, sizeof(info),
-				"any:%-3d(%.1f) rej:%-3d spkl:%-3d(%.1f)",
+			if (pikrellcam.motion_show_counts)
+				{
+				snprintf(info, sizeof(info),
+					"any:%-3d(%.1f) rej:%-3d spkl:%-3d(%.1f)  %s",
 					mf->any_count, mf->any_count_expma,
-					mf->reject_count, mf->sparkle_count, mf->sparkle_expma);
-		i420_print(&bottom_status_area, normal_font, 0xff, 0, 40, 0,
-					JUSTIFY_CENTER, info);
-
-		if (mf->frame_vector.mag2_count > 0)
-			{		
-			snprintf(info, sizeof(info), "%s:%-3d", msg, mf->frame_vector.mag2_count);
-			i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
-						JUSTIFY_CENTER, info);
+					mf->reject_count, mf->sparkle_count, mf->sparkle_expma,
+					status);
+				i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
+					JUSTIFY_LEFT, info);
+				}
+			else 
+				i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
+					JUSTIFY_LEFT, status);
 			}
-		else
-			i420_print(&bottom_status_area, normal_font, 0xff, 1, 40, 0,
-						JUSTIFY_CENTER, msg);
-
-		i420_print(&bottom_status_area, normal_font, 0xff, 1, 0, 0,
-					JUSTIFY_RIGHT(0), "Regions ON");
 		}
 	else
 		mf->selected_region = -1;
@@ -427,19 +708,33 @@ motion_draw(uint8_t *i420)
 		}
 	else
 		snprintf(info, sizeof(info), "REC (Stop)");
-	i420_print(&bottom_status_area, normal_font, 0xff, 1, 1, 0,
+	i420_print(&bottom_status_area, normal_font, 0xff, 2, 1, 0,
 					JUSTIFY_LEFT, info);
 
 	if (mf->motion_enable)
 		{
 		if (vcb->state & VCB_STATE_MANUAL_RECORD)
 			msg = "Motion ---";
+		else if (pikrellcam.servo_moving)
+			msg = "Motion hold (moving)";
+		else if (!pikrellcam.on_preset)
+			{
+			if (pikrellcam.motion_off_preset)
+				msg = "Motion ON (off preset)";
+			else
+				msg = "Motion hold (off preset)";
+			}
 		else
 			msg = "Motion  ON";
 		}
 	else
-		msg = "Motion OFF";
-	i420_print(&bottom_status_area, normal_font, 0xff, 0, 1, 0,
+		{
+		if (pikrellcam.on_preset)
+			msg = "Motion OFF";
+		else
+			msg = "Motion OFF (off preset)";
+		}
+	i420_print(&bottom_status_area, normal_font, 0xff, 1, 1, 0,
 					JUSTIFY_LEFT, msg);
 
 	if (time_lapse.show_status)
@@ -507,6 +802,7 @@ motion_draw(uint8_t *i420)
 					fname_base(pikrellcam.timelapse_jpeg_last));
 	}
 
+
 typedef struct
 	{
 	char	*name;
@@ -520,9 +816,6 @@ static int		*display_menu_index;
 
 static SList 	*menu_video_presets_list;
 static int		menu_video_presets_index;
-
-static SList 	*menu_camera_adjustments_list;
-static int		menu_camera_adjustments_index;
 
 static SList 	*menu_still_presets_list;
 static int		menu_still_presets_index;
@@ -548,8 +841,11 @@ static int		menu_motion_time_index;
 static SList 	*menu_motion_limit_list;
 static int		menu_motion_limit_index;
 
-static SList 	*menu_motion_setting_list;
-static int		menu_motion_setting_index;
+static SList 	*menu_settings_list;
+static int		menu_settings_index;
+
+static SList 	*menu_servo_settings_list;
+static int		menu_servo_settings_index;
 
 
 static char	*video_presets_entry[] =
@@ -675,21 +971,6 @@ typedef struct
 	Adjustment;
 
 
-  /* Adjustment changes made to a temp struct to avoid thrashing camera
-  |  destroys/creates.  Final change is applied if/when SEL is clicked.
-  */
-static Adjustment	camera_adjustment[] =
-	{
-	{ "video_bitrate",   1000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
-	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
-	{ "video_mp4box_fps",  1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
-	{ "mjpeg_divider",  1,  12,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },
-	{ "still_quality",  5,    100,   1,   0, 0, 0, "", NULL, &camera_adjust_temp.still_quality },
-	};
-
-#define N_CAMERA_ADJUSTMENTS \
-		(sizeof(camera_adjustment) / sizeof(Adjustment))
-
 static Adjustment	picture_adjustment[] =
 	{
 	{ "sharpness",  -100, 100, 1,   0, 0, 0, "", NULL, NULL },
@@ -735,36 +1016,109 @@ Adjustment	motion_limit_adjustment[] =
 #define N_MOTION_LIMIT_ADJUSTMENTS \
 		(sizeof(motion_limit_adjustment) / sizeof(Adjustment))
 
-Adjustment	motion_setting_adjustment[] =
+
+  /* Some settings djustment changes are made to a temp struct to avoid thrashing
+  |  camera destroys/creates.  Final change is applied if/when SEL is clicked.
+  */
+Adjustment	settings_adjustment[] =
 	{
 	{ "Startup_Motion",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_enable },
-	{ "Vector_Dimming",   30, 60, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_vectors_dimming },
 //	{ "Vertical_Filter",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_vertical_filter },
-	{ "Preview_Clean",    0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_preview_clean },
+	{ "video_bitrate",   1000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
+	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
+	{ "video_mp4box_fps",  0,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
+	{ "mjpeg_divider",  1,  12,   1,   0, 0, 0, "", NULL, &pikrellcam.mjpeg_divider },
+	{ "still_quality",  5,    100,   1,   0, 0, 0, "", NULL, &camera_adjust_temp.still_quality },
+	{ "Vector_Counts",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_show_counts },
+	{ "Vector_Dimming", 30, 60, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_vectors_dimming },
+	{ "Preview_Clean",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_preview_clean },
 	};
-
-#define N_MOTION_SETTING_ADJUSTMENTS \
-		(sizeof(motion_setting_adjustment) / sizeof(Adjustment))
 
 
 #define VECTOR_DIMMING_INDEX	1  /* Must track above Vector_Dimming entry */
+#define N_SETTINGS_ADJUSTMENTS \
+		(sizeof(settings_adjustment) / sizeof(Adjustment))
+
+Adjustment	servo_settings_adjustment[] =
+	{
+	{ "Motion_Off_Preset",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_off_preset },
+	{ "Move_Step_msec",    0,   200,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_move_step_msec },
+	{ "Preset_Step_msec",  0,   100,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_preset_step_msec },
+	{ "Servo_Settle_msec", 200,  1000,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_settle_msec },
+	{ "Move_Steps",        5,    30,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_move_steps },
+	{ "Pan_Left_Limit",    SERVO_MIN_WIDTH,  SERVO_MAX_WIDTH,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_pan_min },
+	{ "Pan_Right_Limit",   SERVO_MIN_WIDTH,  SERVO_MAX_WIDTH,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_pan_max },
+	{ "Tilt_Up_Limit",     SERVO_MIN_WIDTH,  SERVO_MAX_WIDTH,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_tilt_max },
+	{ "Tilt_Down_Limit",   SERVO_MIN_WIDTH,  SERVO_MAX_WIDTH,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_tilt_min },
+	{ "Servo_Pan_Invert",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_pan_invert },
+	{ "Servo_Tilt_Invert",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.servo_tilt_invert }
+	};
+
+#define PAN_LEFT_LIMIT_INDEX	5
+#define PAN_RIGHT_LIMIT_INDEX	6
+#define TILT_UP_LIMIT_INDEX		7
+#define TILT_DOWN_LIMIT_INDEX	8
+
+#define N_SERVO_SETTINGS_ADJUSTMENTS \
+		(sizeof(servo_settings_adjustment) / sizeof(Adjustment))
 
 
 static Adjustment	*cur_adj,
 					*adjustments;
-
 static boolean		cur_adj_start;
 
 
+static boolean
+adjustment_is_servo_limits(void)
+	{
+	if (   display_state == DISPLAY_ADJUSTMENT
+	    && pikrellcam.have_servos
+	    && adjustments == &servo_settings_adjustment[0]
+	    && *display_menu_index >= PAN_LEFT_LIMIT_INDEX
+	    && *display_menu_index <= TILT_DOWN_LIMIT_INDEX
+	   )
+		return TRUE;
+	return FALSE;
+	}
+
+static boolean
+adjustment_is_servo_pan_limits(void)
+	{
+	if (   adjustments == &servo_settings_adjustment[0]
+	    && pikrellcam.have_servos
+	    && (   *display_menu_index == PAN_LEFT_LIMIT_INDEX
+	        || *display_menu_index == PAN_RIGHT_LIMIT_INDEX
+	       )
+	   )
+		return TRUE;
+	return FALSE;
+	}
+
+static boolean
+adjustment_is_servo_tilt_limits(void)
+	{
+	if (   adjustments == &servo_settings_adjustment[0]
+	    && pikrellcam.have_servos
+	    && (   *display_menu_index == TILT_DOWN_LIMIT_INDEX
+	        || *display_menu_index == TILT_UP_LIMIT_INDEX
+	       )
+	   )
+		return TRUE;
+	return FALSE;
+	}
+
   /* Apply adjustments that were not done live.
   */
-static void
+static boolean
 apply_adjustment(void)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
+	PresetPosition		*pos;
+	PresetSettings		*settings = NULL;
+	boolean				config_modified = TRUE;
 
 	if (!adjustments || !cur_adj)
-		return;
+		return FALSE;
 	if (adjustments == &motion_time_adjustment[0])
 		{
 		pikrellcam.motion_times.confirm_gap = motion_times_temp.confirm_gap;
@@ -781,9 +1135,27 @@ apply_adjustment(void)
 			pikrellcam.motion_times.event_gap = motion_times_temp.event_gap;
 			circular_buffer_init();
 			pthread_mutex_unlock(&vcb->mutex);
-			}		
+			}
 		}
-	else if (adjustments == &camera_adjustment[0])
+	else if (adjustments == &motion_limit_adjustment[0])
+		{
+		if (pikrellcam.on_preset)
+			{
+			pos = (PresetPosition *) slist_nth_data(pikrellcam.preset_position_list,
+							pikrellcam.preset_position_index);
+			settings = (PresetSettings *) slist_nth_data(pos->settings_list,
+							pos->settings_index);
+			settings->mag_limit = pikrellcam.motion_magnitude_limit;
+			settings->mag_limit_count = pikrellcam.motion_magnitude_limit_count;
+			settings->burst_count = pikrellcam.motion_burst_count;
+			settings->burst_frames = pikrellcam.motion_burst_frames;
+			pikrellcam.preset_modified = TRUE;
+			}
+		else
+			pikrellcam.preset_modified_warning = TRUE;
+		config_modified = FALSE;
+		}
+	else if (adjustments == &settings_adjustment[0])
 		{
 		if (   camera_adjust_temp.video_fps != pikrellcam.camera_adjust.video_fps
 		    || camera_adjust_temp.still_quality != pikrellcam.camera_adjust.still_quality
@@ -795,6 +1167,19 @@ apply_adjustment(void)
 
 		/* All other adjustments have been done live. */
 		}
+	else if (adjustment_is_servo_limits())
+		{
+		if (pan_save < pikrellcam.servo_pan_min)
+			pan_save = pikrellcam.servo_pan_min;
+		if (pan_save > pikrellcam.servo_pan_max)
+			pan_save = pikrellcam.servo_pan_max;
+		if (tilt_save < pikrellcam.servo_tilt_min)
+			tilt_save = pikrellcam.servo_tilt_min;
+		if (tilt_save > pikrellcam.servo_tilt_max)
+			tilt_save = pikrellcam.servo_tilt_max;
+		servo_move(pan_save, tilt_save, pikrellcam.servo_move_step_msec);
+		}
+	return config_modified;
 	}
 
 static void
@@ -815,6 +1200,8 @@ revert_adjustment(void)
 		else
 			*(cur_adj->config_value) = cur_adj->revert_value;
 		}
+	if (adjustment_is_servo_limits())
+		servo_move(pan_save, tilt_save, pikrellcam.servo_move_step_msec);
 	}
 
 static void
@@ -824,8 +1211,14 @@ display_adjustment(uint8_t *i420)
 	GlcdFont	*font = normal_font;
 	char		buf[50];
 	int			bar_x0, bar_y0, bar_dy, bar_width, adj_x, fast_factor;
+	int			pan, tilt, max, min;
 	static int	prev_action;
 	boolean		boolean_flag = FALSE;
+
+	if (adjustments == &motion_limit_adjustment[0] && !pikrellcam.on_preset)
+		pikrellcam.preset_modified_warning = TRUE;
+	else
+		pikrellcam.preset_modified_warning = FALSE;
 
 	cur_adj = adjustments + *display_menu_index;
 	if (cur_adj_start)
@@ -840,6 +1233,31 @@ display_adjustment(uint8_t *i420)
 				}
 			cur_adj->value = atoi(cur_adj->cam_param->arg);
 			}
+		else if (adjustment_is_servo_limits())
+			{
+			servo_get_position(&pan_save, &tilt_save);
+			if (*display_menu_index == PAN_LEFT_LIMIT_INDEX)
+				{
+				cur_adj->value = pikrellcam.servo_pan_min;
+				servo_move(pikrellcam.servo_pan_min, tilt_save, pikrellcam.servo_move_step_msec);
+				}
+			else if (*display_menu_index == PAN_RIGHT_LIMIT_INDEX)
+				{
+				cur_adj->value = pikrellcam.servo_pan_max;
+				servo_move(pikrellcam.servo_pan_max, tilt_save, pikrellcam.servo_move_step_msec);
+				}
+			else if (*display_menu_index == TILT_UP_LIMIT_INDEX)
+				{
+				cur_adj->value = pikrellcam.servo_tilt_max;
+				servo_move(pan_save, pikrellcam.servo_tilt_max, pikrellcam.servo_move_step_msec);
+				}
+			else if (*display_menu_index == TILT_DOWN_LIMIT_INDEX)
+				{
+				cur_adj->value = pikrellcam.servo_tilt_min;
+				servo_move(pan_save, pikrellcam.servo_tilt_min, pikrellcam.servo_move_step_msec);
+				}
+			cur_adj->prev_value = cur_adj->value;
+			}
 		else
 			cur_adj->value = *(cur_adj->config_value);
 
@@ -852,6 +1270,10 @@ display_adjustment(uint8_t *i420)
 	            )
 	        )
 		display_action = prev_action;
+	else if (display_action == REPEAT_LEFT_ARROW && prev_action == REPEAT_LEFT_ARROW)
+		display_action = ACTION_NONE;
+	else if (display_action == REPEAT_RIGHT_ARROW && prev_action == REPEAT_RIGHT_ARROW)
+		display_action = ACTION_NONE;
 
 	/* Set cur adjust to config value if it changed while adjusting.
 	|  For if a FIFO command sets it while we are adjusting.
@@ -865,7 +1287,7 @@ display_adjustment(uint8_t *i420)
 			cur_adj->revert_value = cur_adj->value;
 			}
 		}
-#endif
+
 	if (adjustments != &picture_adjustment[0])
 		{
 		if (*(cur_adj->config_value) != cur_adj->revert_value)
@@ -874,6 +1296,7 @@ display_adjustment(uint8_t *i420)
 			cur_adj->revert_value = cur_adj->value;
 			}
 		}
+#endif
 
 	fast_factor = 2;
 	while ((cur_adj->max - cur_adj->min) / (fast_factor * cur_adj->increment)
@@ -914,6 +1337,39 @@ display_adjustment(uint8_t *i420)
 			}
 		else
 			*(cur_adj->config_value) = cur_adj->value;
+
+		if (adjustment_is_servo_pan_limits())
+			{
+			preset_pan_range(&max, &min);
+			if (cur_adj->value <= min || cur_adj->value >= max)
+				{
+				servo_get_position(NULL, &tilt);
+				servo_move(cur_adj->value, tilt, pikrellcam.servo_move_step_msec);
+				}
+			else
+				{
+				cur_adj->value = cur_adj->prev_value;
+				display_inform("\"Cannot move limit past a preset.\" 5 3 1");
+				display_inform("timeout 2");
+				}
+//printf("max:%d min:%d cur:%d prev:%d tilt:%d\n",
+//max, min, cur_adj->value, cur_adj->prev_value, tilt);
+			}
+		else if (adjustment_is_servo_tilt_limits())
+			{
+			preset_tilt_range(&max, &min);
+			if (cur_adj->value <= min || cur_adj->value >= max)
+				{
+				servo_get_position(&pan, &tilt);
+				servo_move(pan, cur_adj->value, pikrellcam.servo_move_step_msec);
+				}
+			else
+				{
+				cur_adj->value = cur_adj->prev_value;
+				display_inform("\"Cannot move limit past a preset.\" 5 3 1");
+				display_inform("timeout 2");
+				}
+			}
 		}
 	cur_adj->prev_value = cur_adj->value;
 
@@ -934,7 +1390,7 @@ display_adjustment(uint8_t *i420)
 	adj_x = bar_x0 + (int64_t) bar_width * (int64_t) (cur_adj->value - cur_adj->min)
 									/ (int64_t) (cur_adj->max - cur_adj->min);
 
-	if (   adjustments == &motion_setting_adjustment[0]
+	if (   adjustments == &settings_adjustment[0]
 	    && *display_menu_index == VECTOR_DIMMING_INDEX
 	   )
 		i420_dim_frame(i420);
@@ -986,11 +1442,6 @@ display_draw_menu(uint8_t *i420)
 		{
 		switch (display_menu)
 			{
-			case CAMERA_ADJUSTMENTS:
-				display_state = DISPLAY_ADJUSTMENT;
-				adjustments = &camera_adjustment[0];
-				cur_adj_start = TRUE;
-				break;
 			case MOTION_LIMIT:
 				display_state = DISPLAY_ADJUSTMENT;
 				adjustments = &motion_limit_adjustment[0];
@@ -1001,9 +1452,14 @@ display_draw_menu(uint8_t *i420)
 				adjustments = &motion_time_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
-			case MOTION_SETTING:
+			case SETTINGS:
 				display_state = DISPLAY_ADJUSTMENT;
-				adjustments = &motion_setting_adjustment[0];
+				adjustments = &settings_adjustment[0];
+				cur_adj_start = TRUE;
+				break;
+			case SERVO_SETTINGS:
+				display_state = DISPLAY_ADJUSTMENT;
+				adjustments = &servo_settings_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
 			case PICTURE:
@@ -1083,6 +1539,8 @@ display_draw_menu(uint8_t *i420)
 	glcd_draw_h_line(glcd, da, 0, x0, y + 1, dx);
 	}
 
+  /* This runs in an Arm thread
+  */
 void
 display_command(char *cmd)
 	{
@@ -1115,8 +1573,7 @@ display_command(char *cmd)
 		case SELECT:
 			if (display_state == DISPLAY_ADJUSTMENT)
 				{
-				apply_adjustment();
-				pikrellcam.config_modified = TRUE;
+				pikrellcam.config_modified = apply_adjustment();
 				display_state = DISPLAY_MENU;
 				display_action = ACTION_NONE;
 				}
@@ -1179,7 +1636,10 @@ display_command(char *cmd)
 				display_action = ACTION_NONE;
 				}
 			else
+				{
 				display_state = DISPLAY_DEFAULT;
+				display_menu = DISPLAY_MENU_NONE;
+				}
 			break;
 		case MOTION_TIME:
 			display_menu_list = menu_motion_time_list;
@@ -1193,11 +1653,17 @@ display_command(char *cmd)
 			display_state = DISPLAY_MENU;
 			display_menu = MOTION_LIMIT;
 			break;
-		case MOTION_SETTING:
-			display_menu_list = menu_motion_setting_list;
-			display_menu_index = &menu_motion_setting_index;
+		case SETTINGS:
+			display_menu_list = menu_settings_list;
+			display_menu_index = &menu_settings_index;
 			display_state = DISPLAY_MENU;
-			display_menu = MOTION_SETTING;
+			display_menu = SETTINGS;
+			break;
+		case SERVO_SETTINGS:
+			display_menu_list = menu_servo_settings_list;
+			display_menu_index = &menu_servo_settings_index;
+			display_state = DISPLAY_MENU;
+			display_menu = SERVO_SETTINGS;
 			break;
 		case PICTURE:
 			display_menu_list = menu_picture_list;
@@ -1226,12 +1692,6 @@ display_command(char *cmd)
 					break;
 				}
 			menu_video_presets_index = i;
-			break;
-		case CAMERA_ADJUSTMENTS:
-			display_menu_list = menu_camera_adjustments_list;
-			display_menu_index = &menu_camera_adjustments_index;
-			display_state = DISPLAY_MENU;
-			display_menu = CAMERA_ADJUSTMENTS;
 			break;
 		case STILL_PRESET:
 			display_menu_list = menu_still_presets_list;
@@ -1338,6 +1798,8 @@ display_inform(char *args)
 
 static int quit_flag;
 
+  /* Called from I420_video_callback() so this runs in a GPU thread
+  */
 void
 display_draw(uint8_t *i420)
 	{
@@ -1359,6 +1821,10 @@ display_draw(uint8_t *i420)
 
 	glcd_set_frame_buffer(glcd, (uint16_t *) i420,
 				pikrellcam.mjpeg_width, pikrellcam.mjpeg_height);
+
+	if (display_state != DISPLAY_QUIT)
+		inform_draw();
+
 	switch (display_state)
 		{
 		case DISPLAY_DEFAULT:
@@ -1378,6 +1844,16 @@ display_draw(uint8_t *i420)
 			quit_flag = FALSE;
 			break;
 		}
+	if (display_menu == MOTION_LIMIT)
+		display_preset_settings();
+
+	if (pikrellcam.have_servos)
+		{
+		display_servo_pan();
+		display_servo_tilt();
+		}
+	display_preset_setting();
+
 	display_action = ACTION_NONE;
 	}
 
@@ -1392,6 +1868,7 @@ display_set_default(void)
 	{
 	revert_adjustment();
 	display_state = DISPLAY_DEFAULT;
+	display_menu = DISPLAY_MENU_NONE;
 	}
 
 void
@@ -1400,6 +1877,7 @@ display_quit(void)
 	int	i;
 
 	display_state = DISPLAY_QUIT;
+	display_menu = DISPLAY_MENU_NONE;
 	quit_flag = TRUE;
 	for (i = 0; i < 10; ++i)
 		{
@@ -1408,6 +1886,7 @@ display_quit(void)
 		else
 			usleep(100000);
 		}
+	usleep(200000);
 	}
 
   /* Init the glcd library.  Set rotation to get the display area initialized
@@ -1430,11 +1909,11 @@ display_init(void)
 	glcd_set_rotation(glcd, 0);	  /* rotation ignored, but sets display area */
 	draw_area = glcd_get_display_area(glcd);
 
-	/* split a bottom_status_area off the screen draw area for two lines
+	/* split a bottom_status_area off the screen draw area for three lines
 	|  of status text
 	*/
 	glcd_area_v_split(draw_area, &da, &bottom_status_area,
-			2 * normal_font->char_height + 2, (SPLIT_PIXELS | SPLIT_2ND), 0);
+			3 * normal_font->char_height + 2, (SPLIT_PIXELS | SPLIT_2ND), 0);
 
 	/* Out of what's left, split out a top status are for three lines of text.
 	*/
@@ -1487,17 +1966,30 @@ display_init(void)
 			menu_motion_limit_list = slist_append(menu_motion_limit_list, entry);
 			}
 		}
-	if (!menu_motion_setting_list)
+	if (!menu_settings_list)
 		{
-		for (i = 0, position = 0; i < N_MOTION_SETTING_ADJUSTMENTS; ++i)
+		for (i = 0, position = 0; i < N_SETTINGS_ADJUSTMENTS; ++i)
 			{
-			adj = &motion_setting_adjustment[i];
+			adj = &settings_adjustment[i];
 			entry = calloc(1, sizeof(MenuEntry));
 			entry->name = adj->name;
 			entry->length = strlen(entry->name);
 			entry->line_position = position;
 			position += entry->length + 1;
-			menu_motion_setting_list = slist_append(menu_motion_setting_list, entry);
+			menu_settings_list = slist_append(menu_settings_list, entry);
+			}
+		}
+	if (!menu_servo_settings_list)
+		{
+		for (i = 0, position = 0; i < N_SERVO_SETTINGS_ADJUSTMENTS; ++i)
+			{
+			adj = &servo_settings_adjustment[i];
+			entry = calloc(1, sizeof(MenuEntry));
+			entry->name = adj->name;
+			entry->length = strlen(entry->name);
+			entry->line_position = position;
+			position += entry->length + 1;
+			menu_servo_settings_list = slist_append(menu_servo_settings_list, entry);
 			}
 		}
 	if (!menu_video_presets_list)
@@ -1510,19 +2002,6 @@ display_init(void)
 			entry->line_position = position;
 			position += entry->length + 1;
 			menu_video_presets_list = slist_append(menu_video_presets_list, entry);
-			}
-		}
-	if (!menu_camera_adjustments_list)
-		{
-		for (i = 0, position = 0; i < N_CAMERA_ADJUSTMENTS; ++i)
-			{
-			adj = &camera_adjustment[i];
-			entry = calloc(1, sizeof(MenuEntry));
-			entry->name = adj->name;
-			entry->length = strlen(entry->name);
-			entry->line_position = position;
-			position += entry->length + 1;
-			menu_camera_adjustments_list = slist_append(menu_camera_adjustments_list, entry);
 			}
 		}
 	if (!menu_still_presets_list)

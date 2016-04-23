@@ -32,7 +32,7 @@ function image_expand_toggle()
 
 function new_region()
 	{
-	fifo_command("motion add_region 0.3 0.3 0.3 0.3");
+	fifo_command("motion new_region 0.3 0.3 0.3 0.3");
 //	alert("Two consecutive fifo_command() not working.");
 //	fifo_command("motion select_region last\n");
 	}

@@ -77,9 +77,10 @@ selected
 	-webkit-border-radius: 5;
 	-moz-border-radius: 5;
 	border-radius: 5px;
-	font-family: Arial;
+//	font-family: Arial;
+	font-family: Serif;
 	color: #000000;
-	font-size: 1.0em;
+	font-size: 0.9em;
 //	background: #c1c6d1;
 	background: #c7c7c7;
 	padding: 3px 6px 3px 6px;
@@ -99,9 +100,10 @@ selected
 	-webkit-border-radius: 5;
 	-moz-border-radius: 5;
 	border-radius: 7px;
-	font-family: Arial;
+//	font-family: Arial;
+	font-family: Serif;
 	color: #000000;
-	font-size: 1.0em;
+	font-size: 0.9em;
 //	background: #9daaad;
 	background: #bac1c2;
 	padding: 3px 6px 3px 6px;

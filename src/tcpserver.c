@@ -84,7 +84,7 @@ void setup_h264_tcp_server(void)
  
  if(bind (listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr))<0);
  { 
-    perror("Server: error binding\n");
+//    perror("Server: error binding\n");
     log_printf("Server: error binding\n");  
     //return;
  } 
@@ -95,7 +95,8 @@ void setup_h264_tcp_server(void)
  save_fd |= O_NONBLOCK;
  fcntl( listenfd, F_SETFL, save_fd );
  
- fprintf(stderr,"%s\n","Server running...waiting for connections.");  
+
+// fprintf(stderr,"%s\n","Server running...waiting for connections.");
  log_printf("Server running...waiting for connections.\n");  
 }
 
@@ -116,9 +117,9 @@ void tcp_poll_connect(void)
       {
         h264_conn_status=H264_TCP_SEND_HEADER; //must send header
         num_sent=0;
-        fprintf (stderr, "Server: connect from host %s, port %u.\n",
-                    inet_ntoa (cliaddr.sin_addr),
-                    ntohs (cliaddr.sin_port));  
+//        fprintf (stderr, "Server: connect from host %s, port %u.\n",
+//                    inet_ntoa (cliaddr.sin_addr),
+//                    ntohs (cliaddr.sin_port));
         log_printf("Server: connect from host %s, port %u.\n",
                     inet_ntoa (cliaddr.sin_addr),
                     ntohs (cliaddr.sin_port));            

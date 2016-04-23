@@ -45,6 +45,8 @@ static struct buffer buffers[NUM_CIRC_BUFS];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
+static int new_connection_log_count;
+
 /* returned a new buffer, after use the buffer must be free'd with image_buffer_free() */
 static struct buffer* client_queue_get()
 {
@@ -87,9 +89,10 @@ static void* handle_client(void *args)
 	char header[MAX_BUF_SIZE];
 	struct buffer *buf = NULL;
 
-	log_printf("new connection from host '%s' on port '%d'\n",
-		inet_ntoa(client->sockaddr.sin_addr),
-		ntohs(client->sockaddr.sin_port));
+	if (++new_connection_log_count < 30)		/* punt - FIXME */
+		log_printf("new connection from host '%s' on port '%d'\n",
+			inet_ntoa(client->sockaddr.sin_addr),
+			ntohs(client->sockaddr.sin_port));
 
 	/* We had delayed the circular buffer allocation until atleast one client is
 	 * connected to the socket. let allocate the buffer now */
@@ -127,14 +130,16 @@ static void* handle_client(void *args)
 		image_buffer_free(buf);
 	}
 failed:
-	log_printf("closing connection from host '%s' on port '%d'\n",
-		inet_ntoa(client->sockaddr.sin_addr),
-		ntohs(client->sockaddr.sin_port));
+	if (new_connection_log_count < 30)		/* punt - FIXME */
+		log_printf("closing connection from host '%s' on port '%d'\n",
+			inet_ntoa(client->sockaddr.sin_addr),
+			ntohs(client->sockaddr.sin_port));
 
 	image_buffer_free(buf);
 
 	if (data)
 		free(data);
+	close(client->fd);
 	free(client);
 	pthread_detach(pthread_self());
 	return NULL;

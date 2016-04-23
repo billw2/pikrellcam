@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"2.1.13"
+#define	PIKRELLCAM_VERSION	"3.0.0"
 
 
 //TCP Stream Server
@@ -88,6 +88,9 @@ extern int h264_conn_status;
 #define PIKRELLCAM_THUMBS_SUBDIR				"thumbs"
 #define PIKRELLCAM_STILL_SUBDIR					"stills"
 #define PIKRELLCAM_TIMELAPSE_SUBDIR				"timelapse"
+
+#define SERVO_MIN_WIDTH	50
+#define SERVO_MAX_WIDTH	250
 
 
   /* ------------------ MMAL Camera ---------------
@@ -275,7 +278,7 @@ typedef struct
 	int				motion_status;
 	boolean			motion_enable,
 					show_vectors,
-					show_regions;
+					show_preset;
 
 	boolean			do_preview_save,
 					do_preview_save_cmd;
@@ -427,6 +430,26 @@ typedef struct
 
 extern CameraAdjust	camera_adjust_temp;
 
+typedef struct
+	{
+	int     pan,
+	        tilt,
+			settings_index,
+			n_settings;
+	SList   *settings_list;
+	}
+	PresetPosition;
+
+typedef struct
+	{
+	int     mag_limit,
+			mag_limit_count,
+	        burst_count,
+	        burst_frames;
+	SList	*region_list;  /* string "xf0 yf0 dxf dyf" */
+	}
+	PresetSettings;
+
 
 typedef struct
 	{
@@ -491,7 +514,8 @@ typedef struct
 			*on_motion_preview_save_cmd;
 	boolean	motion_preview_clean,
 			motion_vertical_filter,
-			motion_stats;
+			motion_stats,
+			motion_show_counts;
 	int		motion_area_min_side;
 
 	CameraConfig
@@ -533,7 +557,37 @@ typedef struct
 			*timelapse_format,
 			*timelapse_jpeg_last,
 			*timelapse_status_file;
+	boolean	timelapse_capture_event;
 	char	*timelapse_convert_cmd;
+
+	int		servo_pan_gpio,
+			servo_tilt_gpio,
+			servo_pan_min,
+			servo_pan_max,
+			servo_tilt_min,
+			servo_tilt_max,
+			servo_preset_step_msec,
+			servo_move_step_msec,
+			servo_move_steps,
+			servo_settle_msec;
+	boolean	servo_pan_invert,
+			servo_tilt_invert,
+			servo_moving,
+			servo_use_servoblaster,
+			have_servos;
+
+	SList	*preset_position_list;
+	int		preset_position_index,
+			n_preset_positions;
+	char	*preset_config_file,
+			*preset_state_file;
+	PresetPosition
+			*preset_last_on;
+	boolean	preset_modified,
+			preset_modified_warning,
+			preset_notify,
+			motion_off_preset,
+			on_preset;			/* modify in servo_control.mutex */
 
 	char	*annotate_format_string,
 			annotate_string_space_char;
@@ -686,7 +740,7 @@ CameraParameter
 
 extern boolean	config_load(char *config_file);
 extern void		config_save(char *config_file);
-extern void 	config_set_defaults(void);
+extern void 	config_set_defaults(char *homedir);
 extern boolean	config_set_option(char *opt, char *arg, boolean set_safe);
 boolean			config_boolean_value(char *value);
 void			config_set_boolean(boolean *result, char *arg);
@@ -735,6 +789,8 @@ Event	*event_count_down_add(char *name, int count,
 						void (*func)(), void *data);
 
 Event	*event_find(char *name);
+void	event_list_lock(void);
+void	event_list_unlock(void);
 void	event_remove(Event *event);
 void	event_process(void);
 void	event_preview_save(void);
@@ -750,6 +806,32 @@ int		exec_wait(char *command, char *arg);
 void	exec_no_wait(char *command, char *arg);
 Event	*exec_child_event(char *event_name, char *command, char *arg);
 
+void	preset_command(char *args);
+void	preset_config_load(void);
+void	preset_config_save(void);
+void	preset_state_save(void);
+void	preset_state_load(void);
+void	preset_load_values(boolean do_pan);
+void	preset_on_check(int pan, int tilt);
+PresetPosition *preset_find_at_position(int pan, int tilt);
+void	preset_settings_set_modified(void);
+void	preset_regions_set_modified(void);
+void	preset_pan_range(int *max, int *min);
+void	preset_tilt_range(int *max, int *min);
+
+void	gpio_alt_function(int pin, int altfn);
+void	gpio_set_mode(int pin, int mode);
+void	gpio_set_pud(int pin, int pud);
+void	gpio_to_channel(int gpio, int *channel, int *altfn);
+int		gpio_read(int pin);
+void	gpio_write(int pin, int level);
+void	gpio_hardware_pwm(int pin);
+void	servo_get_position(int *pan, int *tilt);
+void	servo_move(int pan, int tilt, int delay);
+void	servo_command(char *args);
+void	servo_init(void);
+
+void	set_exec_with_session(boolean set);
 void	sun_times_init(void);
 void	at_commands_config_save(char *config_file);
 boolean	at_commands_config_load(char *config_file);

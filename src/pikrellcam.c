@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -31,6 +31,10 @@ extern int setup_mjpeg_tcp_server(void);
 
 static char	*pgm_name;
 static boolean	quit_flag;
+
+static uid_t  user_uid;
+static gid_t  user_gid;
+static char   *homedir;
 
   /* Substitute fmt_arg into str to replace a "$V" substitution variable. 
   |  "str" argument must be allocated memory.
@@ -296,7 +300,7 @@ still_capture(char *fname)
 
 	/* timelapse_shapshot() also uses the still_jpeg_encoder, so wait if busy.
 	*/
-	for (n = 0; n < 5; ++n)
+	for (n = 0; n < 10; ++n)
 		{
 		if (still_jpeg_encoder.file == NULL)
 			break;
@@ -327,12 +331,13 @@ still_capture(char *fname)
 			result = TRUE;
 			log_printf("Still: %s\n", fname);
 			dup_string(&pikrellcam.still_last, fname);
-			pikrellcam.state_modified = TRUE;
 			n = pikrellcam.notify_duration * EVENT_LOOP_FREQUENCY;
 
+			event_list_lock();
 			if ((event = event_find("still saved")) != NULL)
 				event->count = n;	/* rapid stills, extend the time */
-			else
+			event_list_unlock();
+			if (!event)
 				event_count_down_add("still saved", n,
 						event_notify_expire, &pikrellcam.still_notify);
 			pikrellcam.still_capture_event = TRUE;
@@ -354,7 +359,7 @@ timelapse_capture(void)
 
 	/* still_capture()  also uses the still_jpeg_encoder, so wait if busy.
 	*/
-	for (n = 0; n < 5; ++n)
+	for (n = 0; n < 10; ++n)
 		{
 		if (still_jpeg_encoder.file == NULL)
 			break;
@@ -372,26 +377,28 @@ timelapse_capture(void)
 						pikrellcam.timelapse_format,
 						'N',  seq_buf,
 						'n',  series_buf);
-	time_lapse.sequence += 1;
 
 	if ((still_jpeg_encoder.file = fopen(path, "w")) == NULL)
 		log_printf("Could not create timelapse file %s.  %m\n", path);
 	else
 		{
+		dup_string(&pikrellcam.timelapse_jpeg_last, path);
+		pikrellcam.timelapse_capture_event = TRUE;
 		if ((status = mmal_port_parameter_set_boolean(
 						camera.component->output[CAMERA_CAPTURE_PORT],
 						MMAL_PARAMETER_CAPTURE, 1)) != MMAL_SUCCESS)
 			{
 			fclose(still_jpeg_encoder.file);
+			unlink(path);
 			still_jpeg_encoder.file = NULL;
+			dup_string(&pikrellcam.timelapse_jpeg_last, "failed");
+			pikrellcam.timelapse_capture_event = FALSE;
 			log_printf("Timelapse capture startup failed. Status %s\n",
 						mmal_status[status]);
 			}
 		else
 			{
 			log_printf("Timelapse still: %s\n", path);
-			dup_string(&pikrellcam.timelapse_jpeg_last, path);
-			pikrellcam.state_modified = TRUE;
 
 			/* timelapse_capture() is an event call (inside the event loop)
 			|  and we here add an event to the list.
@@ -574,7 +581,9 @@ video_record_stop(VideoCircularBuffer *vcb)
 			asprintf(&cmd, "(MP4Box %s -tmp %s -fps %d -add %s %s %s && rm %s %s)",
 				pikrellcam.verbose ? "" : "-quiet",
 				tmp_dir,
-				pikrellcam.camera_adjust.video_mp4box_fps,
+				(pikrellcam.camera_adjust.video_mp4box_fps > 0) ?
+						pikrellcam.camera_adjust.video_mp4box_fps :
+						pikrellcam.camera_adjust.video_fps,
 				pikrellcam.video_h264, pikrellcam.video_pathname,
 				pikrellcam.verbose ? "" : "2> /dev/null",
 				pikrellcam.video_h264,
@@ -643,7 +652,7 @@ get_arg_pass1(char *arg)
 
 	if (!strcmp(arg, "-V") || !strcmp(arg, "--version"))
 		{
-		printf("%s\n", pikrellcam.version);
+		printf("%s\n", PIKRELLCAM_VERSION);
 		exit(0);
 		}
 	else if (!strcmp(arg, "-h") || !strcmp(arg, "--help"))
@@ -651,25 +660,18 @@ get_arg_pass1(char *arg)
 		/* XXX */
 		exit(0);
 		}
-#if 0
-	else if (!strcmp(arg, "-d") || !strcmp(arg, "--detach"))
-		{
-		if (getppid() != 1)  /* if not already a daemon */
-			{
-			if (daemon(0, 0)) /* Detach from terminal, reparent to pid 1 */
-				{
-				printf("Detach failed\n");
-				exit(1);
-				}
-			}
-		}
-#endif
 	else if (!strcmp(arg, "-v"))
 		pikrellcam.verbose = TRUE;
 	else if (!strcmp(arg, "-vm"))
 		pikrellcam.verbose_motion = TRUE;
 	else if (!strcmp(arg, "-debug"))
 		pikrellcam.debug = TRUE;
+	else if (!strncmp(arg, "-user", 5))
+		user_uid = atoi(arg + 5);
+	else if (!strncmp(arg, "-group", 6))
+		user_gid = atoi(arg + 6);
+	else if (!strncmp(arg, "-home", 5))
+		homedir = strdup(arg + 5);
 	else
 		return FALSE;
 	return TRUE;
@@ -704,6 +706,8 @@ typedef enum
 	annotate_string,
 	delete_log,
 	fix_thumbs,
+	servo_cmd,
+	preset_cmd,
 	upgrade,
 	quit
 	}
@@ -730,7 +734,7 @@ static Command commands[] =
 	{ "tl_hold",    tl_hold,     1, TRUE },
 	{ "tl_show_status",  tl_show_status,   1, FALSE },
 
-	{ "motion",        motion_cmd,     1, TRUE },
+	{ "motion",        motion_cmd,     1, FALSE },
 	{ "motion_enable", motion_enable,  1, TRUE },
 
 	/* Above commands are redirected to abort a menu or adjustment display
@@ -751,6 +755,8 @@ static Command commands[] =
 	{ "delete_log", delete_log,    0, TRUE },
 	{ "fix_thumbs", fix_thumbs,    1, TRUE },
 	{ "annotate_string", annotate_string, 1, FALSE },
+	{ "preset", preset_cmd, 1, FALSE },
+	{ "servo", servo_cmd, 1, FALSE },
 	{ "upgrade", upgrade,    0, TRUE },
 	{ "quit",       quit,    0, TRUE },
 	};
@@ -901,6 +907,7 @@ command_process(char *command_line)
 			time_lapse.period = n;
 			config_timelapse_save_status();
 			config_set_boolean(&time_lapse.show_status, "on");
+			pikrellcam.state_modified = TRUE;
 			break;
 
 		case tl_hold:
@@ -935,6 +942,7 @@ command_process(char *command_line)
 				exec_no_wait(pikrellcam.timelapse_convert_cmd, NULL);
 
 				config_set_boolean(&time_lapse.show_status, "on");
+				pikrellcam.state_modified = TRUE;
 				display_inform("\"Timelapse ended.\" 3 3 1");
 				display_inform("\"Starting convert...\" 4 3 1");
 				display_inform("timeout 2");
@@ -971,6 +979,7 @@ command_process(char *command_line)
 
 		case tl_show_status:
 			config_set_boolean(&time_lapse.show_status, args);
+			pikrellcam.state_modified = TRUE;
 			break;
 
 		case display_cmd:
@@ -1095,6 +1104,14 @@ command_process(char *command_line)
 				log_printf("Wrong number of args for command: %s\n", command);
 			break;
 
+		case preset_cmd:
+			preset_command(args);
+			break;
+
+		case servo_cmd:
+			servo_command(args);
+			break;
+
 		case upgrade:
 			snprintf(buf, sizeof(buf), "%s/scripts-dist/_upgrade $I $P $G $Z",
 						pikrellcam.install_dir);
@@ -1103,8 +1120,11 @@ command_process(char *command_line)
 
 		case quit:
 			config_timelapse_save_status();
+			preset_state_save();
 			if (pikrellcam.config_modified)
 				config_save(pikrellcam.config_file);
+			if (pikrellcam.preset_modified)
+				preset_config_save();
 			display_quit();
 			exit(0);
 			break;
@@ -1185,11 +1205,31 @@ static void
 signal_quit(int sig)
 	{
 	config_timelapse_save_status();
+	preset_state_save();
 	if (pikrellcam.config_modified)
 		config_save(pikrellcam.config_file);
+	if (pikrellcam.preset_modified)
+		preset_config_save();
 	display_quit();
 	log_printf("quit signal received - exiting!\n");
 	exit(0);
+	}
+
+static void
+log_start(boolean start_sep, boolean time, boolean end_sep)
+	{
+	char	buf[100];
+
+	if (start_sep)
+		log_printf_no_timestamp("\n========================================================\n");
+	if (time)
+		{
+		strftime(buf, sizeof(buf), "%F %T", localtime(&pikrellcam.t_now));
+		log_printf_no_timestamp("======= PiKrellCam %s started at %s\n",
+					pikrellcam.version, buf);
+		}
+	if (end_sep)
+		log_printf_no_timestamp("========================================================\n");
 	}
 
 int
@@ -1197,37 +1237,80 @@ main(int argc, char *argv[])
 	{
 	int		fifo;
 	int	 	i, n;
-	char	*opt, *arg, *equal_arg, *homedir, *user;
+	char	*opt, *arg, *equal_arg, *user;
 	char	*line, *eol, buf[4096];
 
 	pgm_name = argv[0];
-	bcm_host_init();
 	setlocale(LC_TIME, "");
 
 	time(&pikrellcam.t_now);
 
-	config_set_defaults();
-
 	for (i = 1; i < argc; i++)
 		get_arg_pass1(argv[i]);
 
+	config_set_defaults(homedir);
+
 	if (!config_load(pikrellcam.config_file))
 		config_save(pikrellcam.config_file);
-	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file, FALSE))
-		motion_regions_config_save(pikrellcam.motion_regions_config_file, FALSE);
+	if (quit_flag)	/* Just making sure initial config file is written */
+		exit(0);
 
-	if (*pikrellcam.log_file != '/')
+	if (!pikrellcam.log_file || !*pikrellcam.log_file)
+		pikrellcam.log_file = strdup("/dev/null");
+	else if (*pikrellcam.log_file != '/')
 		{
 		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, pikrellcam.log_file);
 		dup_string(&pikrellcam.log_file, buf);
 		}
-	if (!quit_flag)
+
+	/* If need to mmap() gpios for servos, restart a sudo pikrellcam which can
+	|  mmap() /dev/mem and then drop priviledes back to orig user/group
+	*/
+	if (getuid() == 0)	/* root, so mmap(), drop privileges and continue */
 		{
-		log_printf_no_timestamp("\n========================================================\n");
-		strftime(buf, sizeof(buf), "%F %T", localtime(&pikrellcam.t_now));
-		log_printf_no_timestamp("%s ===== PiKrellCam %s started =====\n", buf, pikrellcam.version);
-		log_printf_no_timestamp("========================================================\n");
+		log_start(FALSE, TRUE, FALSE);
+		servo_init();
+		if (user_gid > 0)
+			setgid(user_gid);
+		setuid(user_uid);
+		log_printf_no_timestamp("== Dropped root priviledges-continuing as normal user ==\n");
+		log_start(FALSE, FALSE, TRUE);
 		}
+	else if (pikrellcam.have_servos && !pikrellcam.servo_use_servoblaster)
+		{
+		/* Need to restart pikrellcam as root so can mmap() PWMs for servos.
+		*/
+		log_start(TRUE, FALSE, FALSE);
+		log_printf_no_timestamp("========= Restarting as root to mmap() servos ==========\n");
+		homedir = getpwuid(geteuid())->pw_dir;
+		i = snprintf(buf, sizeof(buf), "sudo %s -user%d -group%d -home%s ",
+				*argv++, (int) getuid(), (int) getgid(), homedir);
+		while (--argc && i < sizeof(buf) - 64 - strlen(*argv))
+			i = sprintf(buf + i, "%s ", *argv++);
+
+		set_exec_with_session(FALSE);
+		exec_wait(buf, NULL);	/*  restart as root so can mmap() gpios*/
+		exit(0);
+		}
+	else if (pikrellcam.servo_use_servoblaster)
+		{
+		log_start(TRUE, TRUE,FALSE);
+		servo_init();
+		log_start(FALSE, FALSE, TRUE);
+		}
+	else
+		log_start(TRUE, TRUE, TRUE);
+
+	bcm_host_init();
+	if (!homedir)
+		homedir = getpwuid(geteuid())->pw_dir;
+
+	user = strrchr(homedir, '/');
+	pikrellcam.effective_user = strdup(user ? user + 1 : "pi");
+
+	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file, FALSE))
+		motion_regions_config_save(pikrellcam.motion_regions_config_file, FALSE);
+	preset_config_load();
 
 	if (!at_commands_config_load(pikrellcam.at_commands_config_file))
 		at_commands_config_save(pikrellcam.at_commands_config_file);
@@ -1237,11 +1320,6 @@ main(int argc, char *argv[])
 		if (get_arg_pass1(argv[i]))
 			continue;
 		opt = argv[i];
-
-		/* Just for initial install-pikrellcam.sh run to create config files.
-		*/
-		if (!strcmp(opt, "-quit"))
-			exit(0);
 
 		/* Accept: --opt arg   -opt arg    opt=arg    --opt=arg    -opt=arg
 		*/
@@ -1271,10 +1349,6 @@ main(int argc, char *argv[])
 
 	if (pikrellcam.debug)
 		printf("debugging...\n");
-
-	homedir = getpwuid(geteuid())->pw_dir;
-	user = strrchr(homedir, '/');
-	pikrellcam.effective_user = strdup(user ? user + 1 : "pi");
 
 	if (*pikrellcam.media_dir != '/')
 		{
@@ -1313,8 +1387,9 @@ main(int argc, char *argv[])
 	   )
 		exit(1);
 
-	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G",
-								pikrellcam.install_dir);
+	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G %s",
+		pikrellcam.install_dir,
+		(pikrellcam.have_servos) ? "servos_on" : "servos_off");
 	exec_wait(buf, NULL);
 
 	/* User may have enabled a mount disk on media_dir
@@ -1344,6 +1419,7 @@ main(int argc, char *argv[])
 	
 	camera_start();
 	config_timelapse_load_status();
+	preset_state_load();
 	pikrellcam.state_modified = TRUE;
 
 	signal(SIGINT, signal_quit);

@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -512,7 +512,7 @@ config_value_int_set(char *arg, ConfigResult *result)
 	{
 	int	valid = TRUE;
 
-	if (isdigit(*arg))
+	if (isdigit(*arg) || (*arg == '-' && isdigit((*(arg + 1)))))
 		*result->value = atoi(arg);
 	else
 		{
@@ -532,15 +532,6 @@ static Config  config[] =
 	  "# the install-pikrellcam.sh script.  This should not need to be edited.\n"
 	  "#",
 	"install_dir", "/home/pi/pikrellcam", TRUE, { .string = &pikrellcam.install_dir }, config_string_set },
-
-	{ "# Directory for the stream mjpeg file and info file. These files\n"
-	  "# are frequently updated so this directory should be in a tmpfs.\n"
-	  "# This could be a directory in /tmp if your /tmp is a tmpfs.\n"
-	  "# Avoid putting this directory under /run/shm or /dev/shm because these\n"
-	  "# directories are subject to automatic cleanups which could delete the\n"
-	  "# tmpfs_dir out from under a running pikrellcam if running headless.\n"
-	  "#",
-	"tmpfs_dir",  "/run/pikrellcam", TRUE, { .string = &pikrellcam.tmpfs_dir }, config_string_set },
 
 	{ "# If media_dir has no leading '/' it will be a sub directory in install_dir.\n"
 	  "# Otherwise it is a full pathname to the media directory.\n"
@@ -568,7 +559,7 @@ static Config  config[] =
 	{ "# At startup and at each new day, trim the log file number of lines\n"
 	  "# to log_lines.  If log_lines is 0 the log file is not trimmed.\n"
 	  "#",
-	"log_lines", "1000", FALSE, {.value = &pikrellcam.log_lines}, config_value_int_set},
+	"log_lines", "500", FALSE, {.value = &pikrellcam.log_lines}, config_value_int_set},
 
 	{ "# Command to run at PiKrellCam startup.  This is run after the config\n"
 	  "# files are loaded but before the camera is started or directories\n"
@@ -582,28 +573,24 @@ static Config  config[] =
 
 
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
+	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
+	  "# Vector and burst limits/counts are no longer saved in pikrellcam.conf.\n"
 	  "#\n"
 	  "# Enable pikrellcam motion detection at startup\n"
 	  "#",
-	"motion_enable",        "off", FALSE, {.value = &pikrellcam.motion_enable},       config_value_bool_set},
+	"motion_enable",	"off", FALSE, {.value = &pikrellcam.motion_enable},       config_value_bool_set},
 
-	{ "# Motion vectors must be at least this magnitude for a motion detect.\n"
-	  "# Minimum is 3 for detecting the slowest moving objects possible.\n"
+	{ "# If off, do not detect motion when servos are off a preset.\n"
 	  "#",
+	"motion_off_preset",	"off", FALSE, {.value = &pikrellcam.motion_off_preset},       config_value_bool_set},
+
+	{ "#OBSOLETE",
 	"motion_magnitude_limit",  "5", FALSE, {.value = &pikrellcam.motion_magnitude_limit},      config_value_int_set},
-
-	{ "# The count of vectors required for a motion detect.\n"
-	  "# Minimum is 2 for detecting the smallest objects possible.\n"
-	  "#",
+	{ "#OBSOLETE",
 	"motion_magnitude_limit_count",  "4", FALSE, {.value = &pikrellcam.motion_magnitude_limit_count},      config_value_int_set},
-
-	{ "# Motion vector count minimum for a burst motion detect.\n"
-	  "# For large/close object detection.\n"
-	  "#",
+	{ "#OBSOLETE",
 	"motion_burst_count",  "400", FALSE, {.value = &pikrellcam.motion_burst_count},      config_value_int_set},
-
-	{ "# The number of sustained frames for a burst motion detect.\n"
-	  "#",
+	{ "#OBSOLETE",
 	"motion_burst_frames",  "3", FALSE, {.value = &pikrellcam.motion_burst_frames},      config_value_int_set},
 
 	{ "# Time length limit of motion video record excluding pre_capture time.\n"
@@ -686,12 +673,16 @@ static Config  config[] =
 	  "#",
 	"motion_preview_clean",  "on", FALSE, {.value = &pikrellcam.motion_preview_clean}, config_value_bool_set },
 
+	{ "# If on, show extra vector count data on the OSD when presets are shown.\n"
+	  "#",
+	"motion_show_counts",  "off", FALSE, {.value = &pikrellcam.motion_show_counts}, config_value_bool_set },
+
 	{ "# Minimum width and height in pixels for the substitution width and height\n"
 	  "# variables for motion detect areas in the preview jpeg.\n"
 	  "# This minimum helps with possible frame skew for smaller relatively\n"
 	  "# faster moving objects.\n"
 	  "#",
-	"motion_area_min_side",  "60", FALSE, {.value = &pikrellcam.motion_area_min_side}, config_value_int_set },
+	"motion_area_min_side",  "80", FALSE, {.value = &pikrellcam.motion_area_min_side}, config_value_int_set },
 
 	{ "# Enable writing a motion statistics .csv file for each motion video.\n"
 	  "# For users who have a need for advanced video post processing.\n"
@@ -774,10 +765,11 @@ static Config  config[] =
 	"video_fps",      "24", FALSE, {.value = &pikrellcam.camera_adjust.video_fps},        config_value_int_set },
 
 	{ "# MP4Box output frames per second if video filename is a .mp4\n"
-	  "# If this is different from video_fps, the final mp4 will be a\n"
-	  "# slow or fast motion video.\n"
+	  "# If this is non zero and different from video_fps, the final mp4 will\n"
+	  "# be a slow or fast motion video.\n"
+	  "# Normally leave this set to zero so it will track video_fps.\n"
 	  "#",
-	"video_mp4box_fps", "24", FALSE, {.value = &pikrellcam.camera_adjust.video_mp4box_fps},        config_value_int_set },
+	"video_mp4box_fps", "0", FALSE, {.value = &pikrellcam.camera_adjust.video_mp4box_fps},        config_value_int_set },
 
 	{ "# Video bitrate affects the quality and size of a video recording.\n"
 	  "# Along with pre_capture and event_gap times, it also determines the\n"
@@ -790,13 +782,18 @@ static Config  config[] =
 	"video_bitrate",  "6000000", TRUE, {.value = &pikrellcam.camera_adjust.video_bitrate},    config_value_int_set },
 
 	{ "# Pixel width of the stream jpeg file. Aspect ratio is determined by the video.\n"
+	  "# This value will be rounded off to be a multiple of 16.  If you want\n"
+	  "# a larger image but not increase bandwith usage, try a mjpeg_width of\n"
+	  "# 1024 with a mjpeg_quality 10.\n"
 	  "#",
-	"mjpeg_width",    "640",  TRUE, {.value = &pikrellcam.mjpeg_width},      config_value_int_set },
+	"mjpeg_width",    "800",  TRUE, {.value = &pikrellcam.mjpeg_width},      config_value_int_set },
 
 	{ "# Quality factor (up to 100) affects the quality and size of the stream jpeg.\n"
-	  "# Set this lower if you need to reduce the stream bandwidth.\n"
+	  "# Set this lower if you need to reduce the stream bandwidth.  The value\n"
+	  "# is not the same as quality factors in other jpeg programs and should\n"
+	  "# be set lower than those programs.\n"
 	  "#",
-	"mjpeg_quality",  "14",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
+	"mjpeg_quality",  "10",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
 
 	{ "# Divide the video_fps by this to get the stream jpeg file update rate.\n"
 	  "# This will also be the motion frame check rate for motion detection.\n"
@@ -835,7 +832,7 @@ static Config  config[] =
 
 	{ "# This quality factor affects the size and quality of still captures.\n"
 	  "#",
-	"still_quality", "30", TRUE, {.value = &pikrellcam.camera_adjust.still_quality},   config_value_int_set },
+	"still_quality", "14", TRUE, {.value = &pikrellcam.camera_adjust.still_quality},   config_value_int_set },
 
 	{ "# Command to run after a still capture.\n"
 	  "# email the still somewhere with:\n"
@@ -872,6 +869,74 @@ static Config  config[] =
 	  "#",
 	"timelapse_convert", "$c/_timelapse-convert $m $T $n $G $P $l", TRUE,
 						{.string = &pikrellcam.timelapse_convert_cmd}, config_string_set },
+
+
+	{ "\n# ------------------- Servo/Preset Options  -----------------------\n"
+	  "#\n"
+	  "# PiKrellCam can use internal hardware PWM code to drive servos and for\n"
+	  "# this there is no extra install required.\n"
+	  "# For hardware PWM, the pan/tilt or tilt/pan gpio pairs must be one of\n"
+	  "#     12,13  12,19  18,13  18,19\n"
+	  "# and these are Pi hardware gpio header pin numbers.\n"
+	  "# \n"
+	  "# Or, PiKrellCam can use ServoBlaster and will then send servo commands\n"
+	  "# to /dev/servoblaster.  But for this, a separate ServoBlaster install\n"
+	  "# and configuration to run is required.\n"
+	  "# For ServoBlaster, the PiKrellCam servo pan/tilt gpio values should not\n"
+	  "# be Pi header gpio numbers but instead should be one of the ServoBlaster\n"
+	  "# documented servo numbers 0 - 7.  See ServoBlaster documentation.\n"
+	  "# \n"
+	  "# Leave the gpios at -1 if not using servos.\n"
+	  "#",
+	"servo_pan_gpio", "-1", FALSE, {.value = &pikrellcam.servo_pan_gpio}, config_value_int_set },
+
+	{ "#",
+	"servo_tilt_gpio", "-1", FALSE, {.value = &pikrellcam.servo_tilt_gpio}, config_value_int_set },
+
+	{ "# Set to true to use ServoBlaster for servos.  A separate install of\n"
+	  "# ServoBlaster will be required.\n"
+	  "#",
+	"servo_use_servoblaster",  "false", TRUE, {.value = &pikrellcam.servo_use_servoblaster }, config_value_bool_set },
+
+	{ "# pan/tilt min/max values are best set using the web OSD.\n"
+	  "# The value units are 0.01 msec, so for example, a servo_pan_min of\n"
+	  "# 120 would limit the pan servo control pulse to a 1.2 msec minimum.\n"
+	  "#",
+	"servo_pan_min", "120", FALSE, {.value = &pikrellcam.servo_pan_min}, config_value_int_set },
+
+	{ "#",
+	"servo_pan_max", "180", FALSE, {.value = &pikrellcam.servo_pan_max}, config_value_int_set },
+
+	{ "#",
+	"servo_tilt_min", "130", FALSE, {.value = &pikrellcam.servo_tilt_min}, config_value_int_set },
+
+	{ "#",
+	"servo_tilt_max", "170", FALSE, {.value = &pikrellcam.servo_tilt_max}, config_value_int_set },
+
+	{ "# Set invert values to on if the servo turns the wrong way.\n"
+	  "#",
+	"servo_pan_invert",  "off", FALSE, {.value = &pikrellcam.servo_pan_invert}, config_value_bool_set },
+
+	{ "#",
+	"servo_tilt_invert",  "off", FALSE, {.value = &pikrellcam.servo_tilt_invert}, config_value_bool_set },
+
+	{ "# Servo moves have three modes: move by one step, by servo_move_steps,\n"
+	  "# or move continuous until stopped or a min/max limit is reached.\n"
+	  "# Set here the number of steps wanted for the second mode.\n"
+	  "#",
+	"servo_move_steps",  "10", FALSE, {.value = &pikrellcam.servo_move_steps }, config_value_int_set },
+
+	{ "# Delay in msec between servo pulse width steps for servo move commands.\n"
+	  "#",
+	"servo_move_step_msec",  "40", FALSE, {.value = &pikrellcam.servo_move_step_msec }, config_value_int_set },
+
+	{ "# Delay in msec between servo pulse width steps when going to a preset.\n"
+	  "#",
+	"servo_preset_step_msec",  "20", FALSE, {.value = &pikrellcam.servo_preset_step_msec }, config_value_int_set },
+
+	{ "# Delay in msec after servo stops moving before enabling motion detection.\n"
+	  "#",
+	"servo_settle_msec",  "600", FALSE, {.value = &pikrellcam.servo_settle_msec }, config_value_int_set },
 
 
 	{ "\n# ------------------- Miscellaneous Options  -----------------------\n"
@@ -926,7 +991,7 @@ static Config  config[] =
 
 	{ "# Annotate text size. Range: integer from 6 - 160\n"
 	  "#",
-	"annotate_text_size",    "32", FALSE, {.value = &pikrellcam.annotate_text_size },   config_value_int_set },
+	"annotate_text_size",    "40", FALSE, {.value = &pikrellcam.annotate_text_size },   config_value_int_set },
 	};
 
 #define CONFIG_SIZE (sizeof(config) / sizeof(Config))
@@ -959,11 +1024,10 @@ config_set_option(char *opt, char *arg, boolean set_safe)
 	}
 
 void
-config_set_defaults(void)
+config_set_defaults(char *home_dir)
 	{
 	CameraParameter	*param;
 	Config			*cfg;
-	char			*home_dir;
 	boolean			valid;
 
 	/* Camera parameter table and pikrellcam config table have initial value pointers
@@ -992,8 +1056,10 @@ config_set_defaults(void)
 	/* If pikrellcam started by rc.local or web page, need to get correct
 	|  home directory.  Makefile does a setuid/setgid on executable.
 	*/
-	home_dir = getpwuid(geteuid())->pw_dir;
+	if (!home_dir)
+		home_dir = getpwuid(geteuid())->pw_dir;
 	asprintf(&pikrellcam.config_dir, "%s/%s", home_dir, PIKRELLCAM_CONFIG_DIR);
+	pikrellcam.tmpfs_dir = strdup("/run/pikrellcam");
 
 	if (make_directory(pikrellcam.config_dir))
 		{
@@ -1014,7 +1080,7 @@ config_set_defaults(void)
 	motion_command("add_region 0.266 0.159 0.233 0.756");
 	motion_command("add_region 0.500 0.150 0.233 0.750");
 	motion_command("add_region 0.734 0.156 0.224 0.753");
-	motion_frame.show_regions = FALSE;
+	motion_frame.show_preset = FALSE;
 	}
 
 boolean
@@ -1028,7 +1094,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 15;
+	pikrellcam.config_sequence_new = 31;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -1047,6 +1113,9 @@ config_load(char *config_file)
 			printf("Bad config file option: %s\n", linebuf);
 		}
 	fclose(f);
+
+	/* Round off mjpeg_width to multiple of 16 */
+	pikrellcam.mjpeg_width = (pikrellcam.mjpeg_width + 8) & ~0xf;
 
 	if (pikrellcam.motion_magnitude_limit < 3)
 		pikrellcam.motion_magnitude_limit = 3;
@@ -1084,6 +1153,22 @@ config_load(char *config_file)
 
 	camera_adjust_temp = pikrellcam.camera_adjust;
 	motion_times_temp = pikrellcam.motion_times;
+
+	if (   (pikrellcam.servo_use_servoblaster && pikrellcam.servo_pan_gpio >= 0)
+	    || (   !pikrellcam.servo_use_servoblaster
+	        && (   pikrellcam.servo_pan_gpio == 12 || pikrellcam.servo_pan_gpio == 13
+	            || pikrellcam.servo_pan_gpio == 18 || pikrellcam.servo_pan_gpio == 19
+	           )
+	       )
+	   )
+		pikrellcam.have_servos = TRUE;
+
+	asprintf(&pikrellcam.preset_config_file, "%s/preset-%s.conf",
+					pikrellcam.config_dir,
+					pikrellcam.have_servos ? "servos" : "no-servos");
+	asprintf(&pikrellcam.preset_state_file, "%s/preset-%s.state",
+					pikrellcam.config_dir,
+					pikrellcam.have_servos ? "servos" : "no-servos");
 
 	if (pikrellcam.config_sequence_new != pikrellcam.config_sequence)
 		{
@@ -1128,6 +1213,8 @@ config_save(char *config_file)
 		);
 	for (cfg = &config[0]; cfg < &config[CONFIG_SIZE]; ++cfg)
 		{
+		if (!strncmp("#OBSOLETE", cfg->description, 9))	/* do not save */
+			continue;
 		fprintf(f, "%s\n", cfg->description);
 		if (cfg->config_func == config_value_int_set)
 			fprintf(f, "%s %d\n\n", cfg->option, *(cfg->result.value));

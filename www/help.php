@@ -64,6 +64,41 @@ And there is a Raspberry Pi
 Under construction...
 </div>
 
+<span style='font-size: 1.5em; font-weight: 650;'>Version 3.0 Upgrade Notice for Version 2.x Users</span><hr>
+<div class='indent0'>
+The upgrade from PiKrellcam V2.x to PiKrellCam V3.0 adds presets and servo control.<br>
+This is documented below on this page, but there are changes in how
+motion regions usage is handled that is important to be aware of up front:
+<ul>
+	<li> The use of saving and loading of motion regions by name is no longer the primary
+	way to change the motion regions in effect.  Saving and loading regions by name now
+	has a new role of maintaining a set of motion regions as temporaries for backup or
+	using as an initial condition to be loaded when creating a new preset.
+	</li>
+	<li> If motion regions are edited or a new set loaded by name, the changes are
+	automatically stored into the current preset (unless you have servos and are off
+	a preset - see below).  So if you edit motion regions the current preset is
+	changed and there is no need to save by name unless you want the backup.
+	</li>
+	<li> When pikrellcam is restarted, it loads the preset you were on when pikrellcam
+	stopped.  If for example, you have a preset 1 set up for default use and a preset 2
+	for windy conditions, then if you want to be sure that at program start preset 1 is
+	selected, you should have in at-commands.conf:
+<pre>
+daily  start  "@preset goto 1 1"
+</pre>
+	If you have servos, you might want to have a position number other than "1".<br>
+	This would replace the use of an at command to load regions and if you have such
+	a startup motion load_regions command, you probably want to take that out.  If you
+	don't take it out and don't have a startup preset goto, the regions will be loaded
+	into whatever preset you restart with which can be not what you want.
+	If you do use a startup
+	preset goto command, also having a startup motion load_regions is likely redundant
+	because the preset remembers its motion regions.
+	</li>
+</ul>
+</div>
+
 
 <span style='font-size: 1.5em; font-weight: 650;'>Install</span><hr>
 <div class='indent0'>
@@ -105,7 +140,8 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 		<span style='font-weight:700'>System</span> panel and start the PiKrellCam prgram
 		by clicking the button
 		<span class='btn-control'>Start</span>
-		<br>After two or three seconds, the preview image from the camera should appear.
+		<br>After two or three seconds (startup can be slower on a Pi 1),
+		the preview image from the camera should appear.
 		If it does not you should get in its place an error image indicating that the
 		camera could not be started.  This can happen if the camera is busy (another program
 		is using it) or if there is a problem with the ribbon cable camera connection.
@@ -119,17 +155,17 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 		and PiKrellCam is now operating with its default settings.
 	</li>
 	<li>Wait for motion to be detected and watch the OSD for the video record progress.<br>
-		After the video ends, view it by going to the Thumbs (or Videos) page by clicking:
-		<span style='font-weight:700'>Media:</span> <span class='btn-control'>Thumbs</span>
+		After the video ends, view it by going to the Videos page by clicking:
+		<span style='font-weight:700'>Media:</span> <span class='btn-control'>Videos</span>
 	</li>
 	<li>On the button bar, click the buttons
 		<span style='font-weight:700'>Show:</span>
+		<span class='btn-control'>Preset</span>
 		<span class='btn-control'>Timelapse</span>
-		<span class='btn-control'>Regions</span>
 		<span class='btn-control'>Vectors</span>
 		<br>to toggle showing information PiKrellCam can display on the OSD.
-		This information shows real time motion detection information and gives a feel
-		for motion magnitudes and counts which can be configured to tune motion detection.
+		When you show Preset, you see the currently configured motion detection vector
+		and burst values and the motion detect regions in effect.  See below.
 	</li>
 	<li>A basic first configuration to consider is enabling motion detection to be turned on
 		each time PiKrellCam is started.  To do this, use the OSD menu system:<br>
@@ -138,7 +174,7 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 			Expand the <span style='font-weight:700'>Setup</span> panel.
 			</li>
 			<li>In the
-			<span style='font-weight:700'>Motion</span> group,
+			<span style='font-weight:700'>Config</span> group,
 			click the button <span class='btn-control'>Settings</span>
 			</li>
 			<li>The OSD will show a horizontal menu with
@@ -287,7 +323,7 @@ motion:
 		</div>
 <p>
 You can see the results of PiKrellCam's vector processing on the OSD by turning on
-the showing of Regions and Vectors.  Watching this display will allow you to tune
+the showing of Preset and Vectors.  Watching this display will allow you to tune
 your configured vector limit values to your camera environment.  To
 get a better look at the vectors, you can temporarily raise the mjpeg_divider
 value so the OSD will update more slowly.  
@@ -311,7 +347,10 @@ value so the OSD will update more slowly.
 	<li>Sparkles are camera motion vectors that have no neighbors and PiKrellCam
 		considers them noise and excludes them from the composite vectors.
 	</li>
-	<li>Interpreting the two vector count status lines:
+	<li>The vector count status line will be shown if you set
+		Setup->Config->Settings->Vector_Counts on and Show: Preset.
+		<br>
+		Interpreting the vector count status line:
 		<ul>
 			<li><span style='font-weight:700'>any:47 (17.1)</span> This shows there was
 			a frame total of 47 vectors excluding sparkles passing the magnitude limit test.
@@ -352,20 +391,145 @@ value so the OSD will update more slowly.
 </ul>
 </div>
 
+<span style='font-size: 1.5em; font-weight: 650;'>Servos</span><hr>
+<div class='indent0'>
+PiKrellCam has built in servo control for cameras mounted on servos.
+<ul>
+	<li><span style='font-weight:700'>Hardware PWM</span>: If servos are connected to
+	the hardware PWM GPIO pins, PiKrellCam can directly control the PWM signals and the
+	only configuration needed is to set in pikrellcam.conf
+	<span style='font-weight:700'>servo_pan_gpio</span> and
+	<span style='font-weight:700'>servo_tilt_gpio</span>
+	to the PWM GPIO pin numbers.  So the pan/tilt or tilt/pan gpio pairs must be one of<br>
+	&nbsp;&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>12,13 &nbsp; 12,19 &nbsp; 18,13 &nbsp; 18,19</span><br>
+	Stop pikrellcam before editing ~/.pikrellcam/pikrellcam.conf to set the GPIO values.
+	Then restart pikrellcam, reload the web page and you will have new buttons to control
+	position presets and moving the servos.
+	</li>
+	<li><span style='font-weight:700'>ServoBlaster</span>: If your servos are connected to
+	GPIOs that are not the hardware PWM pins you can use ServoBlaster.
+	Set
+	<span style='font-weight:700'>servo_pan_gpio</span> and
+	<span style='font-weight:700'>servo_tilt_gpio</span>
+	in pikrellcam.conf to the ServoBlaster servo numbers you are using and set
+	<span style='font-weight:700'>servo_use_servoblaster</span> to
+	<span style='font-weight:700'>on</span>.<br>
+	For this a separate install of ServoBlaster is required according to ServoBlaster
+	documentation.<br>
+	Stop pikrellcam before editing ~/.pikrellcam/pikrellcam.conf to set the use
+	servoblaster option and gpio values to ServoBlaster servo numbers.
+	Then restart pikrellcam and reload the web page.
+	</li>
+</ul>
+	After configuring for servos, the first thing to do is to check if the servos move
+	in the right direction when the servo arrow buttons are clicked.  If they do not,
+	then the directions can be inverted in
+		<nobr><span style='font-weight:700'>Setup->Config->Servo</span></nobr>
+</div>
+
+<span style='font-size: 1.5em; font-weight: 650;'>Presets</span><hr>
+<div class='indent0'>
+<img src="images/preset-servos.jpg" alt="preset-servos.jpg"> 
+<p>
+A preset is a camera position with a group of motion detect settings
+(vector magnitude / count and burst count / frames) and a set of motion regions.
+Clicking the preset up/down
+arrows moves to a new settings preset which single click loads a completely new set of
+motion detect settings and motion regions.  So presets can be configured with
+motion detect sensitivities and motion regions appropriate for different weather
+or other conditions and quickly selected with single clicks.
+<p>
+Preset left/right arrow buttons are shown only if servos are configured and
+move the servos to configured position presets.
+<p>
+The Servo button and arrows are shown only if servos are enabled.  Click the
+<span class='btn-control'>Servo</span>
+button to cycle the servo arrow direction buttons through three modes: step by one, step by
+<span style='font-weight:700'>Move_Steps</span>, and scan.  When arrow buttons are in scan
+mode, clicking an arrow will step the servo continuously at
+<span style='font-weight:700'>Move_Step_msec</span>
+rate until the arrow button is clicked
+again or the servo reaches a pan/tilt limit.
+<p>
+<span style='font-weight:700'>Preset behavior without servos:</span>
+<ul>
+	<li> PiKrellCam considers the camera at a single fixed position and will never be
+		off a preset.  There will be only preset up/down arrows and
+		no preset left/right or servo arrows.  The pan/tilt graphics in the above image
+		will not be shown.
+	</li>
+	<li> Any motion settings or regions edits will immediately apply to the currently
+		selected settings preset (Preset up/down arrows).
+	</li>
+	<li> To create a new settings preset, click
+		<nobr><span style='font-weight:700'>Setup->Preset->New</span></nobr>
+		and a new settings preset will be created with the existing
+		motion settings and regions which can then be edited.
+	</li>
+</ul>
+<span style='font-weight:700'>Preset behavior with servos:</span>
+<ul>
+	<li> If <nobr><span style='font-weight:700'>Setup->Config->Servo->Motion_Off_Preset</span></nobr> is
+		<span style='font-weight:700'>OFF</span>,
+		motion detection applies only if the servos are on a preset and if the servos are
+		moved off a position preset with the servo arrow buttons
+		then motion detection is put on hold.  Set this option to
+		<span style='font-weight:700'>ON</span>
+		if you want to have motion detected even if a servo position is off a preset.
+	</li>
+	<li> Presets cannot be created with different tilt positions at the same pan
+		position.
+	</li>
+	<li> When the servos are on a position preset, a new settings for the position
+		is created with
+		<nobr><span style='font-weight:700'>Setup->Preset->New</span></nobr>
+	</li>
+	<li> To create a preset at a new position:
+	<ul>
+		<li>Move the servos to the desired position and click <br>
+		&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>Setup->Preset->New</span><br>
+		and you can then edit the settings and motion regions for the preset.
+		<br>
+		Or you may move the servos off a preset and edit
+		the settings or regions before creating the new preset and the OSD will warn you
+		that you will need to create a new preset or else your edits will not be saved.
+		If you move the servos back to an existing preset before creating a new one,
+		your edits will be replaced with the preset settings.
+		</li>
+		<li>Copy an existing set of settings from a position preset to a new preset at
+		a new position.<br>
+		To do this, first move the servos to the existing preset you want to
+		copy the settings from.
+		Then, use the Servo arrows to move the camera to the new position (don't let
+		the servo position fall on any other preset), and click<br>
+		&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>Setup->Preset->Copy</span><br>
+		</li>
+	</ul>
+	</li>
+</ul>
+</div>
+
+
 <span style='font-size: 1.5em; font-weight: 650;'>Motion Regions Panel</span><hr>
 <img src="images/motion-regions.jpg" alt="motion-regions.jpg"> 
 <div class='indent0'>
+As motion regions are edited, they are saved to the current preset unless servos are
+configured and the servo position is not on a preset.  If the servo position is not on
+a preset, motion region edits will be lost unless you create a new preset or save the
+motion regions by name.
+<p>
 Motion regions outline areas of the camera view that will be
 sensitive to motion and provides for excluding from motion detection areas such
 as wind blown vegetation.
-Motion regions may be added, deleted, resized or moved.  After the
-motion regions have been edited, they may be saved and loaded by name.  Typically, a region
-will be configured for a particular camera setup and then saved by name.  Then that motion region
-setup can be automatically loaded when PiKrellCam starts - see the example in the at commands
-section.  If you save an edited motion regions to the special name
-<span style='font-weight:700'>default</span>, then your modified regions will load
-at startup without having to configure an at command motion regions load.
+Motion regions may be added, deleted, resized or moved at each preset.
 
+Motion regions may also be saved by name and this provides a way to maintain a set of
+motion regions as a backup or a temporary.  For example, a backup motion region by
+name can be loaded as an initial condition after creating a new preset.  Or temporary
+motion regions by name can be loaded if you have a set of different motion regions you
+want to load to a preset on demand for evaluation.
+If a motion region is loaded by name it is automatically saved to the
+current preset unless you have servos and are off a preset.
 <p>
 The increment of a region resize or move can be coarse or fine by selecting/deselecting the
 <span style='font-weight:700'>Coarse Move</span> select button.  When the increment is fine,
@@ -403,51 +567,16 @@ After a menu is opened and an option or value from it is highlighted
 by clicking the arrow buttons, the option or value must be finalized by clicking the
 <span class='btn-control' >Sel</span>
 button.  This is required for the change to be saved in the configuration file.
-
 <p>
-<span style='font-size: 1.2em; font-weight: 680;'>Camera Config</span>
+If servos are not configured, there will be no Move or Copy buttons in the
+Preset group and there will be no Servo button in the Config group.
+<p>
+<span style='font-size: 1.2em; font-weight: 650;'>Preset</span>
 	<ul>
-		<li><span style='font-weight:700'>Video Presets</span> - selects the video resolution for
-		motion and manual videos.  Different resolutions may have different fields of view. So
-		one reason for selecting
-		<span style='font-weight:700'>720p</span> over
-		<span style='font-weight:700'>1080p</span> would be to get a wider field of view.  Resolutions
-		will have either 16:9 or 4:3 aspect ratio.
-		</li>
-		<li><span style='font-weight:700'>Still Presets</span> - selecting different resolutions
-		gives different fields of view and aspect ratios.
-		</li>
-		<li><span style='font-weight:700'>Adjustments</span>
-		<ul>
-			<li><span style='font-weight:700'>video_bitrate</span> - determines the size of a video
-			and its quality.  Adjust up if it improves video quality.  Adjust down if you want
-			to reduce the size of the videos.
-			</li>
-			<li><span style='font-weight:700'>video_fps</span> - typically this should be no higher
-			than 24 or the motion detecting preview jpeg camera stream may start dropping frames.
-			(I have no data on the effect GPU overclocking might have on this limitation).
-			</li>
-			<li><span style='font-weight:700'>video_mp4box_fps</span> - keep this value the same
-			as video_fps unless you want to create fast or slow motion videos.
-			</li>
-			<li><span style='font-weight:700'>mjpeg_divider</span> - this value is divided into
-			the video_fps value to get the preview jpeg rate.  The preview is updated at this rate
-			and it is the rate that motion vector frames are checked for motion.
-			</li>
-			<li><span style='font-weight:700'>still_quality</span> - adjust up if it improves
-			still jpeg quality.  Adjust down if you want to reduce the size of still jpegs.
-			</li>
-		</ul>
-		</li>
-	</ul>
-<span style='font-size: 1.2em; font-weight: 650;'>Camera Params</span>
-	<div class='indent1'>
-	The camera parameters menus can set the hardware parameters of the Pi camera.
-	</div>
-	<p>
-<span style='font-size: 1.2em; font-weight: 650;'>Motion</span>
-	<ul>
-		<li><span style='font-weight:700'>Vector Limits</span>
+		<li><span style='font-weight:700'>Settings</span><br>
+		These values are part of a preset and editing them applies to the currently
+		selected preset.  If you have servos and are off a preset, editing these values
+		can be done in anticipation of creating a new preset.
 			<ul>
 			<li><span style='font-weight:700'>Vector_Magnitude</span> - sets the minimum magnitude
 			of a motion vector.  Individual motion vector and region composite vector
@@ -486,6 +615,121 @@ button.  This is required for the change to be saved in the configuration file.
 			fastest detects of large objects which may pass quickly through the camera
 			field of view.  Set the value higher to decrease detection of large objects passing
 			quickly through the field of view. 
+			</li>
+			</ul>
+		</li>
+		<li><span style='font-weight:700'>Move: One</span><br>
+			You will have this button only if servos are configured.<br>
+			If the servos are moved off a preset, click this if you want to move
+			the preset you were on to the current servo position.
+		</li>
+		<li><span style='font-weight:700'>Move: All</span><br>
+			You will have this button only if servos are configured.<br>
+			If the servos are moved off a preset, click this if you want to move
+			the preset you were on to the current servo position and move all the other preset
+			positions by the same amount.  If the camera installation is disturbed or serviced,
+			this allows a quick adjustment for restoring position presets.  The other presets
+			may still need small adjustments if servo positioning is non linear.  All presets
+			cannot be moved if the move would move any preset past a servo position limit.
+		</li>
+		<li><span style='font-weight:700'>Del</span><br>
+			If servos are not configured or if the servo position is on an existing preset, delete
+			the current Settings.  If servos are configured and the servo position is on a preset
+			and the Settings are the last Settings for the preset, then delete the position preset
+			unless it is the only existing position preset.  There must always be at least one
+			preset and you cannot delete down to zero presets.
+		</li>
+		<li><span style='font-weight:700'>Copy</span><br>
+			You will have this button only if servos are configured.<br>
+			If the pan servo is moved off a preset, click this to create a
+			new preset at the servo position which is initiallized by copying all of
+			the preset settings (motion detect limits and regions) from the preset you
+			were on into the new preset.
+		</li>
+		<li><span style='font-weight:700'>New</span><br>
+			Creates a new preset. If servos are not configured or if the servo position is on an
+			existing position preset, this will create a new Settings preset which can then
+			be edited.  If servos are configured and the servo position is not on an existing preset,
+			then a new position preset is created with an initial single Settings.
+		</li>
+	</ul>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 650;'>Time Lapse</span>
+	<div class='indent1'>
+	Enter a time period in the text box and click <span style='font-weight:700'>Start</span>
+	to begin a time lapse run.  Entering a new period and clicking
+	<span style='font-weight:700'>Start</span> will change the period for the current time
+	lapse run and does not start a new time lapse run.  Click the
+	<span style='font-weight:700'>Timelapse</span> button on the button bar to show the time
+	lapse status on the preview OSD.  When the
+	<span style='font-weight:700'>End</span> button is clicked PiKrellCam will run a time lapse
+	end script which will convert the time lapse images into a video and store the final video
+	in the media <span style='font-weight:700'>videos</span> directory and the video name
+	will have a
+	<span style='font-weight:700'>tl_</span> prefix.
+	The progress of this
+	conversion will be shown on the time lapse OSD display.  To better control start, end and
+	overnight hold times, a time lapse can be controlled with at commands.  See that section for
+	an example.
+	</div>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 680;'>Config</span>
+	<ul>
+		<li><span style='font-weight:700'>Video Res</span> - selects the video resolution for
+		motion and manual videos.  Different resolutions may have different fields of view. So
+		one reason for selecting
+		<span style='font-weight:700'>720p</span> over
+		<span style='font-weight:700'>1080p</span> would be to get a wider field of view.  Resolutions
+		will have either 16:9 or 4:3 aspect ratio.
+		</li>
+		<li><span style='font-weight:700'>Still Res</span> - selecting different resolutions
+		gives different fields of view and aspect ratios.
+		</li>
+		<li><span style='font-weight:700'>Settings</span>
+			<ul>
+			<li><span style='font-weight:700'>Startup_Motion</span> - set to
+			<span style='font-weight:700'>ON</span> for motion detection to be enabled each time
+			PiKrellCam starts.  If set to
+			<span style='font-weight:700'>OFF</span>, motion detection will need to be manually
+			enabled from the web page or a script.
+			</li>
+			<li><span style='font-weight:700'>video_bitrate</span> - determines the size of a video
+			and its quality.  Adjust up if it improves video quality.  Adjust down if you want
+			to reduce the size of the videos.
+			</li>
+			<li><span style='font-weight:700'>video_fps</span> - typically this should be no higher
+			than 24 or the motion detecting preview jpeg camera stream may start dropping frames.
+			(I have no data on the effect GPU overclocking might have on this limitation).
+			</li>
+			<li><span style='font-weight:700'>video_mp4box_fps</span> - keep this value set to zero
+			unless you want to create fast or slow motion videos.  When zero, mp4 boxing fps will be
+			the same as video_fps which is normally what you want.  But this value can be set to a
+			non zero value different from video_fps if you want fast or slow motion videos.
+			</li>
+			<li><span style='font-weight:700'>mjpeg_divider</span> - this value is divided into
+			the video_fps value to get the preview jpeg rate.  The preview is updated at this rate
+			and it is the rate that motion vector frames are checked for motion.
+			</li>
+			<li><span style='font-weight:700'>still_quality</span> - adjust up if it improves
+			still jpeg quality.  Adjust down if you want to reduce the size of still jpegs.
+			</li>
+			<li><span style='font-weight:700'>Vector_Counts</span> - enable showing of vector count
+			statistics when showing a Preset.  This information may help when setting motion detect
+			limits.
+			</li>
+			<li><span style='font-weight:700'>Vector_Dimming</span> - sets a percentage dimming
+			of the preview jpeg image when the
+			<span style='font-weight:700'>Vectors</span> display is enabled.  This is to improve
+			the contrast of the drawn motion vectors.
+			</li>
+			<li><span style='font-weight:700'>Preview_Clean</span> - if set to
+			<span style='font-weight:700'>OFF</span>, whatever text or graphics that happen to be
+			drawn on the preview jpeg at the time a motion preview save or thumb save occurs will
+			also appear on the saved preview or thumb.  This might help with some debugging, but
+			is normally not desirable, so the option should be set
+			<span style='font-weight:700'>ON</span>.
 			</li>
 			</ul>
 		</li>
@@ -539,46 +783,49 @@ button.  This is required for the change to be saved in the configuration file.
 			is configured.
 			</div>
 		</li>
-		<li><span style='font-weight:700'>Settings</span>
+		<li><span style='font-weight:700'>Servo</span><br>
+			The Servo menu is shown only if servos have been configured.
 			<ul>
-			<li><span style='font-weight:700'>Startup_Motion</span> - set to
-			<span style='font-weight:700'>ON</span> for motion detection to be enabled each time
-			PiKrellCam starts.  If set to
-			<span style='font-weight:700'>OFF</span>, motion detection will need to be manually
-			enabled from the web page or a script.
+			<li><span style='font-weight:700'>Motion_Off_Preset</span> - if
+			<span style='font-weight:700'>OFF</span>, do not detect motion when the servo postion
+			is off a preset.  If configured motion regions are suitable for any servo position,
+			this can be set
+			<span style='font-weight:700'>ON</span> if you do not want motion detection to be
+			put on hold when a servo is manually moved off a preset.
 			</li>
-			<li><span style='font-weight:700'>Vector_Dimming</span> - sets a percentage dimming
-			of the preview jpeg image when the
-			<span style='font-weight:700'>Vectors</span> display is enabled.  This is to improve
-			the contrast of the drawn motion vectors.
+			<li><span style='font-weight:700'>Move_Step_msec</span> - delay in milliseconds between
+			servo steps when a servo is moved using the
+			<span style='font-weight:700'>Servo</span> arrow buttons.  A servo step changes the
+			pulse width of the servo control line by 1/100 of a millisecond (10 usec).
 			</li>
-			<li><span style='font-weight:700'>Preview_Clean</span> - if set to
-			<span style='font-weight:700'>OFF</span>, whatever text or graphics that happen to be
-			drawn on the preview jpeg at the time a motion preview save or thumb save occurs will
-			also appear on the saved preview or thumb.  This might help with some debugging, but
-			is normally not desirable, so the option should be set
-			<span style='font-weight:700'>ON</span>.
+			<li><span style='font-weight:700'>Preset_Step_msec</span> - delay
+			in milliseconds between servo steps when a servo is moved using the
+			<span style='font-weight:700'>Preset</span>
+			left/right arrow buttons.
+			</li>
+			<li><span style='font-weight:700'>Servo_Settle_msec</span> - delay in milliseconds before
+			motion detection is taken out of its hold state after servos stop moving.
+			</li>
+			<li><span style='font-weight:700'>Move_Steps</span> - number of steps to move when the
+			<span style='font-weight:700'>Servo</span> arrow buttons are cycled to the second step
+			mode.  The other step modes are single step and scan and are selected by clicking the
+			<span style='font-weight:700'>Servo</span> button.  When in scan mode, the scan can be
+			stopped by clicking the double arrow button again.
+			</li>
+			<li><span style='font-weight:700'>Pan_Left_Limit</span><br> 
+				<span style='font-weight:700'>Pan_Right_Limit</span><br>
+				<span style='font-weight:700'>Tilt_Up_Limit</span><br>
+				<span style='font-weight:700'>Tilt_Down_Limit</span> - Sets the servo limits.
+			</li>
+			<li><span style='font-weight:700'>Servo_Pan_Invert</span><br> 
+				<span style='font-weight:700'>Servo_Tilt_Invert</span> - Set these to ON or OFF
+				to change the direction servos move when the direction arrows are clicked.
 			</li>
 			</ul>
-		</li>
 	</ul>
-<span style='font-size: 1.2em; font-weight: 650;'>Time Lapse</span>
+<span style='font-size: 1.2em; font-weight: 650;'>Camera Params</span>
 	<div class='indent1'>
-	Enter a time period in the text box and click <span style='font-weight:700'>Start</span>
-	to begin a time lapse run.  Entering a new period and clicking
-	<span style='font-weight:700'>Start</span> will change the period for the current time
-	lapse run and does not start a new time lapse run.  Click the
-	<span style='font-weight:700'>Timelapse</span> button on the button bar to show the time
-	lapse status on the preview OSD.  When the
-	<span style='font-weight:700'>End</span> button is clicked PiKrellCam will run a time lapse
-	end script which will convert the time lapse images into a video and store the final video
-	in the media <span style='font-weight:700'>videos</span> directory and the video name
-	will have a
-	<span style='font-weight:700'>tl_</span> prefix.
-	The progress of this
-	conversion will be shown on the time lapse OSD display.  To better control start, end and
-	overnight hold times, a time lapse can be controlled with at commands.  See that section for
-	an example.
+	The camera parameters menus can set the hardware parameters of the Pi camera.
 	</div>
 
 </div>
@@ -864,6 +1111,12 @@ motion show_vectors [on|off|toggle]
 motion [command] - other commands sent by the web page to edit motion regions not
 	intented for script or command line use.
 
+preset prev_position
+preset next_position
+preset prev_settings
+preset next_settings
+preset goto position settings
+
 display [command] - commands sent by the web page to display OSD menus. Not intended for
 	script or command line use.
 
@@ -1126,8 +1379,7 @@ recognized.
 <li>
 At each PiKrellCam startup
 	<ol>
-	<li>Load a motion detect regions file named
-	<span style='font-weight:700'>driveway</span>.
+	<li>Goto a preset.
 	</li>
 	<li> Prepend the hostname to the annotated text date string drawn on each video
 	<br>
@@ -1136,7 +1388,10 @@ At each PiKrellCam startup
 	</li>
 	</ol>
 <pre>
-daily  start  "@motion load_regions driveway"
+# If no servos, goto position 1 (only 1 position possible with no servos) settings 1:
+daily  start  "@preset goto 1 1"
+# If servos, goto position 3 settings 1
+daily  start  "@preset goto 3 1"
 daily  start  "@annotate_string prepend start1 $H_"
 </pre>
 </li>

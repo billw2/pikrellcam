@@ -5,7 +5,8 @@ h3, p, ol, ul, li {
 	margin:0px;
 	padding:0px;
 	font-size:0.85em;
-	font-family:Arial, Helvetica, sans-serif;
+//	font-family:Arial, Helvetica, sans-serif;
+	font-family:Serif, Helvetica, sans-serif;
 }
 ol, ul {
 	padding:3px 0 10px 22px;	

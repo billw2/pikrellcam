@@ -1,15 +1,64 @@
+<script>
+var servo_mode = 0;
+
+var servo_left_array =
+	[
+	"images/arrow0-left.png",
+	"images/arrow-left.png",
+	"images/arrow2-left.png"
+	];
+
+var servo_right_array =
+	[
+	"images/arrow0-right.png",
+	"images/arrow-right.png",
+	"images/arrow2-right.png"
+	];
+
+var servo_up_array =
+	[
+	"images/arrow0-up.png",
+	"images/arrow-up.png",
+	"images/arrow2-up.png"
+	];
+
+var servo_down_array =
+	[
+	"images/arrow0-down.png",
+	"images/arrow-down.png",
+	"images/arrow2-down.png"
+	];
+
+function servo_move_mode()
+	{
+
+	servo_mode += 1;
+	if (servo_mode > servo_left_array.length - 1)
+        servo_mode = 0;
+
+	document.getElementById("servo_left").src = servo_left_array[servo_mode];
+	document.getElementById("servo_right").src = servo_right_array[servo_mode];
+	document.getElementById("servo_up").src = servo_up_array[servo_mode];
+	document.getElementById("servo_down").src = servo_down_array[servo_mode];
+	}
+
+function servo_move_command(pan_tilt)
+    {
+//  alert("motion " + move_mode +  " " + where);
+    fifo_command("servo " +  pan_tilt +  " " + servo_mode);
+    }
+
+</script>
+
 <?php
 //ini_set('display_errors',1);
 //ini_set('display_startup_errors',1);
 //error_reporting(-1);
 
 
-require_once(dirname(__FILE__) . '/config.php');
-
-if (file_exists("config-user.php"))
+	require_once(dirname(__FILE__) . '/config.php');
 	include_once(dirname(__FILE__) . '/config-user.php');
-
-include_once(dirname(__FILE__) . '/config-defaults.php');	
+	include_once(dirname(__FILE__) . '/config-defaults.php');	
 
 function time_lapse_period()
 	{
@@ -50,7 +99,7 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
     echo "<div class=\"text-center\" style=\"color: $default_text_color; font-size: 1.4em;\">";
     echo "<img id=\"mjpeg_image\"
           alt=\"No preview jpeg. Is pikrellcam running?  Click: System->Start\"
-          style=\"border:6px groove silver;\"
+          style=\"border:4px groove silver;\"
           onclick=\"image_expand_toggle();\"
         ></div>";
 ?>
@@ -74,10 +123,59 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
       <input type="image" src="images/shutter.png"
         width="30" height="30"
         onclick="fifo_command('still')"
-        style="margin-left:20px; vertical-align: bottom;"
+        style="margin-left:16px; vertical-align: bottom;"
       >
 
 <?php
+
+if (defined('SERVOS_ENABLE'))
+	$servos_enable = SERVOS_ENABLE;
+else
+	$servos_enable = "servos_off";
+
+
+echo "<span style=\"margin-left:20px; color: $default_text_color\">Preset:</span>";
+
+echo "<input type='image' id='preset_up' src='images/arrow-up.png'
+		style='margin-left:2px; vertical-align: bottom;'
+		onclick=\"fifo_command('preset next_settings')\">";
+echo "<input type='image' id='preset_down' src='images/arrow-down.png'
+		style='margin-left:2px; vertical-align: bottom;'
+		onclick=\"fifo_command('preset prev_settings')\">";
+if ($servos_enable == "servos_on")
+	{
+	echo "<input type='image' id='preset_left' src='images/arrow-left.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"fifo_command('preset prev_position')\">";
+	echo "<input type='image' id='preset_right' src='images/arrow-right.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"fifo_command('preset next_position')\">";
+	}
+
+if ($servos_enable == "servos_on")
+	{
+//	echo "<span style=\"margin-left:20px; color: $default_text_color\">Servo:</span>";
+//			background: rgba(255, 255, 255, 0.16);
+	echo "<input id='servo_move_mode' type='button' value=\"Servo:\"
+			class=\"btn-control\"
+			style=\"cursor: pointer;
+			background: rgba(0, 0, 0, 0.08);
+			color: $default_text_color; margin-left:20px; padding-left:2px; padding-right:0px;\"
+			onclick='servo_move_mode();'>";
+	echo "<input type='image' id='servo_left' src='images/arrow0-left.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"servo_move_command('pan_left')\">";
+	echo "<input type='image' id='servo_right' src='images/arrow0-right.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"servo_move_command('pan_right')\">";
+	echo "<input type='image' id='servo_up' src='images/arrow0-up.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"servo_move_command('tilt_up')\">";
+	echo "<input type='image' id='servo_down' src='images/arrow0-down.png'
+			style='margin-left:2px; vertical-align: bottom;'
+			onclick=\"servo_move_command('tilt_down')\">";
+	}
+
 if (defined('INCLUDE_CONTROL'))
 	{
 	if ($include_control == "yes")
@@ -98,30 +196,30 @@ if (file_exists("custom-control.php"))
         class="btn-control"
         style="margin-right:20px;"
       >Archive Calendar</a>
-      <?php echo "<span style=\"color: $default_text_color\"> Media:</span>"; ?>
-      <a href="media-archive.php?mode=media&type=videos"
-        class="btn-control"
-      >Videos</a>
-      <a href="media-archive.php?mode=media&type=thumbs"
-        class="btn-control"
-      >Thumbs</a>
-      <a href="media-archive.php?mode=media&type=stills"
-        class="btn-control"
-        style="margin-right:30px;"
-      >Stills</a>
+	<?php
+		echo "<span style=\"color: $default_text_color\"> Media:</span>";
+		echo "<a href='media-archive.php?mode=media&type=videos'
+			style='margin-left:2px;'
+			class='btn-control'
+			>Videos</a>";
+		echo "<a href='media-archive.php?mode=media&type=stills'
+			class='btn-control'
+			style='margin-left:2px; margin-right:30px;'
+			>Stills</a>";
+		echo "<span style=\"color: $default_text_color\"> Enable:</span>";
+	?>
 
-      <?php echo "<span style=\"color: $default_text_color\"> Enable:</span>"; ?>
       <input type="button" id="motion_button" value="Motion"
          onclick="fifo_command('motion_enable toggle')"
          class="btn-control motion-control"
       >
       <?php echo "<span style=\"float: right; color: $default_text_color\"> Show:"; ?>
-        <input id="timelapse_button" type="button" value="Timelapse"
-						onclick="fifo_command('tl_show_status toggle')"
+        <input type="button" id="regions_button" value="Preset"
+						onclick="fifo_command('motion show_regions toggle')"
 						class="btn-control motion-control"
 						>
-        <input type="button" id="regions_button" value="Regions"
-						onclick="fifo_command('motion show_regions toggle')"
+        <input id="timelapse_button" type="button" value="Timelapse"
+						onclick="fifo_command('tl_show_status toggle')"
 						class="btn-control motion-control"
 						>
         <input type="button" id="vectors_button" value="Vectors"
@@ -132,7 +230,197 @@ if (file_exists("custom-control.php"))
     </div>
 
 <div id="container">
+
     <div class="expandable-panel" id="cp-1">
+        <div class="expandable-panel-heading">
+            <h3>Setup<span class="icon-close-open"></span></h3>
+      </div>
+        <div class="expandable-panel-content">
+              <table class="table-container">
+                <tr>
+                  <td style="border: 0;" align="right">
+                    <input type="image" src="images/arrow2-left.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
+                      onclick="fifo_command('display <<');"
+                    >
+                    <input type="image" src="images/arrow-left.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
+                      onclick="fifo_command('display <');"
+                    >
+                  </td>
+                  <td style="border: 0;" align="center">
+                    <input type="button" value="SEL"
+                      class="btn-control"
+                      onclick="fifo_command('display sel');"
+                    >
+                  </td>
+                  <td style="border: 0;" align="left">
+                    <input type="image" src="images/arrow-right.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
+                      onclick="fifo_command('display >');"
+                    >
+                    <input type="image" src="images/arrow2-right.png"
+                      style="padding:0px 0px 0px 0px; margin:0;"
+                      onclick="fifo_command('display >>');"
+                    >
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="border: 0;" align="right" >
+                  </td>
+                  <td style="border: 0;" align="center">
+                    <input type="button" value="Back"
+                      onclick="fifo_command('display back');"
+                      class="btn-control"
+                    >
+                  </td>
+                  <td style="border: 0;" align="left" >
+                  </td>
+                </tr>
+              </table>
+
+
+              <table class="table-container">
+                <tr>
+                  <td>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\">Preset</span>"; ?>
+                    <div>
+                      <input type="button" value="Settings"
+                        class="btn-menu"
+                        style="margin-left:40px"
+                        onclick="fifo_command('display motion_limit');"
+                      >
+
+					<?php
+					if ($servos_enable == "servos_on")
+						{
+						echo "<span style=\"margin-left:20px; margin-right:0px; color: $default_text_color\">Move:";
+						echo "<input type='button' value='One'
+							class='btn-menu'
+							style='margin-left:2px; margin-right:0px;'
+							onclick=\"fifo_command('preset move_one')\">";
+						echo "<input type='button' value='All'
+							class='btn-menu'
+							style='margin-left:4px;'
+							onclick=\"fifo_command('preset move_all')\">";
+						}
+					?>
+
+                      <input type="button" value="New"
+                        class="btn-menu"
+                        style="float: right; margin-left:6px"
+                        onclick="fifo_command('preset new');"
+                      >
+					<?php
+					if ($servos_enable == "servos_on")
+						{
+						echo "<input type='button' value='Copy'
+                        class='btn-menu'
+                        style='float: right; margin-left:6px'
+						onclick=\"fifo_command('preset copy')\">";
+						}
+					?>
+                      <input type="button" value="Del"
+                        class="btn-menu alert-control"
+                        style="float: right;margin-left:20px"
+                        onclick="fifo_command('preset delete');"
+                      >
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Time Lapse </span>"; ?>
+                    <div>
+                    <?php echo "<span style=\"margin-left:40px; font-weight:600; color: $default_text_color\"> Period </span>"; ?>
+                      <input type="text" id="tl_period" value="<?php echo time_lapse_period(); ?>" size="3"
+                      >
+                    <?php echo "<span style=\"margin-left:4px; color: $default_text_color\"> sec </span>"; ?>
+                      <input type="button" value="Start"
+                        class="btn-menu"
+                        onclick="tl_start();"
+                        style="float: right; margin-left:10px;"
+                      >
+                      <input type="button" value="Hold"
+                        class="btn-menu"
+                        onclick="fifo_command('tl_hold toggle');"
+                        style="float: right; margin-left:10px;"
+                      >
+                      <input type="button" value="End"
+                        class="btn-menu alert-control"
+                        onclick="fifo_command('tl_end');"
+                        style="float: right;"
+                      >
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\">Config</span>"; ?>
+                    <div>
+                      <input type="button" value="Video Res"
+                        class="btn-menu"
+                        style="margin-left:40px"
+                        onclick="fifo_command('display video_presets');"
+                      >
+                      <input type="button" value="Still Res"
+                        class="btn-menu"
+                        onclick="fifo_command('display still_presets');"
+                      >
+                      <input type="button" value="Settings"
+                        class="btn-menu"
+                        onclick="fifo_command('display settings');"
+                      >
+                      <input type="button" value="Times"
+                        class="btn-menu"
+                        onclick="fifo_command('display motion_time');"
+                      >
+<?php
+if ($servos_enable == "servos_on")
+	{
+	echo "<input type='button' value='Servo'
+			class='btn-menu'
+			onclick=\"fifo_command('display servo_settings')\">";
+	}
+?>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Camera Params </span>"; ?>
+                    <div>
+                      <input type="button" value="Picture"
+                        class="btn-menu"
+                        style= "margin-left:40px"
+                        onclick="fifo_command('display picture');"
+                      >
+                      <input type="button" value="Meter"
+                        class="btn-menu"
+                        onclick="fifo_command('display metering');"
+                      >
+                      <input type="button" value="Exposure"
+                        class="btn-menu"
+                        onclick="fifo_command('display exposure');"
+                      >
+                      <input type="button" value="White Bal"
+                        class="btn-menu"
+                        onclick="fifo_command('display white_balance');"
+                      >
+                      <input type="button" value="Image Effect"
+                        class="btn-menu"
+                        onclick="fifo_command('display image_effect');"
+                      >
+                    </div>
+                  </td>
+                </tr>
+              </table>
+        </div>
+    </div>
+
+
+    <div class="expandable-panel" id="cp-2">
         <div class="expandable-panel-heading">
             <h3>Motion Regions<span class="icon-close-open"></span></h3>
       </div>
@@ -144,7 +432,7 @@ if (file_exists("custom-control.php"))
                     <table cellpadding="0" cellspacing="0" border="0" table-layout="fixed">
                     <tr>
                       <td style="border: 0;" >
-                         <input type="button" value="List" style="margin-right: 12px;"
+                         <input type="button" value="List" style="margin-right: 20px;"
                            onclick="list_regions();"
                            class="btn-control"
                          >
@@ -154,7 +442,7 @@ if (file_exists("custom-control.php"))
                             class="btn-menu"
                             >
                       </td>
-                      <td style="border: 0;" align="right">
+                      <td style="border: 0;" align="left">
                          <input type="text" id="save_regions" size=6 >
                          <input type="button" value="Save"
                            onclick="save_regions();"
@@ -164,10 +452,10 @@ if (file_exists("custom-control.php"))
                     </tr>
 
                     <tr>
-                       <td style="border: 0;" align="left">
-                       </td>
+                      <td style="border: 0;" align="left">
+                      </td>
                        <td style="border: 0;" align="right">
-                         <?php echo "<span style=\"color: $default_text_color\">
+                         <?php echo "<span style=\"color: $default_text_color; margin-left: 12px;\">
                            Coarse Move</span>"; ?>
                          <input type="checkbox" name="move_mode"
                            onclick='move_region_mode(this);' checked>
@@ -175,25 +463,25 @@ if (file_exists("custom-control.php"))
                     </tr>
  
                    <tr align="right">
-                       <td style="border: 0;" align="right">
+                       <td style="border: 0;" align="left">
                          <input type="button" value="New"
                            onclick="new_region();"
                            class="btn-control"
                          >
-                         <input type="button" value="Delete" style="margin-right: 8px;"
+                         <input type="button" value="Del" style="margin-left: 8px;"
                            onclick="fifo_command('motion delete_regions selected');"
                            class="btn-control alert-control"
                          >
                        </td>
                        <td style="border: 0;" align="right">
-                       <?php echo "<span style=\"color: $default_text_color\">Select</span>"; ?>
-                         <input type="button" value="<"
+                       <?php echo "<span style=\"color: $default_text_color;\">Select</span>"; ?>
+                         <input type='image' src='images/arrow0-left.png'
+                           style="vertical-align: bottom;"
                            onclick="fifo_command('motion select_region <');"
-                           class="btn-control"
                          >
-                         <input type="button" value=">"
+                         <input type='image' src='images/arrow0-right.png'
+                           style="vertical-align: bottom;"
                            onclick="fifo_command('motion select_region >');"
-                           class="btn-control"
                          >
                        </td>
                     </tr>
@@ -275,153 +563,8 @@ if (file_exists("custom-control.php"))
               </table>
         </div>
     </div>
-     
-    <div class="expandable-panel" id="cp-2">
-        <div class="expandable-panel-heading">
-            <h3>Setup<span class="icon-close-open"></span></h3>
-      </div>
-        <div class="expandable-panel-content">
-              <table class="table-container">
-                <tr>
-                  <td style="border: 0;" align="right">
-                    <input type="image" src="images/arrow2-left.png"
-                      style="padding:0px 0px 0px 0px; margin:0;"
-                      onclick="fifo_command('display <<');"
-                    >
-                    <input type="image" src="images/arrow-left.png"
-                      style="padding:0px 0px 0px 0px; margin:0;"
-                      onclick="fifo_command('display <');"
-                    >
-                  </td>
-                  <td style="border: 0;" align="center">
-                    <input type="button" value="SEL"
-                      class="btn-control"
-                      onclick="fifo_command('display sel');"
-                    >
-                  </td>
-                  <td style="border: 0;" align="left">
-                    <input type="image" src="images/arrow-right.png"
-                      style="padding:0px 0px 0px 0px; margin:0;"
-                      onclick="fifo_command('display >');"
-                      class="btn-control"
-                    >
-                    <input type="image" src="images/arrow2-right.png"
-                      style="padding:0px 0px 0px 0px; margin:0;"
-                      onclick="fifo_command('display >>');"
-                    >
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style="border: 0;" align="right" >
-                  </td>
-                  <td style="border: 0;" align="center">
-                    <input type="button" value="Back"
-                      onclick="fifo_command('display back');"
-                      class="btn-control"
-                    >
-                  </td>
-                  <td style="border: 0;" align="left" >
-                  </td>
-                </tr>
-              </table>
 
 
-              <table class="table-container">
-                <tr>
-                  <td>
-                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Camera Config </span>"; ?>
-                    <div class="text-center">
-                      <input type="button" value="Video Presets"
-                        class="btn-menu"
-                        onclick="fifo_command('display video_presets');"
-                      >
-                      <input type="button" value="Still Presets"
-                        class="btn-menu"
-                        onclick="fifo_command('display still_presets');"
-                      >
-                      <input type="button" value="Adjustments"
-                        class="btn-menu"
-                        onclick="fifo_command('display camera_adjustments');"
-                      >
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Camera Params </span>"; ?>
-                    <div class="text-center">
-                      <input type="button" value="Picture"
-                        class="btn-menu"
-                        onclick="fifo_command('display picture');"
-                      >
-                      <input type="button" value="Metering"
-                        class="btn-menu"
-                        onclick="fifo_command('display metering');"
-                      >
-                      <input type="button" value="Exposure"
-                        class="btn-menu"
-                        onclick="fifo_command('display exposure');"
-                      >
-                      <input type="button" value="White Balance"
-                        class="btn-menu"
-                        onclick="fifo_command('display white_balance');"
-                      >
-                      <input type="button" value="Image Effect"
-                        class="btn-menu"
-                        onclick="fifo_command('display image_effect');"
-                      >
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Motion </span>"; ?>
-                    <div class="text-center" >
-                      <input type="button" value="Vector Limits"
-                        class="btn-menu"
-                        onclick="fifo_command('display motion_limit');"
-                      >
-                      <input type="button" value="Times"
-                        class="btn-menu"
-                        onclick="fifo_command('display motion_time');"
-                      >
-                      <input type="button" value="Settings"
-                        class="btn-menu"
-                        onclick="fifo_command('display motion_setting');"
-                      >
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <?php echo "<span style=\"font-weight:600; color: $default_text_color\"> Time Lapse </span>"; ?>
-                    <div>
-                    <?php echo "<span style=\"margin-left:40px; font-weight:600; color: $default_text_color\"> Period </span>"; ?>
-                      <input type="text" id="tl_period" value="<?php echo time_lapse_period(); ?>" size="3"
-                      >
-                    <?php echo "<span style=\"margin-left:4px; color: $default_text_color\"> sec </span>"; ?>
-                      <input type="button" value="Start"
-                        class="btn-menu"
-                        onclick="tl_start();"
-                        style="float: right; margin-left:10px;"
-                      >
-                      <input type="button" value="Hold"
-                        class="btn-menu"
-                        onclick="fifo_command('tl_hold toggle');"
-                        style="float: right; margin-left:10px;"
-                      >
-                      <input type="button" value="End"
-                        class="btn-menu alert-control"
-                        onclick="fifo_command('tl_end');"
-                        style="float: right;"
-                      >
-                    </div>
-                  </td>
-                </tr>
-              </table>
-        </div>
-    </div>
      
     <div class="expandable-panel" id="cp-3">
         <div class="expandable-panel-heading">

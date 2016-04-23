@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -578,8 +578,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	if (motion_burst_frame == pikrellcam.motion_burst_frames)
 		motion_burst_frame = 0;
 
-	motion_enabled = mf->motion_enable
-						|| (mf->external_trigger_mode & EXT_TRIG_MODE_ENABLE);
+	motion_enabled = (  (  mf->motion_enable
+	                     || (mf->external_trigger_mode & EXT_TRIG_MODE_ENABLE)
+	                    )
+	                  && !pikrellcam.servo_moving
+					  && (pikrellcam.on_preset || pikrellcam.motion_off_preset)
+	                 );
 
 	if (   (   (mf->motion_status & MOTION_DETECTED)
 	        && motion_enabled
@@ -782,22 +786,23 @@ atof_range(float *result, char *value, double low, double high)
 	return FALSE;
 	}
 
-#define ADD_REGION        0
-#define MOVE_REGION       1
-#define MOVE_COARSE       2
-#define MOVE_FINE         3
-#define ASSIGN_REGION     4
-#define SAVE_REGIONS      5
-#define LOAD_REGIONS      6
-#define LOAD_REGIONS_SHOW 7
-#define LIST_REGIONS      8
-#define DELETE_REGIONS    9
-#define SET_LIMITS       10
-#define SET_BURST        11
-#define SELECT_REGION    12
-#define SHOW_REGIONS     13
-#define SHOW_VECTORS     14
-#define TRIGGER          15
+#define NEW_REGION        0
+#define ADD_REGION        1
+#define MOVE_REGION       2
+#define MOVE_COARSE       3
+#define MOVE_FINE         4
+#define ASSIGN_REGION     5
+#define SAVE_REGIONS      6
+#define LOAD_REGIONS      7
+#define LOAD_REGIONS_SHOW 8
+#define LIST_REGIONS      9
+#define DELETE_REGIONS   10
+#define SET_LIMITS       11
+#define SET_BURST        12
+#define SELECT_REGION    13
+#define SHOW_PRESET      14
+#define SHOW_VECTORS     15
+#define TRIGGER          16
 
 typedef struct
 	{
@@ -809,9 +814,11 @@ typedef struct
 
 static MotionCommand motion_commands[] =
 	{
-	{ "show_regions", SHOW_REGIONS,    1 },
+	{ "show_preset",  SHOW_PRESET,    1 },
+	{ "show_regions", SHOW_PRESET,    1 },
 	{ "show_vectors", SHOW_VECTORS,    1 },
-	{ "add_region",    ADD_REGION,    4 },
+	{ "new_region",    NEW_REGION,    4 },
+	{ "add_region",    ADD_REGION,    4 },		// Not a regions modify
 	{ "move_region",   MOVE_REGION,   5 },
 	{ "move_coarse",   MOVE_COARSE, 2 },
 	{ "move_fine",     MOVE_FINE,   2 },
@@ -820,7 +827,7 @@ static MotionCommand motion_commands[] =
 	{ "load_regions",   LOAD_REGIONS,  1 },
 	{ "load_regions_show", LOAD_REGIONS_SHOW,  1 },
 	{ "list_regions",   LIST_REGIONS,  0 },
-	{ "delete_regions", DELETE_REGIONS, 1 },
+	{ "delete_regions", DELETE_REGIONS, 1 },	// All not a regions modify
 	{ "select_region", SELECT_REGION,    1 },
 	{ "limits", SET_LIMITS,    2 },
 	{ "burst", SET_BURST,    2 },
@@ -907,6 +914,7 @@ motion_command(char *cmd_line)
 	float         delta = 0.0;
 	struct dirent *dp;
 	DIR           *dfd;
+	boolean       new_region = FALSE;
 
 	arg1[0] = '\0';
 	arg2[0] = '\0';
@@ -934,13 +942,20 @@ motion_command(char *cmd_line)
 
 	switch (id)
 		{
-		case SHOW_REGIONS:
-			config_set_boolean(&mf->show_regions, arg1);
+		case SHOW_PRESET:
+			config_set_boolean(&mf->show_preset, arg1);
+			pikrellcam.state_modified = TRUE;
 			break;
 		case SHOW_VECTORS:
 			config_set_boolean(&mf->show_vectors, arg1);
+			pikrellcam.state_modified = TRUE;
 			break;
-		case ADD_REGION:		/* add_region x y dx dy */
+		/* A new_region is an edit modify from the web page.
+		|  An add_region is a load from a config file and is not a modify.
+		*/
+		case NEW_REGION:		/* new_region x y dx dy */
+			new_region = TRUE;
+		case ADD_REGION:		/* load_region x y dx dy */
 			memset((char *) &mrtmp, 0, sizeof(MotionRegion));
 			if (get_motion_args(&mrtmp, arg1, arg2, arg3, arg4, 0.00, 1.0))
 				{
@@ -953,7 +968,10 @@ motion_command(char *cmd_line)
 				mf->n_regions = slist_length(mf->motion_region_list);
 				mreg->region_number = mf->n_regions - 1;
 				mf->selected_region = mreg->region_number;
-				mf->show_regions = TRUE;
+				mf->show_preset = TRUE;
+				pikrellcam.state_modified = TRUE;
+				if (new_region)
+					preset_regions_set_modified();
 				pthread_mutex_unlock(&mf->region_list_mutex);
 				}
 			else
@@ -976,7 +994,8 @@ motion_command(char *cmd_line)
 						mf->selected_region = 0;
 					}
 				mf->prev_selected_region = mf->selected_region;
-				mf->show_regions = TRUE;
+				mf->show_preset = TRUE;
+				pikrellcam.state_modified = TRUE;
 				}
 			break;
 
@@ -1007,6 +1026,7 @@ motion_command(char *cmd_line)
 						mreg->dyf += delta;
 					motion_region_fixup(mreg);
 					}
+				preset_regions_set_modified();
 				pthread_mutex_unlock(&mf->region_list_mutex);
 				}
 			else
@@ -1029,6 +1049,7 @@ motion_command(char *cmd_line)
 				mreg->dyf += mrtmp.dyf;
 				motion_region_fixup(mreg);
 				}
+			preset_regions_set_modified();
 			pthread_mutex_unlock(&mf->region_list_mutex);
 			break;
 
@@ -1045,6 +1066,7 @@ motion_command(char *cmd_line)
 				mreg->dyf = mrtmp.dyf;
 				motion_region_fixup(mreg);
 				}
+			preset_regions_set_modified();
 			pthread_mutex_unlock(&mf->region_list_mutex);
 			break;
 
@@ -1055,10 +1077,12 @@ motion_command(char *cmd_line)
 			break;
 
 		case LOAD_REGIONS_SHOW:		/* load_regions and show */
-			mf->show_regions = TRUE;
-		case LOAD_REGIONS:		/* load_regions config-name */
+			mf->show_preset = TRUE;
+			pikrellcam.state_modified = TRUE;
+		case LOAD_REGIONS:			/* load_regions config-name */
 			path = regions_custom_config(arg1);
-			motion_regions_config_load(path, TRUE);
+			if (motion_regions_config_load(path, TRUE))
+				preset_regions_set_modified();
 			free(path);
 			break;
 
@@ -1086,7 +1110,10 @@ motion_command(char *cmd_line)
 				closedir(dfd);
 				}
 			break;
-
+		/* An all delete is a clear prior to a load from a config file and
+		|  is not a modify.  A delete of a region number is a delete from the
+		|  from the web page and is an edit modify of the regions.
+		*/
 		case DELETE_REGIONS:		/* delete_regions all / delete r */
 			pthread_mutex_lock(&mf->region_list_mutex);
 			if (!strcmp(arg1, "all"))
@@ -1108,6 +1135,7 @@ motion_command(char *cmd_line)
 				mf->motion_region_list =
 						slist_remove(mf->motion_region_list, mreg);
 				free(mreg);
+				preset_regions_set_modified();
 				}
 			else
 				{
@@ -1144,6 +1172,8 @@ motion_command(char *cmd_line)
 			if (n > mf->width * mf->height / 2)
 				n = n > mf->width * mf->height / 2;
 			pikrellcam.motion_magnitude_limit_count = n;
+
+			preset_settings_set_modified();
 			break;
 
 		case SET_BURST:			/* burst count frames */
@@ -1160,6 +1190,8 @@ motion_command(char *cmd_line)
 			if (n > 20)
 				n = 20;
 			pikrellcam.motion_burst_frames = n;
+
+			preset_settings_set_modified();
 			break;
 
 		case TRIGGER:
@@ -1278,7 +1310,7 @@ motion_regions_config_load(char *config_file, boolean inform)
 		return FALSE;
 		}
 
-	save_show = motion_frame.show_regions;
+	save_show = motion_frame.show_preset;
 
 	motion_command("delete_regions all");
 	while (fgets(buf, sizeof(buf), f) != NULL)
@@ -1292,6 +1324,6 @@ motion_regions_config_load(char *config_file, boolean inform)
 		display_inform(dbuf);
 		display_inform("timeout 1");
 		}
-	motion_frame.show_regions = save_show;		/* can't double send_cmd()??*/
+	motion_frame.show_preset = save_show;		/* can't double send_cmd()??*/
 	return TRUE;
 	}

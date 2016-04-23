@@ -19,6 +19,9 @@ MEDIA_DIR=$3
 MJPEG_FILE=$4
 FIFO_FILE=$5
 LOG_FILE=$6
+SERVOS_ENABLE=$7
+
+STATE_FILE=/run/pikrellcam/state
 
 if [ "$LOG_FILE" == "" ]
 then
@@ -33,7 +36,14 @@ WWW_CONFIG=$INSTALL_DIR/www/config.php
 PIKRELLCAM=$INSTALL_DIR/pikrellcam
 ARCHIVE_LINK=www/archive
 MEDIA_LINK=www/media
+STATE_LINK=www/state
 VERSION=`pikrellcam --version`
+
+if [ ! -h $STATE_LINK ]
+then
+	echo "  making $STATE_LINK link to $STATE_FILE" >> $LOG_FILE
+	ln -s $STATE_FILE $STATE_LINK
+fi
 
 if [ ! -h $MEDIA_LINK ]
 then
@@ -101,6 +111,15 @@ then
 	echo "  $WWW_CONFIG: PIKRELLCAM updated to: $PIKRELLCAM" >> $LOG_FILE
 else
 	echo "  $WWW_CONFIG: PIKRELLCAM not changed." >> $LOG_FILE
+fi
+
+if ! grep -q $SERVOS_ENABLE $WWW_CONFIG
+then
+	CMD="/SERVOS_ENABLE/c\	define\(\"SERVOS_ENABLE\", \"$SERVOS_ENABLE\"\);"
+	sed -i "$CMD" $WWW_CONFIG
+	echo "  $WWW_CONFIG: SERVOS_ENABLE updated to: $SERVOS_ENABLE" >> $LOG_FILE
+else
+	echo "  $WWW_CONFIG: SERVOS_ENABLE not changed." >> $LOG_FILE
 fi
 
 if ! fgrep -q $VERSION $WWW_CONFIG

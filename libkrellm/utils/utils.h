@@ -93,7 +93,11 @@ SList	*slist_remove_link(SList *list, SList *link);
 SList	*slist_nth(SList *list, int  n);
 void	*slist_nth_data(SList *list, int n);
 SList	*slist_find(SList *list, void *data);
+int		slist_index(SList *list, void *data);
 int		slist_length(SList *list);
+SList	*slist_insert(SList *list, void *data, int position);
+SList	*slist_insert_sorted(SList *list, void *data,
+			int func(void *data1, void *data2));
 
 #ifdef __cplusplus
 }
