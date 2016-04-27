@@ -462,6 +462,7 @@ preset_delete(void)
 		display_inform("\"Deleted preset at current position.\" 3 3 1");
 		display_inform("timeout 2");
 		pikrellcam.preset_position_list = slist_remove(pikrellcam.preset_position_list, pos);
+		free(pos);
 		pikrellcam.n_preset_positions -= 1;
 		pikrellcam.on_preset = FALSE;
 		pikrellcam.preset_last_on = NULL;

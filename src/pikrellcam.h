@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.0.0"
+#define	PIKRELLCAM_VERSION	"3.0.1"
 
 
 //TCP Stream Server
@@ -624,6 +624,7 @@ typedef struct
 			*raw_capture;
 
 	int		debug;
+	boolean	halt_enable;
 	}
 	PiKrellCam;
 
@@ -778,6 +779,7 @@ void	display_set_default(void);
 void	display_command(char *cmd_line);
 void	display_draw(uint8_t *i420);
 void	display_inform(char *args);
+void	display_inform_clear(void);
 
 void	display_quit(void);
 
@@ -792,6 +794,7 @@ Event	*event_find(char *name);
 void	event_list_lock(void);
 void	event_list_unlock(void);
 void	event_remove(Event *event);
+boolean	event_remove_name(char *name);
 void	event_process(void);
 void	event_preview_save(void);
 void	event_preview_save_cmd(char *cmd);
@@ -805,6 +808,7 @@ void	event_child_signal(int sig_num);
 int		exec_wait(char *command, char *arg);
 void	exec_no_wait(char *command, char *arg);
 Event	*exec_child_event(char *event_name, char *command, char *arg);
+void	event_shutdown_request(boolean reboot);
 
 void	preset_command(char *args);
 void	preset_config_load(void);

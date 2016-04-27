@@ -600,6 +600,17 @@ if ($servos_enable == "servos_on")
             onclick="fifo_command('upgrade')"
             class="btn-control"
           >
+
+          <input id="upgrade_button" type="button" value="Reboot"
+            style="margin-left:32px;"
+            onclick="fifo_command('reboot')"
+            class="btn-control alert-control"
+          >
+          <input id="upgrade_button" type="button" value="Halt"
+            style="margin-left:4px;"
+            onclick="fifo_command('halt')"
+            class="btn-control alert-control"
+          >
         </div>
     </div>
 <?php

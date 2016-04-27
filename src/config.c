@@ -571,6 +571,12 @@ static Config  config[] =
 	  "#",
 	"on_startup", "$C/startup $I $m $G",  TRUE, {.string = &pikrellcam.on_startup_cmd}, config_string_set },
 
+	{ "# Set to on to enable pikrellcam to accept halt and reboot commands\n"
+	  "# from the FIFO.  This enables halt and reboot from the web page.\n"
+	  "#",
+	"halt_enable",	"off", FALSE, {.value = &pikrellcam.halt_enable},  config_value_bool_set},
+
+
 
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
 	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
@@ -1094,7 +1100,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 31;
+	pikrellcam.config_sequence_new = 32;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

@@ -990,6 +990,7 @@ camera_create(void)
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
 		.use_stc_timestamp   = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC
+//		.use_stc_timestamp   = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC
 		};
 	mmal_port_parameter_set(camera.control_port, &camera_config.hdr);
 

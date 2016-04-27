@@ -1796,6 +1796,13 @@ display_inform(char *args)
 		}
 	}
 
+void
+display_inform_clear(void)
+	{
+	if (event_remove_name("display inform expire"))
+		display_inform_expire();
+	}
+
 static int quit_flag;
 
   /* Called from I420_video_callback() so this runs in a GPU thread

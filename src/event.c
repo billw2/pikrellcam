@@ -268,6 +268,64 @@ exec_no_wait(char *command, char *arg)
 		exec_command(command, arg, FALSE, &pid);
 	}
 
+#define	REBOOT	1
+
+static void
+event_shutdown_expire(void *arg)
+	{
+	boolean	shutdown_how = (int) arg;
+
+	if (shutdown_how == REBOOT)
+		display_inform("\"System Reboot request not confirmed.\" 4 3 1");
+	else
+		display_inform("\"System Halt request not confirmed.\" 4 3 1");
+	display_inform("timeout 2");
+	}
+
+void
+event_shutdown_request(boolean shutdown_how) /* 0 - halt  1 - reboot */
+	{
+	Event	*event;
+
+	display_inform_clear();
+	pthread_mutex_lock(&event_mutex);
+	if ((event = event_find("shutdown")) != NULL)
+		{
+		event_list = slist_remove(event_list, event);
+		if (event->data == (void *) shutdown_how)
+			{
+			if (shutdown_how == REBOOT)
+				exec_no_wait("sudo shutdown -r now", NULL);
+			else
+				exec_no_wait("sudo shutdown -h now", NULL);
+			}
+		else
+			{
+			free(event);
+			event = NULL;
+			}
+		}
+	pthread_mutex_unlock(&event_mutex);
+	if (!event)
+		{
+		event_count_down_add("shutdown", 11 * EVENT_LOOP_FREQUENCY,
+				event_shutdown_expire, (void *) shutdown_how);
+		if (shutdown_how == REBOOT)
+			{
+			display_inform("\"System Reboot requested!\" 3 3 1");
+			display_inform("\"Click Reboot again within 10 seconds\" 4 3 1");
+			display_inform("\"to confirm reboot.\" 5 3 1");
+			}
+		else
+			{
+			display_inform("\"System Halt requested!\" 3 3 1");
+			display_inform("\"Click Halt again within 10 seconds\" 4 3 1");
+			display_inform("\"to confirm halt.\" 5 3 1");
+			}
+		display_inform("timeout 10");
+		}
+	}
+
   /* Create a unactivated event and store the child pid of an exec() in the
   |  event.  Event will be activated only after the caller fills in the
   |  Event func() pointer and the child exit is caught where the Event time
@@ -620,6 +678,23 @@ event_remove(Event *event)
 	event_list = slist_remove(event_list, event);
 	pthread_mutex_unlock(&event_mutex);
 	free(event);
+	}
+
+boolean
+event_remove_name(char *name)
+	{
+	Event	*event;
+	boolean	found = FALSE;
+
+	pthread_mutex_lock(&event_mutex);
+	if ((event = event_find(name)) != NULL)
+		{
+		event_list = slist_remove(event_list, event);
+		free(event);
+		found = TRUE;
+		}
+	pthread_mutex_unlock(&event_mutex);
+	return found;
 	}
 
 void

@@ -175,6 +175,7 @@ annotate_string_remove(char *id)
 			pikrellcam.annotate_list = slist_remove(pikrellcam.annotate_list, annotate);
 			free(annotate->id);
 			free(annotate->string);
+			free(annotate);
 			break;
 			}
 		}
@@ -677,6 +678,26 @@ get_arg_pass1(char *arg)
 	return TRUE;
 	}
 
+static void
+pikrellcam_cleanup(void)
+	{
+	config_timelapse_save_status();
+	preset_state_save();
+	if (pikrellcam.config_modified)
+		config_save(pikrellcam.config_file);
+	if (pikrellcam.preset_modified)
+		preset_config_save();
+	}
+
+static void
+signal_quit(int sig)
+	{
+	pikrellcam_cleanup();
+	display_quit();
+	log_printf("quit signal received - exiting!\n");
+	exit(0);
+	}
+
 
 typedef enum
 	{
@@ -709,6 +730,8 @@ typedef enum
 	servo_cmd,
 	preset_cmd,
 	upgrade,
+	halt,
+	reboot,
 	quit
 	}
 	CommandCode;
@@ -758,6 +781,8 @@ static Command commands[] =
 	{ "preset", preset_cmd, 1, FALSE },
 	{ "servo", servo_cmd, 1, FALSE },
 	{ "upgrade", upgrade,    0, TRUE },
+	{ "halt", halt,    0, TRUE },
+	{ "reboot", reboot,    0, TRUE },
 	{ "quit",       quit,    0, TRUE },
 	};
 
@@ -1118,13 +1143,36 @@ command_process(char *command_line)
 			exec_no_wait(buf, NULL);
 			break;
 
+		case halt:
+			if (pikrellcam.halt_enable)
+				{
+				pikrellcam_cleanup();
+				event_shutdown_request(0);
+				}
+			else
+				{
+				display_inform("\"Cannot halt the system.\" 3 3 1");
+				display_inform("\"Set halt_enable in pikrellcam.conf first.\" 4 3 1");
+				display_inform("timeout 3");
+				}
+			break;
+
+		case reboot:
+			if (pikrellcam.halt_enable)
+				{
+				pikrellcam_cleanup();
+				event_shutdown_request(1);
+				}
+			else
+				{
+				display_inform("\"Cannot reboot the system.\" 3 3 1");
+				display_inform("\"Set halt_enable in pikrellcam.conf first.\" 4 3 1");
+				display_inform("timeout 3");
+				}
+			break;
+
 		case quit:
-			config_timelapse_save_status();
-			preset_state_save();
-			if (pikrellcam.config_modified)
-				config_save(pikrellcam.config_file);
-			if (pikrellcam.preset_modified)
-				preset_config_save();
+			pikrellcam_cleanup();
 			display_quit();
 			exit(0);
 			break;
@@ -1199,20 +1247,6 @@ make_dir(char *dir)
 	if (dir_exists)
 		check_modes(dir, 0775);
 	return dir_exists;
-	}
-
-static void
-signal_quit(int sig)
-	{
-	config_timelapse_save_status();
-	preset_state_save();
-	if (pikrellcam.config_modified)
-		config_save(pikrellcam.config_file);
-	if (pikrellcam.preset_modified)
-		preset_config_save();
-	display_quit();
-	log_printf("quit signal received - exiting!\n");
-	exit(0);
 	}
 
 static void
