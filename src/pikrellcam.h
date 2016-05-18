@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.0.1"
+#define	PIKRELLCAM_VERSION	"3.0.2"
 
 
 //TCP Stream Server
@@ -73,6 +73,8 @@ extern int h264_conn_status;
 #define MIN(a,b)	(((a) < (b)) ? (a) : (b))
 #endif
 
+/* Don't change, usleep code in main() assumes 10
+*/
 #define	EVENT_LOOP_FREQUENCY	10
 
 #define PIKRELLCAM_CONFIG_DIR					".pikrellcam"
@@ -341,9 +343,10 @@ typedef struct
 
 typedef struct
 	{
-	int		position;
-	time_t	t_frame;
-	int		frame_count;
+	int			position;
+	time_t		t_frame;
+	int			frame_count;
+	uint64_t	frame_pts;
 	}
 	KeyFrame;
 
@@ -366,7 +369,8 @@ typedef struct
 				*motion_stats_file;
 	boolean		motion_stats_do_header;
 	int			state,
-				frame_count;
+				frame_count,
+				video_frame_count;
 
 	int8_t	   h264_header[H264_MAX_HEADER_SIZE];
 	int		   h264_header_position;
@@ -385,9 +389,14 @@ typedef struct
 	int         manual_pre_capture,
 				max_record_time;
 
-	time_t		record_start,
-				record_event_time,
-				motion_last_detect_time,
+	time_t		record_start_time,
+				record_elapsed_time;	/* seconds since record start excluding pause time. */
+	uint64_t	last_pts;
+
+	int			record_start_frame_index;
+	float		actual_fps;
+
+	time_t		motion_last_detect_time,
 				motion_sync_time;
 	}
 	VideoCircularBuffer;
@@ -533,8 +542,11 @@ typedef struct
 	int		video_manual_sequence,
 			video_motion_sequence,
 			video_header_size,
-			video_size;
-	
+			video_size,
+			video_last_frame_count;
+	uint64_t video_start_pts,
+			video_end_pts;
+
 	boolean	video_mp4box;
 
 
@@ -758,7 +770,7 @@ void		camera_stop(void);
 void		camera_restart(void);
 void		timelapse_capture(void);
 char		*substitute_var(char *str, char V, char *fmt_arg);
-char		*media_pathname(char *dir, char *fname,
+char		*media_pathname(char *dir, char *fname, time_t time,
 							char var1, char *arg1, char var2, char *arg2);
 void	command_process(char *command_line);
 

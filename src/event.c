@@ -126,7 +126,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'T':
 				snprintf(buf, sizeof(buf), "%d", time_lapse.period);
 				name = media_pathname(pikrellcam.video_dir,
-						pikrellcam.video_timelapse_name_format,
+						pikrellcam.video_timelapse_name_format, 0,
 						'n',  buf, 'H', pikrellcam.hostname);
 				snprintf(buf, sizeof(buf), "%s", name);
 				free(name);
@@ -512,6 +512,7 @@ state_file_write(void)
 	PresetSettings		*settings = NULL;
 	char                *state;
 	int					pan, tilt;
+	double				ftmp, fps;
 
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.state_filename);
@@ -560,6 +561,26 @@ state_file_write(void)
 
 	fprintf(f, "video_last %s\n",
 			pikrellcam.video_last ? pikrellcam.video_last : "none");
+	fprintf(f, "video_last_frame_count %d\n", pikrellcam.video_last_frame_count);
+
+	/* The pts end-start diff is from frame start of 1st frame to frame start
+	|  of last frame so is the time of frame_count - 1 frames.
+	*/
+	if (pikrellcam.video_last_frame_count > 1)
+		{
+		ftmp = (double) (pikrellcam.video_end_pts - pikrellcam.video_start_pts) / 1e6;
+		ftmp /= pikrellcam.video_last_frame_count - 1;
+		}
+	else
+		ftmp = 0;
+	ftmp *= pikrellcam.video_last_frame_count;
+	fprintf(f, "video_last_time %.2f\n", (float) ftmp);
+	if (ftmp > 0)
+		fps = (double) pikrellcam.video_last_frame_count / ftmp;
+	else
+		fps = 0;
+	fprintf(f, "video_last_fps %.2f\n", (float) fps);
+
 	fprintf(f, "still_last %s\n",
 			pikrellcam.still_last ? pikrellcam.still_last : "none");
 
@@ -776,7 +797,6 @@ event_process(void)
 	static struct tm tm_prev;
 	static time_t	t_prev;
 
-	time(&pikrellcam.t_now);
 	pikrellcam.second_tick = (pikrellcam.t_now == t_prev) ? FALSE : TRUE;
 	t_prev = pikrellcam.t_now;
 

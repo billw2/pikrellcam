@@ -1,4 +1,4 @@
-/* PiKrellCam
+  /* PiKrellCam
 |
 |  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
@@ -43,48 +43,37 @@ static unsigned int	   mjpeg_encoder_send_count,
   /* TODO: handle annotateV3
   */
 static void
-annotate_text_update(void)
+annotate_text_update(time_t t_annotate)
 	{
 	SList           *list;
 	AnnotateString  *annotate;
 	char            buf[MMAL_CAMERA_ANNOTATE_MAX_TEXT_LEN_V3];
 	char            *s;
 	int				R, G, B;
-	static boolean  annotating;
-	static time_t   t_prev;
 	MMAL_PARAMETER_CAMERA_ANNOTATE_V3_T	mmal_annotate =
 	 		{{
 			MMAL_PARAMETER_ANNOTATE,
 			sizeof(MMAL_PARAMETER_CAMERA_ANNOTATE_V3_T)
 			}};
 
-	if (   (t_prev == pikrellcam.t_now)
-	    || (!annotating && !pikrellcam.annotate_enable)
-	   )
+	if (!pikrellcam.annotate_enable)
 		return;
-	annotating = pikrellcam.annotate_enable;
-	t_prev = pikrellcam.t_now;
+	buf[0] = '\0';
+	strftime(buf, sizeof(buf), pikrellcam.annotate_format_string,
+						localtime(&t_annotate));
 
-	if (pikrellcam.annotate_enable)
+	for (list = pikrellcam.annotate_list; list; list = list->next)
 		{
-		buf[0] = '\0';
-		strftime(buf, sizeof(buf), pikrellcam.annotate_format_string,
-						&pikrellcam.tm_local);
-		for (list = pikrellcam.annotate_list; list; list = list->next)
-			{
-			annotate = (AnnotateString *) list->data;
-			if (annotate->prepend)
-				asprintf(&s, "%s %s", annotate->string, buf);
-			else
-				asprintf(&s, "%s %s", buf, annotate->string);
-			snprintf(buf, sizeof(buf), "%s", s);
-			free(s);
-			}
-		strcpy(mmal_annotate.text, buf);
-		mmal_annotate.enable = MMAL_TRUE;
+		annotate = (AnnotateString *) list->data;
+		if (annotate->prepend)
+			asprintf(&s, "%s %s", annotate->string, buf);
+		else
+			asprintf(&s, "%s %s", buf, annotate->string);
+		snprintf(buf, sizeof(buf), "%s", s);
+		free(s);
 		}
-	else
-		mmal_annotate.enable = MMAL_FALSE;
+	strcpy(mmal_annotate.text, buf);
+	mmal_annotate.enable = MMAL_TRUE;
 
 	mmal_annotate.show_shutter          = MMAL_FALSE;
 	mmal_annotate.show_analog_gain      = MMAL_FALSE;
@@ -273,7 +262,6 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			log_printf("mjpeg_callback: could not open %s file. %m", fname_part);
 		}
 	return_buffer_to_port(port, buffer);
-	annotate_text_update();
 	}
 
 
@@ -411,7 +399,6 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			}
 		}
 	return_buffer_to_port(port, buffer);
-	annotate_text_update();
 	}
 
 
@@ -502,12 +489,19 @@ void
 video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
-	MotionFrame    *mf = &motion_frame;
-	int            i, n, end_space, event = 0;
-	boolean        force_stop;
-	time_t         t_cur = pikrellcam.t_now;
-	static int     fps_count;
-	static time_t  t_prev;
+	MotionFrame		*mf = &motion_frame;
+	KeyFrame		*kf;
+	int				i, end_space, t_elapsed, event = 0;
+	int				t_usec, dt_frame;
+	boolean			force_stop;
+	time_t			t_cur = pikrellcam.t_now;
+	static int		fps_count, pause_frame_count_adjust;
+	static time_t	t_sec, t_prev;
+	uint64_t		t64_now;
+	static int		t_annotate, t_key_frame;
+	static struct timeval	tv;
+	static uint64_t	t0_stc, pts_prev;
+	static boolean	prev_pause;
 
 	if (vcb->state == VCB_STATE_RESTARTING)
 		{
@@ -518,7 +512,52 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 		return;
 		}
 
+	if (mmalbuf->pts > 0)
+		{
+		if (pikrellcam.t_now > tv.tv_sec + 10)
+			{	/* Rarely, but time skew can change if ntp updates. */
+			gettimeofday(&tv, NULL);
+			mmal_port_parameter_get_uint64(port, MMAL_PARAMETER_SYSTEM_TIME, &t0_stc);
+			t0_stc = (uint64_t) tv.tv_sec * 1000000LL + (uint64_t) tv.tv_usec - t0_stc;
+			}
+
+		/* Skew adjust to the system clock to get second transitions.
+		|  Annotate times need to be set early to get displayed time synced
+		|  with system time.  Needs >2 frames + offset to get it to work over
+		|  range of fps values.
+		|  Key frames can be delivered one frame after a request, so request
+		|  within 1 1/2 frames before second time transitions.
+		*/
+		t64_now = t0_stc + mmalbuf->pts;
+		t_sec = (int) (t64_now / 1000000LL);
+		t_usec = (int) (t64_now % 1000000LL);
+		dt_frame = 1000000 / pikrellcam.camera_adjust.video_fps;
+
+		if (   t_annotate < t_sec
+		    && t_usec > 900000 - 5 * dt_frame / 2
+		   )
+			{
+			t_annotate = t_sec;
+			annotate_text_update(t_annotate + 1);
+			}
+
+		if (   (vcb->state == VCB_STATE_NONE || vcb->pause)
+		    && t_key_frame < t_sec
+		    && t_usec > 1000000 - 3 * dt_frame / 2
+		   )
+			{
+			t_key_frame = t_sec;
+			mmal_port_parameter_set_boolean(port,
+						MMAL_PARAMETER_VIDEO_REQUEST_I_FRAME, 1);
+			}
+		if (   (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
+		         && t_cur < t_sec
+		        )
+			t_cur = t_sec;
+		}
+
 	pthread_mutex_lock(&vcb->mutex);
+	
 	if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CONFIG)
 		h264_header_save(mmalbuf);
 	else if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CODECSIDEINFO)
@@ -547,12 +586,18 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			*/
 			vcb->in_keyframe = TRUE;
 			vcb->cur_frame_index = (vcb->cur_frame_index + 1) % KEYFRAME_SIZE;
-			vcb->key_frame[vcb->cur_frame_index].position = vcb->head;
-			vcb->key_frame[vcb->cur_frame_index].frame_count = 0;
+			kf = &vcb->key_frame[vcb->cur_frame_index];
+			kf->position = vcb->head;
+			kf->frame_count = 0;
+			pause_frame_count_adjust = 0;
 			if (vcb->pause && vcb->state == VCB_STATE_MANUAL_RECORD)
+				{
 				vcb->tail = vcb->head;
-			vcb->key_frame[vcb->cur_frame_index].t_frame = t_cur;
-
+				pts_prev = mmalbuf->pts;
+				pause_frame_count_adjust = 0;
+				}
+			kf->t_frame = t_cur;
+			kf->frame_pts = mmalbuf->pts;
 			while (t_cur - vcb->key_frame[vcb->pre_frame_index].t_frame
 						 > pikrellcam.motion_times.pre_capture)
 				{
@@ -572,27 +617,21 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 					break;
 				i %= KEYFRAME_SIZE;
 				}
-			if (vcb->state == VCB_STATE_MOTION_RECORD)
-				vcb->frame_count += 1;
-			else
-				vcb->frame_count = vcb->key_frame[vcb->pre_frame_index].frame_count;
+			if (   vcb->state == VCB_STATE_MOTION_RECORD
+			    || vcb->state == VCB_STATE_MANUAL_RECORD
+			   )
+				{
+				if (!vcb->pause)
+					vcb->frame_count += 1;
+				else
+					pause_frame_count_adjust += 1;
+				}
 			}
+
 		if (t_cur > t_prev)
 			{
-			/* While waiting for a video record start event, keep key frames
-			|  coming in at close to once per second to give a chance for
-			|  having an accurate pre_capture time.  Also need them for pause.
-			*/
-			if (vcb->state == VCB_STATE_NONE || vcb->pause)
-				if (mmal_port_parameter_set_boolean(port,
-					MMAL_PARAMETER_VIDEO_REQUEST_I_FRAME, 1) != MMAL_SUCCESS)
-					log_printf("Request key frame failed\n");
-
-			/* For pause (happens only in manual record) don't care about
-			|  actual start time, but display cares about length.
-			*/
-			if (vcb->pause)
-				++vcb->record_start;
+			if (!vcb->pause)
+				++vcb->record_elapsed_time;
 			t_prev = t_cur;
 			}
 
@@ -606,36 +645,11 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
 			pikrellcam.video_header_size = vcb->h264_header_position;
 			pikrellcam.video_size = vcb->h264_header_position;
-			if (mf->external_trigger_pre_capture > 0)
-				{
-				n = vcb->cur_frame_index;
-				if (mf->external_trigger_pre_capture > vcb->seconds - 1)
-					mf->external_trigger_pre_capture = vcb->seconds - 1;
-				while (t_cur - vcb->key_frame[n].t_frame < mf->external_trigger_pre_capture)
-					{
-					if (vcb->key_frame[n].t_frame == 0)
-						{
-						n = (n + 1) % KEYFRAME_SIZE;
-						break;
-						}
-					if (--n < 0)
-						n = KEYFRAME_SIZE - 1;
-					if (n == vcb->cur_frame_index)
-						break;
-					}
-				if (t_cur - vcb->key_frame[n].t_frame > mf->external_trigger_pre_capture)
-					n = (n + 1) % KEYFRAME_SIZE;
-				vcb->tail = vcb->key_frame[n].position;
-				vcb->record_start = vcb->key_frame[n].t_frame;
-				}
-			else
-				{
-				vcb->tail = vcb->key_frame[vcb->pre_frame_index].position;
-				vcb->record_start = t_cur - pikrellcam.motion_times.pre_capture;
-				}
+
+			vcb->tail = vcb->key_frame[vcb->record_start_frame_index].position;
 			vcb_video_write(vcb);
-			vcb->record_event_time = t_cur;
-//			vcb->frame_count = vcb->key_frame[vcb->pre_frame_index].frame_count;
+			vcb->frame_count = vcb->key_frame[vcb->record_start_frame_index].frame_count;
+			vcb->video_frame_count = vcb->frame_count;
 			vcb->state = VCB_STATE_MOTION_RECORD;
 			if (mf->external_trigger_time_limit > 0)
 				{
@@ -661,33 +675,12 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			fwrite(vcb->h264_header, 1, vcb->h264_header_position, vcb->file);
 			pikrellcam.video_header_size = vcb->h264_header_position;
 			pikrellcam.video_size = vcb->h264_header_position;
-			n = vcb->cur_frame_index;
-			if (vcb->manual_pre_capture > vcb->seconds - 1)
-				vcb->manual_pre_capture = vcb->seconds - 1;
-			while (t_cur - vcb->key_frame[n].t_frame < vcb->manual_pre_capture)
-				{
-				if (vcb->key_frame[n].t_frame == 0)
-					{
-					n = (n + 1) % KEYFRAME_SIZE;
-					break;
-					}
-				if (--n < 0)
-					n = KEYFRAME_SIZE - 1;
-				if (n == vcb->cur_frame_index)
-					break;
-				}
-			if (t_cur - vcb->key_frame[n].t_frame > vcb->manual_pre_capture)
-				n = (n + 1) % KEYFRAME_SIZE;
 
-			vcb->tail = vcb->key_frame[n].position;
-			if (n != vcb->cur_frame_index)
-				{
-				vcb_video_write(vcb);
-				vcb->record_start = vcb->key_frame[n].t_frame;
-				}
-			else
-				vcb->record_start = t_cur;
-			vcb->record_event_time = t_cur;
+			vcb->tail = vcb->key_frame[vcb->record_start_frame_index].position;
+
+			vcb_video_write(vcb);
+			vcb->frame_count = vcb->key_frame[vcb->record_start_frame_index].frame_count;
+			pts_prev = 0;
 			vcb->state = VCB_STATE_MANUAL_RECORD;
 			event |= EVENT_PREVIEW_SAVE;
 			}
@@ -719,18 +712,46 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 		mmal_buffer_header_mem_unlock(mmalbuf);
 
 		/* And write video data to a video file according to record state.
+		|  Record time limit (if any) does not include pre capture times or
+		|  manual paused time which is accounted for in record_elapsed_time.
 		*/
-		if (   vcb->max_record_time > 0
-		    && t_cur - vcb->record_event_time >= vcb->max_record_time
-		   )
-			force_stop = TRUE;
-		else
-			force_stop = FALSE;
+		force_stop = FALSE;
+		if (vcb->max_record_time > 0)
+			{
+			t_elapsed = vcb->record_elapsed_time;
+			if (vcb->state == VCB_STATE_MOTION_RECORD)
+				t_elapsed -= (mf->external_trigger_pre_capture > 0) ?
+							  mf->external_trigger_pre_capture
+							: pikrellcam.motion_times.pre_capture;
+			else
+				t_elapsed -= vcb->manual_pre_capture;
+
+			if (t_elapsed >= vcb->max_record_time)
+				force_stop = TRUE;
+			}
 
 		if (vcb->state == VCB_STATE_MANUAL_RECORD)
 			{
 			if (!vcb->pause)
+				{
+				if (mmalbuf->pts > 0)
+					{
+					if (pts_prev > 0)
+						vcb->last_pts += mmalbuf->pts - pts_prev;
+					else
+						vcb->last_pts = mmalbuf->pts;
+					pts_prev = mmalbuf->pts;
+					}
+				if (prev_pause)
+					{
+					vcb->frame_count += pause_frame_count_adjust;
+					pause_frame_count_adjust = 0;
+					}
+				vcb->video_frame_count = vcb->frame_count;
 				vcb_video_write(vcb);	/* Continuously write video data */
+				}
+			prev_pause = vcb->pause;
+	
 			if (force_stop)
 				video_record_stop(vcb);
 			}
@@ -746,7 +767,12 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  already written.
 			*/
 			if (t_cur <= vcb->motion_sync_time)
+				{
+				if (mmalbuf->pts > 0)
+					vcb->last_pts = mmalbuf->pts;
+				vcb->video_frame_count = vcb->frame_count;
 				vcb_video_write(vcb);
+				}
 			if (   force_stop
 		        || (   mf->external_trigger_time_limit == 0
 			        && t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
@@ -989,8 +1015,7 @@ camera_create(void)
 		.num_preview_video_frames = 3,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
-		.use_stc_timestamp   = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC
-//		.use_stc_timestamp   = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC
+		.use_stc_timestamp   = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC
 		};
 	mmal_port_parameter_set(camera.control_port, &camera_config.hdr);
 

@@ -66,15 +66,20 @@ substitute_var(char *str, char V, char *fmt_arg)
   |  Return string is allocated memory.
   */
 char *
-media_pathname(char *dir, char *fname,
+media_pathname(char *dir, char *fname, time_t time,
 				char var1, char *arg1, char var2, char *arg2)
 	{
-	char buf[200], *path;
+	struct tm	tm;
+	char		buf[200], *path;
+
+	if (time == 0)
+		time = pikrellcam.t_now;
+	localtime_r(&time, &tm);
 
 	/* Do strftime() first to get rid of '%' specifiers in fname.
 	*/
 	buf[0] = '\0';
-	strftime(buf, sizeof(buf), fname, &pikrellcam.tm_local);
+	strftime(buf, sizeof(buf), fname, &tm);
 	asprintf(&path, "%s/%s", dir, buf);
 
 	/* Now process any $V substitution variables.
@@ -375,7 +380,7 @@ timelapse_capture(void)
 	snprintf(seq_buf, sizeof(seq_buf), "%05d", time_lapse.sequence);
 	snprintf(series_buf, sizeof(series_buf), "%05d", time_lapse.series);
 	path = media_pathname(pikrellcam.timelapse_dir,
-						pikrellcam.timelapse_format,
+						pikrellcam.timelapse_format, 0,
 						'N',  seq_buf,
 						'n',  series_buf);
 
@@ -442,18 +447,50 @@ timelapse_inform_convert(void)
 void
 video_record_start(VideoCircularBuffer *vcb, int start_state)
 	{
-	char    *s, *path, *stats_path = NULL, seq_buf[12];
-	boolean do_stats = FALSE;
+	MotionFrame	*mf = &motion_frame;
+	time_t		t_cur = pikrellcam.t_now;
+	int			n;
+	char		*s, *path, *stats_path = NULL, seq_buf[12];
+	boolean		do_stats = FALSE;
 
 	if (vcb->state == VCB_STATE_MANUAL_RECORD)
 		return;
 
 	if (start_state == VCB_STATE_MOTION_RECORD_START)
 		{
+		if (mf->external_trigger_pre_capture > 0)
+			{
+			n = vcb->cur_frame_index;
+			if (mf->external_trigger_pre_capture > vcb->seconds - 1)
+				mf->external_trigger_pre_capture = vcb->seconds - 1;
+			while (t_cur - vcb->key_frame[n].t_frame < mf->external_trigger_pre_capture)
+				{
+				if (vcb->key_frame[n].t_frame == 0)
+					{
+					n = (n + 1) % KEYFRAME_SIZE;
+					break;
+					}
+				if (--n < 0)
+					n = KEYFRAME_SIZE - 1;
+				if (n == vcb->cur_frame_index)
+					break;
+				}
+			if (t_cur - vcb->key_frame[n].t_frame > mf->external_trigger_pre_capture)
+				n = (n + 1) % KEYFRAME_SIZE;
+			}
+		else
+			n = vcb->pre_frame_index;
+
+		vcb->record_start_time = vcb->key_frame[n].t_frame;
+		vcb->record_elapsed_time = t_cur - vcb->record_start_time;
+		vcb->record_start_frame_index = n;
+		pikrellcam.video_start_pts = vcb->key_frame[n].frame_pts;
+
 		snprintf(seq_buf, sizeof(seq_buf), "%d",
 					pikrellcam.video_motion_sequence);
 		path = media_pathname(pikrellcam.video_dir,
 					pikrellcam.video_motion_name_format,
+					vcb->record_start_time,
 					'N',  seq_buf,
 					'H', pikrellcam.hostname);
 		pikrellcam.video_motion_sequence += 1;
@@ -462,10 +499,34 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 		}
 	else
 		{
+		n = vcb->cur_frame_index;
+		if (vcb->manual_pre_capture > vcb->seconds - 1)
+			vcb->manual_pre_capture = vcb->seconds - 1;
+		while (t_cur - vcb->key_frame[n].t_frame < vcb->manual_pre_capture)
+			{
+			if (vcb->key_frame[n].t_frame == 0)
+				{
+				n = (n + 1) % KEYFRAME_SIZE;
+				break;
+				}
+			if (--n < 0)
+				n = KEYFRAME_SIZE - 1;
+			if (n == vcb->cur_frame_index)
+				break;
+			}
+		if (t_cur - vcb->key_frame[n].t_frame > vcb->manual_pre_capture)
+			n = (n + 1) % KEYFRAME_SIZE;
+
+		vcb->record_start_time = vcb->key_frame[n].t_frame;
+		vcb->record_elapsed_time = t_cur - vcb->record_start_time;
+		vcb->record_start_frame_index = n;
+		pikrellcam.video_start_pts = vcb->key_frame[n].frame_pts;
+
 		snprintf(seq_buf, sizeof(seq_buf), "%d",
 					pikrellcam.video_manual_sequence);
 		path = media_pathname(pikrellcam.video_dir,
 					pikrellcam.video_manual_name_format,
+					vcb->record_start_time,
 					'N',  seq_buf,
 					'H', pikrellcam.hostname);
 		pikrellcam.video_manual_sequence += 1;
@@ -605,6 +666,9 @@ video_record_stop(VideoCircularBuffer *vcb)
 		free(cmd);
 		}
 	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
+	pikrellcam.video_last_frame_count = vcb->video_frame_count;
+	pikrellcam.video_end_pts = vcb->last_pts;
+
 	pikrellcam.state_modified = TRUE;
 
 	pikrellcam.video_notify = TRUE;
@@ -882,9 +946,10 @@ command_process(char *command_line)
 
 		case still:
 			snprintf(buf, sizeof(buf), "%d", pikrellcam.still_sequence);
-			path = media_pathname(pikrellcam.still_dir, pikrellcam.still_name_format,
+			path = media_pathname(pikrellcam.still_dir, pikrellcam.still_name_format, 0,
 							'N', buf,
 							'H', pikrellcam.hostname);
+
 			pikrellcam.still_sequence += 1;
 			still_capture(path);
 			free(path);
@@ -1273,6 +1338,8 @@ main(int argc, char *argv[])
 	int	 	i, n;
 	char	*opt, *arg, *equal_arg, *user;
 	char	*line, *eol, buf[4096];
+	int		t_usleep;
+	struct timeval	tv;
 
 	pgm_name = argv[0];
 	setlocale(LC_TIME, "");
@@ -1317,7 +1384,7 @@ main(int argc, char *argv[])
 		log_start(TRUE, FALSE, FALSE);
 		log_printf_no_timestamp("========= Restarting as root to mmap() servos ==========\n");
 		homedir = getpwuid(geteuid())->pw_dir;
-		i = snprintf(buf, sizeof(buf), "sudo %s -user%d -group%d -home%s ",
+		i = snprintf(buf, sizeof(buf), "sudo -P %s -user%d -group%d -home%s ",
 				*argv++, (int) getuid(), (int) getgid(), homedir);
 		while (--argc && i < sizeof(buf) - 64 - strlen(*argv))
 			i = sprintf(buf + i, "%s ", *argv++);
@@ -1465,7 +1532,11 @@ main(int argc, char *argv[])
 
 	while (1)
 		{
-		usleep(1000000 / EVENT_LOOP_FREQUENCY);
+		gettimeofday(&tv, NULL);
+		t_usleep = (int) (100000 - (tv.tv_usec % 100000));  /* EVENT_LOOP_FREQUENCY!! */
+		usleep(t_usleep + 1);
+		time(&pikrellcam.t_now);
+
 		event_process();
 		tcp_poll_connect();
 

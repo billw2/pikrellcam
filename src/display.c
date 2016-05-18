@@ -676,16 +676,15 @@ motion_draw(uint8_t *i420)
 	else
 		mf->selected_region = -1;
 
+	t_record = vcb->record_elapsed_time;
 	if (vcb->state & VCB_STATE_MOTION_RECORD)
 		{
-		if (pikrellcam.t_now < vcb->motion_sync_time)
-			t_record = pikrellcam.t_now - vcb->record_start;
-		else
-			t_record = vcb->motion_sync_time - vcb->record_start;
+		if (pikrellcam.t_now > vcb->motion_sync_time)
+			t_record -= pikrellcam.t_now - vcb->motion_sync_time;
 		if (mf->external_trigger_time_limit > 0)
 			{
 			t_hold = vcb->max_record_time -
-					(pikrellcam.t_now - vcb->record_event_time);
+					(pikrellcam.t_now - vcb->record_start_time);
 			snprintf(info, sizeof(info), "REC (Motion) %d:%02d  end %d:%02d",
 						t_record / 60, t_record % 60,
 						t_hold / 60, t_hold % 60);
@@ -700,14 +699,12 @@ motion_draw(uint8_t *i420)
 			}
 		}
 	else if (vcb->state & VCB_STATE_MANUAL_RECORD)
-		{
-		t_record = pikrellcam.t_now - vcb->record_start;
 		snprintf(info, sizeof(info), "REC (%s) %d:%02d",
 					vcb->pause ? "Pause" : "Manual",
 					t_record / 60, t_record % 60);
-		}
 	else
 		snprintf(info, sizeof(info), "REC (Stop)");
+
 	i420_print(&bottom_status_area, normal_font, 0xff, 2, 1, 0,
 					JUSTIFY_LEFT, info);
 
@@ -851,8 +848,10 @@ static int		menu_servo_settings_index;
 static char	*video_presets_entry[] =
 	{
 	"1080p",
-	"720p",
-	"1296x972",
+	"720p",			// V2 1280x720 / v1 1296x730
+	"1640x1232",	// V2 4:3
+	"1640x922",		// V2 16:9
+	"1296x972",		// V1 4:3
 	"1024x768",
 	"1024x576"
 	};
@@ -864,9 +863,12 @@ static char	*still_presets_entry[] =
 	{
 	"1920x1080",
 	"1280x720",
+	"3280x2464",	// v2
 	"2592x1944",
 	"2592x1458",
 	"1920x1440",
+	"1640x1232",	// V2 4:3
+	"1640x922",		// V2 16:9
 	"1296x972",
 	"1024x768",
 	"1024x576"
