@@ -1364,6 +1364,12 @@ main(int argc, char *argv[])
 		dup_string(&pikrellcam.log_file, buf);
 		}
 
+	if (*pikrellcam.lc_time)
+		{
+		log_printf("setting LC_TIME to %s\n", pikrellcam.lc_time);
+		setlocale(LC_TIME, pikrellcam.lc_time);
+		}
+
 	/* If need to mmap() gpios for servos, restart a sudo pikrellcam which can
 	|  mmap() /dev/mem and then drop priviledes back to orig user/group
 	*/

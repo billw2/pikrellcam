@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.0.2"
+#define	PIKRELLCAM_VERSION	"3.0.3"
 
 
 //TCP Stream Server
@@ -635,6 +635,7 @@ typedef struct
 			*shutter_speed,
 			*raw_capture;
 
+	char	*lc_time;
 	int		debug;
 	boolean	halt_enable;
 	}

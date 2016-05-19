@@ -959,6 +959,13 @@ static Config  config[] =
 	  "#",
 	"longitude", "97.88W", FALSE, {.string = &pikrellcam.longitude },   config_string_set },
 
+	{ "# Setting a locale to get annotated time shown in your language is\n"
+	  "# not preserved when starting pikrellcam from the web page.  Set it\n"
+	  "# here for pikrellcam to explicitely set it.\n"
+	  "# \n"
+	  "# Example:  lc_time es_ES.utf8",
+	"lc_time", "", FALSE, {.string = &pikrellcam.lc_time },   config_string_set },
+
 	{ "# Do not edit.  Used internally to force startup config write if needed.\n"
 	  "#",
 	"config_sequence", "0", FALSE, {.value = &pikrellcam.config_sequence}, config_value_int_set },
@@ -1100,7 +1107,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 32;
+	pikrellcam.config_sequence_new = 34;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
