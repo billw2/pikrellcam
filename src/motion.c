@@ -1229,7 +1229,7 @@ motion_init(void)
 
 	/* motion frames are from 16x16 macroblocks of the video frame
 	*/
-	motion_frame.width = (pikrellcam.camera_config.video_width / 16) + 1;
+	motion_frame.width = ((pikrellcam.camera_config.video_width + 15) / 16) + 1;
 	motion_frame.height = (pikrellcam.camera_config.video_height / 16) + 1;
 	motion_frame.vectors_size =
 			motion_frame.width * motion_frame.height * sizeof(MotionVector);
