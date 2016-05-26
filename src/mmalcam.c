@@ -164,8 +164,6 @@ return_buffer_to_port(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
   |  callback may be dropped.  Set debug_fps to 1 to check things... or
   |  just watch the web mjpeg stream and see it slow down.
   */
-int debug_fps = 0;
-
 void
 mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	{
@@ -210,7 +208,7 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			tcp_buf_offset = 0;
 			}
 
-		if (debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
+		if (pikrellcam.debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
 			printf("%s fps %d\n", data->name, 1000000 / utime);
 		if (file)
 			{
@@ -394,7 +392,7 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			}
 		if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
 			{
-			if (debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
+			if (pikrellcam.debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
 				printf("%s fps %d\n", obj->name, 1000000 / utime);
 			}
 		}

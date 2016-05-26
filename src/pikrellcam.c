@@ -731,6 +731,8 @@ get_arg_pass1(char *arg)
 		pikrellcam.verbose_motion = TRUE;
 	else if (!strcmp(arg, "-debug"))
 		pikrellcam.debug = TRUE;
+	else if (!strcmp(arg, "-debug-fps"))
+		pikrellcam.debug_fps = TRUE;
 	else if (!strncmp(arg, "-user", 5))
 		user_uid = atoi(arg + 5);
 	else if (!strncmp(arg, "-group", 6))
