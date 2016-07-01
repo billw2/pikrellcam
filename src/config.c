@@ -571,10 +571,10 @@ static Config  config[] =
 	  "#",
 	"on_startup", "$C/startup $I $m $G",  TRUE, {.string = &pikrellcam.on_startup_cmd}, config_string_set },
 
-	{ "# Set to on to enable pikrellcam to accept halt and reboot commands\n"
-	  "# from the FIFO.  This enables halt and reboot from the web page.\n"
+	{ "# Set to off to disable accepting halt and reboot commands\n"
+	  "# from the FIFO and the web page.\n"
 	  "#",
-	"halt_enable",	"off", FALSE, {.value = &pikrellcam.halt_enable},  config_value_bool_set},
+	"halt_enable",	"on", FALSE, {.value = &pikrellcam.halt_enable},  config_value_bool_set},
 
 
 
@@ -787,10 +787,11 @@ static Config  config[] =
 	  "#",
 	"video_bitrate",  "6000000", TRUE, {.value = &pikrellcam.camera_adjust.video_bitrate},    config_value_int_set },
 
-	{ "# Pixel width of the stream jpeg file. Aspect ratio is determined by the video.\n"
-	  "# This value will be rounded off to be a multiple of 16.  If you want\n"
-	  "# a larger image but not increase bandwith usage, try a mjpeg_width of\n"
-	  "# 1024 with a mjpeg_quality 10.\n"
+	{ "# Pixel width of the streamed jpeg file /run/pikrellcam/mjpeg.jpg.\n"
+	  "# Aspect ratio is determined by the video resolution setting.\n"
+	  "# This value will be rounded off to be a multiple of 16.\n"
+	  "# If bandwith is a problem you can reduce mjpeg_quality to 5 without\n"
+	  "# much loss of quality.\n"
 	  "#",
 	"mjpeg_width",    "800",  TRUE, {.value = &pikrellcam.mjpeg_width},      config_value_int_set },
 
@@ -799,7 +800,7 @@ static Config  config[] =
 	  "# is not the same as quality factors in other jpeg programs and should\n"
 	  "# be set lower than those programs.\n"
 	  "#",
-	"mjpeg_quality",  "10",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
+	"mjpeg_quality",  "8",  TRUE, {.value = &pikrellcam.mjpeg_quality},    config_value_int_set },
 
 	{ "# Divide the video_fps by this to get the stream jpeg file update rate.\n"
 	  "# This will also be the motion frame check rate for motion detection.\n"

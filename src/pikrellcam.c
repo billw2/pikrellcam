@@ -1337,7 +1337,7 @@ int
 main(int argc, char *argv[])
 	{
 	int		fifo;
-	int	 	i, n;
+	int	 	i, j, n;
 	char	*opt, *arg, *equal_arg, *user;
 	char	*line, *eol, buf[4096];
 	int		t_usleep;
@@ -1395,7 +1395,7 @@ main(int argc, char *argv[])
 		i = snprintf(buf, sizeof(buf), "sudo -P %s -user%d -group%d -home%s ",
 				*argv++, (int) getuid(), (int) getgid(), homedir);
 		while (--argc && i < sizeof(buf) - 64 - strlen(*argv))
-			i = sprintf(buf + i, "%s ", *argv++);
+			i += sprintf(buf + i, "%s ", *argv++);
 
 		set_exec_with_session(FALSE);
 		exec_wait(buf, NULL);	/*  restart as root so can mmap() gpios*/
@@ -1432,7 +1432,7 @@ main(int argc, char *argv[])
 
 		/* Accept: --opt arg   -opt arg    opt=arg    --opt=arg    -opt=arg
 		*/
-		for (i = 0; i < 2; ++i)
+		for (j = 0; j < 2; ++j)
 			if (*opt == '-')
 				++opt;
 		if ((equal_arg = strchr(opt, '=')) != NULL)
@@ -1442,7 +1442,10 @@ main(int argc, char *argv[])
 			++i;
 			}
 		else
+			{
 			arg = argv[i + 1];
+			++i;
+			}
 
 		/* For camera parameters, do not set the camera, only replace
 		|  values in the parameter table.
@@ -1454,6 +1457,8 @@ main(int argc, char *argv[])
 			log_printf_no_timestamp("Bad arg: %s\n", opt);
 			exit(1);
 			}
+		else
+			pikrellcam.config_modified = TRUE;
 		}
 
 	if (pikrellcam.debug)
@@ -1491,8 +1496,8 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
 	asprintf(&pikrellcam.timelapse_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_TIMELAPSE_SUBDIR);
 
-	if (   !make_dir(pikrellcam.media_dir)
-		|| !make_dir(pikrellcam.archive_dir)
+	if (   !make_dir(pikrellcam.media_dir)		// after startup script, will make
+		|| !make_dir(pikrellcam.archive_dir)	// dirs again in case of mount
 	   )
 		exit(1);
 
@@ -1509,6 +1514,7 @@ main(int argc, char *argv[])
 	check_modes(pikrellcam.log_file, 0664);
 
 	if (   !make_dir(pikrellcam.tmpfs_dir)
+	    || !make_dir(pikrellcam.archive_dir)
 	    || !make_dir(pikrellcam.video_dir)
 	    || !make_dir(pikrellcam.thumb_dir)
 	    || !make_dir(pikrellcam.still_dir)

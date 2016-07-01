@@ -693,8 +693,17 @@ function restart_page($selected)
 		echo "<span style=\"margin-left: 4px; font-size: 1.2em; font-weight: 500;\">Stills</span>";
 		}
 
-	$disk_total = disk_total_space($archive_root);
-	$disk_free = disk_free_space($archive_root);
+	if ("$media_mode" == "archive")
+		{
+		$disk_total = disk_total_space($archive_root);
+		$disk_free = disk_free_space($archive_root);
+		}
+	else
+		{
+		$disk_total = disk_total_space($media_dir);
+		$disk_free = disk_free_space($media_dir);
+		}
+
 	$free_percent = sprintf('%.1f',($disk_free / $disk_total) * 100);
 
 	$total = eng_filesize($disk_total);
