@@ -665,11 +665,12 @@ static Config  config[] =
 	  "#     $J  height of the area\n"
 	  "#     $K  x coordinate of the area center\n"
 	  "#     $Y  y coordinate of the area center\n"
+	  "#     $A  the filename of the thumb jpeg of the motion area\n"
 	  "# Example command to email the motion detect preview jpeg:\n"
 	  "#     on_motion_preview_save mpack -s pikrellcam@$H $F myuser@gmail.com\n"
 	  "# Or, example command to run the default preview-save script which you\n"
 	  "# can edit to enable emailing or copying the jpeg.\n"
-	  "#     on_motion_preview_save $C/preview-save  $F $m $P $G\n"
+	  "#     on_motion_preview_save $C/preview-save  $F $m $P $G $A\n"
 	  "#",
 	"on_motion_preview_save", "", TRUE, {.string = &pikrellcam.on_motion_preview_save_cmd}, config_string_set },
 
@@ -1108,7 +1109,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 34;
+	pikrellcam.config_sequence_new = 35;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

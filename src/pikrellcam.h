@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.0.6"
+#define	PIKRELLCAM_VERSION	"3.0.7"
 
 
 //TCP Stream Server
@@ -518,7 +518,8 @@ typedef struct
 	char	*on_motion_begin_cmd,
 			*on_motion_end_cmd,
 			*motion_regions_name;
-	char	*preview_filename;
+	char	*preview_filename,
+			*preview_thumb_filename;
 	char	*motion_preview_save_mode,
 			*on_motion_preview_save_cmd;
 	boolean	motion_preview_clean,

@@ -12,6 +12,7 @@
 #   $m - the media directory full path
 #   $P - the command FIFO
 #   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $A - the filename full path of the thumb jpeg of the motion area
 # 
 # In ~/.pikrellcam.conf, for this script as is, make on_motion_preview_save:
 #
@@ -21,11 +22,21 @@ PREVIEW_JPEG=$1
 MEDIA_DIR=$2
 FIFO=$3
 LOG_FILE=$4
+THUMB_JPEG=$5
 
-# uncomment and edit MY_EMAIL to your email address to email the preview jpeg.
+# To configure emailing a jpeg for a motion event, uncomment one EMAIL_JPG
+# line, edit the MY_EMAIL line, and uncomment the mpack line:
+
+# If you want to email the full mjpeg_width preview jpg, uncomment this line:
+# EMAIL_JPEG=$PREVIEW_JPEG
+# OR, to email the smaller motion area thumb jpg, uncomment this line:
+# EMAIL_JPEG=$THUMB_JPEG
+
+# Edit MY_EMAIL to your email address to email the preview jpeg.
 #
 MY_EMAIL=myuser@gmail.com
-#mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL
+#mpack -s pikrellcam@$HOSTNAME $EMAIL_JPEG $MY_EMAIL
+
 #echo "mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL" >> $LOG_FILE
 
 

@@ -123,6 +123,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 't':
 				fmt_arg = pikrellcam.thumb_dir;
 				break;
+
 			case 'T':
 				snprintf(buf, sizeof(buf), "%d", time_lapse.period);
 				name = media_pathname(pikrellcam.video_dir,
@@ -181,6 +182,10 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'n':
 				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
 				fmt_arg = buf;
+				break;
+
+			case 'A':	/* thumb filename that is motion area jpg.*/
+				fmt_arg = pikrellcam.preview_thumb_filename;
 				break;
 			case 'i':	/* width of motion area */
 				t = frame_vec->box_w;
@@ -387,7 +392,7 @@ void
 event_preview_save(void)
 	{
 	FILE	*f_src, *f_dst;
-	char	*s, *base, *path, buf[BUFSIZ];
+	char	*s, *base, *path, *thumb, buf[BUFSIZ];
 	int		n;
 
 	path = strdup(pikrellcam.video_pathname);
@@ -395,17 +400,29 @@ event_preview_save(void)
 	    || (s = strstr(path, ".h264")) != NULL
 	   )
 		{
+		*s = '\0';
+		asprintf(&thumb, "%s.th.jpg", path);
 		strcpy(s, ".jpg");
 
 		/* Copy the current mjpeg.jpg into a motion preview file.
 		*/
 		if ((f_src = fopen(pikrellcam.mjpeg_filename, "r")) != NULL)
 			{
-			base = fname_base(path);
+			base = fname_base(path);	// motion_xxx.jpg
 			if (pikrellcam.preview_filename)
 				free(pikrellcam.preview_filename);
 			asprintf(&pikrellcam.preview_filename, "%s/%s",
 							pikrellcam.tmpfs_dir, base);
+
+			/* thumb motion_xxx.th.jpg will be created in _thumb script, so
+			|  mirror create the filename here so it can be passed to
+			|  preview_save_cmd script.
+			*/
+			base = fname_base(thumb);	// motion_xxx.th.jpg
+			if (pikrellcam.preview_thumb_filename)
+				free(pikrellcam.preview_thumb_filename);
+			asprintf(&pikrellcam.preview_thumb_filename, "%s/%s",
+							pikrellcam.thumb_dir, base);
 
 			log_printf("event preview save: copy %s -> %s\n",
 								pikrellcam.mjpeg_filename,
@@ -421,6 +438,7 @@ event_preview_save(void)
 				}
 			fclose(f_src);
 			}
+		free(thumb);
 		}
 	free(path);
 
