@@ -696,6 +696,17 @@ static Config  config[] =
 	  "#",
 	"motion_stats",  "off", FALSE, {.value = &pikrellcam.motion_stats}, config_value_bool_set },
 
+	{ "# Command/script to run when receiving a user defined multicast\n"
+	  "# pkc-message sent by other PiKrellCams or separate scripts on your LAN.\n"
+	  "# Use this to run a script needing PiKrellCam variables passed to it,\n"
+	  "# otherwise just multicast a command to directly execute scripts.\n"
+	  "# Once a multicast originated script is running, it can be programmed\n"
+	  "# to accept additional multicasts of user defined message types.\n"
+	  "# PiKrellCam itself accepts message types of \"command\" and \"pkc-message\".\n"
+	  "# See the help page.\n"
+	  "#",
+	"on_multicast_pkc_message",  "", TRUE, {.string = &pikrellcam.on_multicast_message_cmd}, config_string_set },
+
 
 	{ "\n# --------------------- Video Record Options -----------------------\n"
 	  "#\n"
@@ -1066,6 +1077,8 @@ config_set_defaults(char *home_dir)
 	pikrellcam.version = strdup(PIKRELLCAM_VERSION);
 	pikrellcam.timelapse_format = strdup("tl_$n_$N.jpg");
 	pikrellcam.preview_filename = strdup("");
+	pikrellcam.multicast_group_IP = "225.0.0.55";
+	pikrellcam.multicast_group_port = 22555;
 	gethostname(pikrellcam.hostname, HOST_NAME_MAX);	
 
 	/* If pikrellcam started by rc.local or web page, need to get correct
@@ -1075,6 +1088,8 @@ config_set_defaults(char *home_dir)
 		home_dir = getpwuid(geteuid())->pw_dir;
 	asprintf(&pikrellcam.config_dir, "%s/%s", home_dir, PIKRELLCAM_CONFIG_DIR);
 	pikrellcam.tmpfs_dir = strdup("/run/pikrellcam");
+	asprintf(&pikrellcam.motion_events_filename,
+				"%s/motion-events", pikrellcam.tmpfs_dir);
 
 	if (make_directory(pikrellcam.config_dir))
 		{
@@ -1109,7 +1124,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 35;
+	pikrellcam.config_sequence_new = 36;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

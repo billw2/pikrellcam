@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.0.7"
+#define	PIKRELLCAM_VERSION	"3.1.0"
 
 
 //TCP Stream Server
@@ -480,7 +480,8 @@ typedef struct
 			*scripts_dir,
 			*scripts_dist_dir,
 			*command_fifo,
-			*state_filename;
+			*state_filename,
+			*motion_events_filename;
 
 	char	*config_dir,
 			*config_file,
@@ -492,7 +493,8 @@ typedef struct
 	int		log_lines;
 
 	int		verbose,
-			verbose_motion;
+			verbose_motion,
+			verbose_multicast;
 	char	hostname[HOST_NAME_MAX],
 			*effective_user;
 
@@ -601,6 +603,11 @@ typedef struct
 			preset_notify,
 			motion_off_preset,
 			on_preset;			/* modify in servo_control.mutex */
+
+	int		multicast_group_port;
+	char	*multicast_group_IP,
+			*multicast_from_hostname,
+			*on_multicast_message_cmd;
 
 	char	*annotate_format_string,
 			annotate_string_space_char;
@@ -785,6 +792,7 @@ boolean	motion_regions_config_load(char *config_file, boolean inform);
 void	motion_preview_file_event(void);
 void	motion_preview_area_fixup(void);
 void	print_cvec(char *str, CompositeVector *cvec);
+void	motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf);
 
 /* On Screen Display
 */
@@ -825,6 +833,10 @@ void	exec_no_wait(char *command, char *arg);
 Event	*exec_child_event(char *event_name, char *command, char *arg);
 void	event_shutdown_request(boolean reboot);
 
+void	multicast_init(void);
+void	multicast_recv(void);
+void	multicast_send(char *seq, char *message);
+
 void	preset_command(char *args);
 void	preset_config_load(void);
 void	preset_config_save(void);
@@ -855,10 +867,11 @@ void	sun_times_init(void);
 void	at_commands_config_save(char *config_file);
 boolean	at_commands_config_load(char *config_file);
 
-void setup_h264_tcp_server(void);
-void tcp_poll_connect(void);
-void tcp_send_h264_header(void *data, int len);
-void tcp_send_h264_data(char * what, void *data, int len);
+void	setup_h264_tcp_server(void);
+int		setup_mjpeg_tcp_server(void);
+void	tcp_poll_connect(void);
+void	tcp_send_h264_header(void *data, int len);
+void	tcp_send_h264_data(char * what, void *data, int len);
 
 
 

@@ -27,8 +27,6 @@
 PiKrellCam	pikrellcam;
 TimeLapse	time_lapse;
 
-extern int setup_mjpeg_tcp_server(void);
-
 static char	*pgm_name;
 static boolean	quit_flag;
 
@@ -705,6 +703,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	mf->external_trigger_time_limit = 0;
 
 	vcb->state = VCB_STATE_NONE;
+	motion_event_write(vcb, mf);
 	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;
 	}
@@ -729,6 +728,8 @@ get_arg_pass1(char *arg)
 		pikrellcam.verbose = TRUE;
 	else if (!strcmp(arg, "-vm"))
 		pikrellcam.verbose_motion = TRUE;
+	else if (!strcmp(arg, "-vmulti"))
+		pikrellcam.verbose_multicast = TRUE;
 	else if (!strcmp(arg, "-debug"))
 		pikrellcam.debug = TRUE;
 	else if (!strcmp(arg, "-debug-fps"))
@@ -795,6 +796,7 @@ typedef enum
 	fix_thumbs,
 	servo_cmd,
 	preset_cmd,
+	multicast,
 	upgrade,
 	halt,
 	reboot,
@@ -846,6 +848,7 @@ static Command commands[] =
 	{ "annotate_string", annotate_string, 1, FALSE },
 	{ "preset", preset_cmd, 1, FALSE },
 	{ "servo", servo_cmd, 1, FALSE },
+	{ "multicast", multicast,    1, TRUE },
 	{ "upgrade", upgrade,    0, TRUE },
 	{ "halt", halt,    0, TRUE },
 	{ "reboot", reboot,    0, TRUE },
@@ -902,6 +905,17 @@ command_process(char *command_line)
 
 	switch (cmd->code)
 		{
+		case multicast:
+			if (args[0] == ':')
+				{	/* msg_id, send "hostname:msg_id args" */
+				arg1[0] = '\0';
+				sscanf(args, "%63s %127[^\n]", arg2, arg1);
+				multicast_send(arg2, arg1);
+				}
+			else	/* no msg_id, send "hostname args" */
+				multicast_send("", args);
+			break;
+
 		case record:
 			n = sscanf(args, "%127s %63[^\n]", arg1, arg2);
 			pthread_mutex_lock(&vcb->mutex);
@@ -1543,6 +1557,7 @@ main(int argc, char *argv[])
 
 	setup_h264_tcp_server();
 	setup_mjpeg_tcp_server();
+	multicast_init();
 
 	while (1)
 		{
@@ -1552,6 +1567,7 @@ main(int argc, char *argv[])
 		time(&pikrellcam.t_now);
 
 		event_process();
+		multicast_recv();
 		tcp_poll_connect();
 
 		/* Process lines in the FIFO.  Single lines via an echo "xxx" > FIFO

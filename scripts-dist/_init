@@ -134,7 +134,8 @@ fi
 cd $INSTALL_DIR/scripts-dist
 for script in *
 do
-	if [ ! -f ../scripts/$script ] && [ "${script:0:1}" != "_" ]
+	if [ ! -f ../scripts/$script ] && [ "${script:0:1}" != "_" ] \
+		&& [ "${script:0:4}" != "pkc_" ] && [ "${script:0:8}" != "example_" ]
 	then
 		cp $script ../scripts 
 	fi

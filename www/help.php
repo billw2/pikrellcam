@@ -64,8 +64,17 @@ And there is a Raspberry Pi
 Under construction...
 </div>
 
-<span style='font-size: 1.5em; font-weight: 650;'>Version 3.0 Upgrade Notice for Version 2.x Users</span><hr>
+<span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
+Version 3.1
+<div class='indent1'>
+<a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
+<a href="help.php#MOTION_EVENTS">motion-events file</a><br>
+</div>
+
+</div>
+Version 3.0
+<div class='indent1'>
 The upgrade from PiKrellcam V2.x to PiKrellCam V3.0 adds presets and servo control.<br>
 This is documented below on this page, but there are changes in how
 motion regions usage is handled that is important to be aware of up front:
@@ -97,6 +106,7 @@ daily  start  "@preset goto 1 1"
 	because the preset remembers its motion regions.
 	</li>
 </ul>
+</div>
 </div>
 
 
@@ -1442,5 +1452,247 @@ daily minute "$C/ds18b20.py F fifo"
 	</ul>
 </div>
 </div>
+
+<span style='font-size: 1.5em; font-weight: 650;'>State Files</span><hr>
+<div class='indent0'>
+<span style='font-size: 1.2em; font-weight: 700;'>/run/pikrellcam/state</span>
+	<div class='indent1'>
+	PiKrellCam internal state can be read from this file.  Look at it to see
+	what information is available.  For example, if you have a bash script that
+	needs to know if the motion_enable current state is "on" or "off":
+<pre>
+line=`grep motion_enable /run/pikrellcam/state`
+motion_state=${line#motion_enable}
+</pre>
+	The motion_state variable will then be "on" or "off".
+	When motion_enable is FIFO changed, the new
+	state should show up in the /run/pikrellcam/state file
+	within around 100-200 msec.
+	</div>
+
+<a name="MOTION_EVENTS">
+<span style='font-size: 1.2em; font-weight: 700;'>/run/pikrellcam/motion-events</span>
+	<div class='indent1'>
+	This is new in PiKrellCam 3.1.0 and it's possible there will be small
+	changes in its format in coming versions.
+	<p>
+	Motion detect events are written to this file during each motion video
+	recording.  An on_motion_begin command configured to run in pikrellcam.conf
+	can read this file to get
+	a reasonably fast notification of motion
+	events as they occur while the video is recording.  Scripts can determine
+	where motion is in the video frame (by x,y position or motion region
+	number) and then take some action such as sending multicast alarms and/or
+	moving servos.
+	<p>
+	This file is overwritten with new event data for each new motion video
+	recording so
+	it is intended for use by on_motion_begin commands which are run
+	immediately after the motion-events file writing begins.
+	The output to the file is
+	flushed after data for each motion detect is written.
+	See script-dist/example-motion-send-alarm2 for an example reading of this
+	file in an on_motion_begin script.
+	<p>
+	The format of the file is a header block followed by one or more
+	motion blocks and a final end tag.
+	Inside of motion blocks are the data
+	for each detect during the video.
+	<p>
+	For example:
+<pre>
+&lt;header&gt;
+to be documented...
+&lt;/header&gt;
+...
+&lt;motion  3.667&gt;
+b   0
+f  49  43  57  -2  57  263
+1  44  42  53  -4  53  144
+2  55  44  61   0  61  119
+&lt;/motion&gt;
+...
+&lt;end&gt;
+</pre>
+	shows data for a detect at 3.667 seconds into the video
+	(including precapture).
+	Each line inside the motion block begins with a single character code:
+	<ul>
+	<li> <span style='font-weight:700'>b</span> - this line shows burst counts.
+	For this detect the burst count did not exceed the burst count limit, so zero
+	is reported.
+	</li>
+	<li> <span style='font-weight:700'>f</span> - this line is the data for
+	the total frame vector (composite of all the motion region vectors)
+	and has the format:
+<pre>
+code x y dx dy magnitude count
+</pre>
+	</li>
+	<li> <span style='font-weight:700'>n</span> - where n is a digit.  These
+	lines are for motion vectors for a motion region and have the same
+	format as the frame vector.
+	There is one
+	line for each region having motion and no line for regions not having
+	motion.  Just like the overall frame vector, for a motion region to have
+	motion, the configured magnitude and count limits must be met.
+	For this detect there was motion in regions 1 and 2.
+	</li>
+	</div>
+The end tag is written when the motion video ends.
+</div
+<a name="MULTICAST_INTERFACE">
+<a name="MULTICAST_INTERFACE">
+<span style='font-size: 1.5em; font-weight: 650;'>Multicast Interface</span><hr>
+<div class='indent0'>
+The multicast interface provides a means for PiKrellCams and desktops
+on a LAN to coordinate state and motion events by one to many message
+sending and script running.
+The coordination control
+implementation can be distributed among the PiKrellCams or the control can
+be centralized on a desktop program that receives multicasts from the
+PiKrellCams and issues commands or messages back to them.
+A system could be as simple as PiKrellCam motion event alarm messages
+sent to a desktop that then triggers an audio
+alarm or some kind of GPIO event.   Or a more complex setup could
+coordinate motion recording and moving cameras on servos to positions
+depending on motion events throughout the network.
+<p>
+Multicasting is a network group communication protocol that
+uses the UDP transport layer which is inherently unreliable
+(messages may be lost).  To address this, the PiKrellCam multicast
+implementation provides for message retransmission and tagging messages
+with id numbers that can be acknowledged so loss detection can be implemented.
+Using either of these mechanisms is optionally up to the user scripts or
+programs that implement the PiKrellCam LAN multicast system.
+<p>
+PiKrellCam uses a fixed group network IP and port number for multicast
+communication which user programs must use:
+<pre>
+PKC_MULTICAST_GROUP_IP    225.0.0.55
+PKC_MULTICAST_GROUP_PORT  22555
+</pre>
+The scripts-dist directory has examples which can be used as is
+or as a starting point for more complex programs.  To use these pkc-xxx
+programs, copy them to a bin directory on desktops you will run them
+from and then they can be run from a terminal or script:
+<ul>
+	<li>
+	<span style='font-weight:700'>pkc-motion</span> - turn motion on or off
+	for one or many PiKrellCams on a LAN.
+<pre>
+# Turn off motion detection for all PiKrellCams
+pkc-motion all off
+# or, "all" is assumed
+pkc-motion off
+
+# Turn on motion detection for two cameras
+pkc-motion rpi2,rpi4 on
+</pre>
+	</li>
+	<li>
+	<span style='font-weight:700'>pkc-reboot</span> - if reboot/halt is
+		enabled, reboot a Pi from a LAN desktop terminal.
+<pre>
+pkc-reboot rpi1
+</pre>
+	</li>
+	<li>
+	<span style='font-weight:700'>pkc-alarm</span> - This file must be
+	edited so it can play an audio file on your machine.
+	Then, if pkc-alarm is running on a desktop,
+	it will play a sound when it receives a
+	multicast alarm message from a PiKrellCam on your LAN.
+	To test playing the audio file, run pkc-alarm in a terminal and then
+	in another terminal run
+	<nobr>scripts-dist/example-motion-send-alarm1.</nobr>
+	This should work with the terminals on different machines on your LAN.
+	<br>
+	On each Pi you want PiKrellCam to send alarm messages from, the setup is:
+	<ol>
+		<li> Copy the example-motion-send-alarm1 or example-motion-send-alarm2
+		from the scripts-dist directory to
+		<nobr>scripts/motion-send-alarm.</nobr>
+		If using the alarm2 example, edit it to select which region you want
+		to detect motion in and edit it to set the motion magnitude and count
+		limits you want.
+		</li>
+		<li> Edit pikrellcam.conf and set the on_motion_begin command to:
+<pre>on_motion_begin  $C/motion-send-alarm
+</pre>
+		</li>
+	</ol>
+	Note: the example-motion-send-alarm2 is likely a work in progress.
+	It is an example of reading the
+	<nobr>/run/pikrellcam/motion-events</nobr> file
+	while a motion video recording is in progress and
+	sending an alarm only if motion exceeding a magnitude and count limit
+	is detected in a particular region.
+	</li>
+</ul>
+Other example scripts may be added over time and the pkc_xxx and example_xxx
+scripts-dist scripts may or not be modified.
+<p>
+<span style='font-size: 1.2em; font-weight: 650;'>Protocol</span>
+<div class='indent1'>
+Programs that send information to the PKC multicast group should open
+a sending socket (see example pkc-xxx programs) and send a message which is
+a line of text characters ending in '\n'.  The format of that text message
+should have at least four space separated fields with the message body
+optionally having additional space separated fields:
+<pre>
+from_host to_hosts message_type message_body
+</pre>
+<ul>
+	<li><span style='font-weight:700'>from_host</span> - the hostname of the
+	sending machine.  A message id > 0 may be appended to the
+	name after a colon - <span style='font-weight:700'>from_host:id</span>
+	which is used when messages are repeat sent for transmission
+	reliability.  Receiving programs should detect if the same id > 0
+	from the same host is sent multiple times within a second or two
+	and accept only one of the messages.  Multiple distinct messages that are
+	sent quickly should have different message ids.
+	</li>
+	<li><span style='font-weight:700'>to_hosts</span> - a single hostname
+	or a comma separated
+	list of hostnames that the message is being sent to.
+	Use the keyword <span style='font-weight:700'>all</span> to send to
+	all programs listening on the PKC multicast group.  Every PiKrellCam
+	program is always listening for messages of certain message types
+	addressed to its hostname.
+	</li>
+	<li><span style='font-weight:700'>message_type</span> - a keyword that
+	indicates what is being sent in the message_body.  User applications
+	can create their own types and should ignore messages of types they are
+	not interested in.  PiKrellcam recognizes receiving message types
+	<span style='font-weight:700'>command</span> and
+	<span style='font-weight:700'>pkc-message</span> and sends a message type
+	<span style='font-weight:700'>ack</span> in response, which is so far
+	not used in any of the example scripts..
+	The pkc-alarm script recognizes the message type
+	<span style='font-weight:700'>message</span> and that is the type sent
+	by the example_motion_send_alarm scripts.
+	</li>
+	<li><span style='font-weight:700'>message_body</span> - a text string
+	appropriate for and interpreted according to the message type.
+	The message body may contain additional space separated text fields
+	as appropriate for the message type.
+	</li>
+</ul>
+Use the message type
+<span style='font-weight:700'>command</span> and the message body will
+be interpreted as a command to execute by PiKrellCam.
+If the '@' char is prepended, the message body will be a PiKrellCam
+internal command as if it was a FIFO command.  Otherwise it will
+be a script to run.
+The <span style='font-weight:700'>pkc-message</span> type is a way to
+get PiKrellCam to run a script that needs some internal variables passed
+to it.  Its function is user defined and would be configured in
+pikrellcam.conf.
+</div>
+
+</div>
+
+
 </div>
 

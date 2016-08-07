@@ -648,6 +648,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb_video_write(vcb);
 			vcb->frame_count = vcb->key_frame[vcb->record_start_frame_index].frame_count;
 			vcb->video_frame_count = vcb->frame_count;
+			motion_event_write(vcb, mf);
 			vcb->state = VCB_STATE_MOTION_RECORD;
 			if (mf->external_trigger_time_limit > 0)
 				{

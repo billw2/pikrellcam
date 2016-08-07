@@ -74,7 +74,7 @@ set_exec_with_session(boolean set)
   |  want according to X.
   */
 static int
-exec_command(char *command, char *arg, boolean wait, pid_t *pid)
+exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
 	{
 	struct tm		*tm_now;
 	PresetPosition	*pos;
@@ -102,6 +102,9 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 			case 'H':
 				fmt_arg = pikrellcam.hostname;
 				break;
+			case 'h':
+				fmt_arg = pikrellcam.multicast_from_hostname;
+				break;
 			case 'E':
 				fmt_arg = pikrellcam.effective_user;
 				break;
@@ -113,6 +116,10 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 				break;
 			case 'S':
 				fmt_arg = pikrellcam.still_dir;
+				break;
+			case 'X':
+				snprintf(buf, sizeof(buf), "%d", pikrellcam.video_motion_sequence);
+				fmt_arg = buf;
 				break;
 			case 'v':
 				fmt_arg = pikrellcam.video_last;
@@ -229,7 +236,8 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid)
 		copy = cmd_line;
 		}
 
-	log_printf("execl:[%s]\n", cmd_line);
+	if (do_log)
+		log_printf("execl:[%s]\n", cmd_line);
 
 	if ((*pid = fork()) == 0)
 		{			/* child - execute command in background */
@@ -259,7 +267,7 @@ exec_wait(char *command, char *arg)
 	{
 	pid_t	pid;
 
-	return exec_command(command, arg, TRUE, &pid);
+	return exec_command(command, arg, TRUE, &pid, TRUE);
 	}
 
 void
@@ -267,10 +275,14 @@ exec_no_wait(char *command, char *arg)
 	{
 	pid_t	pid;
 
+	if (!command)
+		return;
 	if (*command == '@')
 		command_process(command + 1);
+	else if (*command == '!')
+		exec_command(command + 1, arg, FALSE, &pid, FALSE);
 	else
-		exec_command(command, arg, FALSE, &pid);
+		exec_command(command, arg, FALSE, &pid, TRUE);
 	}
 
 #define	REBOOT	1
@@ -344,7 +356,7 @@ exec_child_event(char *event_name, char *command, char *arg)
 	/* event is unactivated if time and count are zero or func() is NULL
 	*/
 	event = event_add(event_name, 0, 0, NULL, NULL);
-	exec_command(command, arg, FALSE, &event->child_pid);
+	exec_command(command, arg, FALSE, &event->child_pid, TRUE);
 	return event;
 	}
 
@@ -623,6 +635,9 @@ state_file_write(void)
 	fprintf(f, "sunrise %d\n", sun.sunrise);
 	fprintf(f, "sunset %d\n", sun.sunset);
 	fprintf(f, "dusk %d\n", sun.dusk);
+
+	fprintf(f, "multicast_group_IP %s\n", pikrellcam.multicast_group_IP);
+	fprintf(f, "multicast_group_port %d\n", pikrellcam.multicast_group_port);
 
 	fclose(f);
 	rename(fname_part, pikrellcam.state_filename);

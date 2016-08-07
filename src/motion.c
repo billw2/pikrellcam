@@ -354,6 +354,87 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 	}
 
 void
+motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf)
+	{
+	static FILE		*f;
+	CompositeVector *cvec, *frame_vec = &mf->frame_vector;
+	MotionRegion	*mreg;
+	PresetPosition	*pos;
+	PresetSettings	*settings = NULL;
+	SList			*mrlist;
+	int				burst, i, pan, tilt;
+	boolean			dir_motion;
+
+	if (vcb->state == VCB_STATE_MOTION_RECORD_START)
+		{
+		f = fopen(pikrellcam.motion_events_filename, "w");
+		fprintf(f, "<header>\n");
+		fprintf(f, "video %s\n", pikrellcam.video_pathname);
+		fprintf(f, "frame %d %d\n", mf->width, mf->height);
+		servo_get_position(&pan, &tilt);
+		pos = preset_find_at_position(pan, tilt);
+		if (pos)
+			{
+			fprintf(f, "preset %d %d\n", pikrellcam.preset_position_index + 1,
+			        pos ? pos->settings_index + 1 : 1);
+			settings = (PresetSettings *)slist_nth_data(pos->settings_list,
+							pos->settings_index);
+			if (settings)
+				{
+				fprintf(f, "magnitude_limit %d\n", settings->mag_limit);
+				fprintf(f, "magnitude_count %d\n", settings->mag_limit_count);
+				fprintf(f, "burst_count %d\n", settings->burst_count);
+				fprintf(f, "burst_frames %d\n", settings->burst_frames);
+				}
+			}
+		if (pikrellcam.have_servos)
+			{
+			fprintf(f, "pan %d\n", pan);
+			fprintf(f, "tilt %d\n", tilt);
+			}
+		fprintf(f, "</header>\n");
+		}
+	if (f && (   vcb->state == VCB_STATE_MOTION_RECORD
+	          || vcb->state == VCB_STATE_MOTION_RECORD_START
+	         )
+	   )
+		{
+		burst = frame_vec->mag2_count + mf->reject_count;
+		fprintf(f, "<motion %6.3f>\n",
+			(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps);
+		fprintf(f, "b %3d\n", (mf->motion_status & MOTION_BURST) ? burst : 0);
+		fprintf(f, "f %3d %3d %3d %3d %3.0f %4d\n",
+				frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
+				sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
+		if (mf->motion_status & MOTION_DIRECTION)
+			{
+			for (i = 0, mrlist = mf->motion_region_list; mrlist;
+						mrlist = mrlist->next, ++i)
+				{
+				mreg = (MotionRegion *) mrlist->data;
+				dir_motion = mreg->motion
+						& (MOTION_TYPE_DIR_SMALL | MOTION_TYPE_DIR_NORMAL);
+				if (!dir_motion)
+					continue;
+				cvec = &mreg->vector;
+				fprintf(f, "%d %3d %3d %3d %3d %3.0f %4d\n",
+						i, cvec->x, cvec->y, -cvec->vx, -cvec->vy,
+						sqrt((float)cvec->mag2), cvec->mag2_count);
+				}
+			}
+		fprintf(f, "</motion>\n");
+		fflush(f);
+		}
+	else if (f && (vcb->state == VCB_STATE_NONE))
+		{
+		fprintf(f, "<end>\n");
+		fclose(f);
+		f = NULL;
+		}
+	/* else a MANUAL record state */
+	}
+
+void
 motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	{
 	MotionRegion    *mreg;
@@ -670,6 +751,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				if (mf->max_burst_count < frame_vec->mag2_count + mf->reject_count)
 					mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
 				}
+			motion_event_write(vcb, mf);
 
 			if (pikrellcam.verbose_motion)
 				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
@@ -803,6 +885,10 @@ atof_range(float *result, char *value, double low, double high)
 #define SHOW_PRESET      14
 #define SHOW_VECTORS     15
 #define TRIGGER          16
+#define PRE_CAPTURE      17
+#define CONFIRM_GAP      18
+#define EVENT_GAP        19
+#define POST_CAPTURE     20
 
 typedef struct
 	{
@@ -831,7 +917,11 @@ static MotionCommand motion_commands[] =
 	{ "select_region", SELECT_REGION,    1 },
 	{ "limits", SET_LIMITS,    2 },
 	{ "burst", SET_BURST,    2 },
-	{ "trigger", TRIGGER,    0 }
+	{ "trigger", TRIGGER,    0 },
+	{ "pre_capture", PRE_CAPTURE,    1 },
+	{ "confirm_gap", CONFIRM_GAP,    1 },
+	{ "event_gap", EVENT_GAP,    1 },
+	{ "post_capture", POST_CAPTURE,    1 }
 	};
 
 #define N_MOTION_COMMANDS	(sizeof(motion_commands) / sizeof(MotionCommand))
@@ -907,6 +997,7 @@ motion_command(char *cmd_line)
 	MotionCommand *mcmd;
 	MotionFrame   *mf = &motion_frame;
 	MotionRegion  *mreg, mrtmp;
+	VideoCircularBuffer *vcb = &video_circular_buffer;
 	SList         *list;
 	char          buf[64], arg1[32], arg2[32], arg3[32], arg4[32], arg5[32];
 	char          *path, *reg_name;
@@ -1210,6 +1301,45 @@ motion_command(char *cmd_line)
 				else
 					mf->external_trigger_time_limit = pikrellcam.motion_times.post_capture;
 				}
+			break;
+
+		case CONFIRM_GAP:
+			n = atoi(arg1);
+			pikrellcam.motion_times.confirm_gap = n;
+			motion_times_temp.confirm_gap = n;
+			pikrellcam.config_modified = TRUE;
+			log_printf("command process: motion %s\n", cmd_line);
+			break;
+
+		case PRE_CAPTURE:
+			pthread_mutex_lock(&vcb->mutex);
+			n = atoi(arg1);
+			pikrellcam.motion_times.pre_capture = n;
+			pthread_mutex_lock(&vcb->mutex);
+			motion_times_temp.pre_capture = n;
+			circular_buffer_init();
+			pthread_mutex_unlock(&vcb->mutex);
+			pikrellcam.config_modified = TRUE;
+			log_printf("command process: motion %s\n", cmd_line);
+			break;
+
+		case EVENT_GAP:
+			n = atoi(arg1);
+			pikrellcam.motion_times.event_gap = n;
+			pthread_mutex_lock(&vcb->mutex);
+			motion_times_temp.event_gap = n;
+			circular_buffer_init();
+			pthread_mutex_unlock(&vcb->mutex);
+			pikrellcam.config_modified = TRUE;
+			log_printf("command process: motion %s\n", cmd_line);
+			break;
+
+		case POST_CAPTURE:
+			n = atoi(arg1);
+			pikrellcam.motion_times.post_capture = n;
+			motion_times_temp.post_capture = n;
+			pikrellcam.config_modified = TRUE;
+			log_printf("command process: motion %s\n", cmd_line);
 			break;
 		}
 	}
