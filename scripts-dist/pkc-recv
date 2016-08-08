@@ -17,4 +17,4 @@ mreq = struct.pack("4sl", socket.inet_aton(PKC_MULTICAST_GROUP_IP), socket.INADD
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 while True:
-	print sock.recv(10240)
+	print sock.recv(1024)
