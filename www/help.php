@@ -1607,7 +1607,8 @@ pkc-reboot rpi1
 	in another terminal run
 	<nobr>scripts-dist/example-motion-send-alarm1.</nobr>
 	This should work with the terminals on different machines on your LAN.
-	<br>
+	And for further debugging, run pkc-recv in a third terminal.
+	<p>
 	On each Pi you want PiKrellCam to send alarm messages from, the setup is:
 	<ol>
 		<li> Copy the example-motion-send-alarm1 or example-motion-send-alarm2
@@ -1616,18 +1617,25 @@ pkc-reboot rpi1
 		If using the alarm2 example, edit it to select which region you want
 		to detect motion in and edit it to set the motion magnitude and count
 		limits you want.
+		<p>
+		Note: the example-motion-send-alarm2 is likely a work in progress.
+		It is an example of reading the
+		<nobr>/run/pikrellcam/motion-events</nobr> file
+		while a motion video recording is in progress and
+		sending an alarm only if motion exceeding a magnitude and count limit
+		is detected in a particular region.
 		</li>
 		<li> Edit pikrellcam.conf and set the on_motion_begin command to:
 <pre>on_motion_begin  $C/motion-send-alarm
 </pre>
 		</li>
 	</ol>
-	Note: the example-motion-send-alarm2 is likely a work in progress.
-	It is an example of reading the
-	<nobr>/run/pikrellcam/motion-events</nobr> file
-	while a motion video recording is in progress and
-	sending an alarm only if motion exceeding a magnitude and count limit
-	is detected in a particular region.
+	</li>
+	<li>
+	<span style='font-weight:700'>pkc-recv</span> - run this in a terminal
+		if you need to debug a PiKrellCam  multicasting installation or
+		development.  It just prints all the network traffic
+		sent in the PiKrellCam multicast group.
 	</li>
 </ul>
 Other example scripts may be added over time and the pkc_xxx and example_xxx

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # tab-width: 4
 
+# This file should be edited, read the configurable variables below.
+#
 # This is an example on_motion_begin script that will send an alarm message
 # to selected hosts if motion of a configurable magnitude and count
 # is detected in a particular motion region.
@@ -8,9 +10,9 @@
 # while a motion video is being recorded.
 # 
 # Set this script to be a PiKrellCam on_motion_begin script by copying to
-# scripts/motion_send_alarm and editing on_motion_begin in pikrellcam.conf:
-#   on_motion_begin $C/motion_send_alarm
-# Also have pkc-alarm running on the to-hosts you configure here.
+# scripts/motion-send-alarm and editing on_motion_begin in pikrellcam.conf:
+#   on_motion_begin $C/motion-send-alarm
+# Also have pkc-alarm running on the to_hosts you configure here.
 #
 # With this motion detection settings can be low to detect small animals,
 # but an alarm sent only if larger magnitude and count motion is detected

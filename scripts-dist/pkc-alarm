@@ -25,7 +25,7 @@ audio_command = "aplay /home/pi/audio/danger-will-robinson.wav &"
 
 # Edit holdoff to be the minimum seconds between accepting alarm messages.
 #   It should be long enough for a previous audio alarm to complete and
-#   probably less than the holdoff in the sending motion_send_alarm script.
+#   probably less than the holdoff in the sending motion-send-alarm script.
 #   I've found that sound playing can hang for a while if aplay's step on
 #   each other when pkc-alarm is run on a Pi.
 #
