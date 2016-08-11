@@ -574,7 +574,11 @@ static Config  config[] =
 	{ "# Set to off to disable accepting halt and reboot commands\n"
 	  "# from the FIFO and the web page.\n"
 	  "#",
-	"halt_enable",	"on", FALSE, {.value = &pikrellcam.halt_enable},  config_value_bool_set},
+	"halt_enable",	"on", TRUE, {.value = &pikrellcam.halt_enable},  config_value_bool_set},
+
+	{ "# Set to off to disable the multicast interface.\n"
+	  "#",
+	"multicast_enable",	"on", TRUE, {.value = &pikrellcam.multicast_enable},  config_value_bool_set},
 
 
 
@@ -1124,7 +1128,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 36;
+	pikrellcam.config_sequence_new = 37;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

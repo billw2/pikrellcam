@@ -50,7 +50,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.1.0"
+#define	PIKRELLCAM_VERSION	"3.1.1"
 
 
 //TCP Stream Server
@@ -608,6 +608,7 @@ typedef struct
 	char	*multicast_group_IP,
 			*multicast_from_hostname,
 			*on_multicast_message_cmd;
+	boolean	multicast_enable;
 
 	char	*annotate_format_string,
 			annotate_string_space_char;

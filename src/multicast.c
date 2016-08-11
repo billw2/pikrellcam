@@ -44,7 +44,7 @@ multicast_send(char *seq, char *message)
 	{
 	char	buf[256];
 
-	if (fd_send < 0)
+	if (fd_send < 0 || !pikrellcam.multicast_enable)
 		return;
 	if (!seq)
 		seq = "";
@@ -145,7 +145,7 @@ multicast_recv(void)
 	char		msg_type[32], action[256];
 	boolean		repeat, match;
 
-	if (fd_recv < 0)
+	if (fd_recv < 0 || !pikrellcam.multicast_enable)
 		return;
 	ioctl(fd_recv, FIONREAD, &nbytes);
 	if (nbytes <= 0)
@@ -211,6 +211,9 @@ multicast_init(void)
 	{
 	struct ip_mreq		mreq;
 	int					opt = TRUE;
+
+	if (!pikrellcam.multicast_enable)
+		return;
 
 	/* Receiving multicast needs a UDP socket which must be reusable.
 	*/
