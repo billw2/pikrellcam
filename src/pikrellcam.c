@@ -797,6 +797,7 @@ typedef enum
 	servo_cmd,
 	preset_cmd,
 	multicast,
+	verbose,
 	upgrade,
 	halt,
 	reboot,
@@ -849,6 +850,7 @@ static Command commands[] =
 	{ "preset", preset_cmd, 1, FALSE },
 	{ "servo", servo_cmd, 1, FALSE },
 	{ "multicast", multicast,    1, TRUE },
+	{ "verbose", verbose,    0, TRUE },
 	{ "upgrade", upgrade,    0, TRUE },
 	{ "halt", halt,    0, TRUE },
 	{ "reboot", reboot,    0, TRUE },
@@ -1218,6 +1220,10 @@ command_process(char *command_line)
 			servo_command(args);
 			break;
 
+		case verbose:
+			config_set_boolean(&pikrellcam.verbose, args);
+			break;
+
 		case upgrade:
 			snprintf(buf, sizeof(buf), "%s/scripts-dist/_upgrade $I $P $G $Z",
 						pikrellcam.install_dir);
@@ -1273,6 +1279,13 @@ check_modes(char *fname, int mode)
 	struct passwd	*pwd;
 	char			ch_cmd[200];
 
+	if (!fname || pikrellcam.verbose)
+		{
+		log_printf_no_timestamp("  check_modes(%s)\n",
+			fname ? fname : "NULL");
+		if (!fname)
+			return;
+		}
 	if (stat(fname, &st) == 0)
 		{
 		grp = getgrgid(st.st_gid);
@@ -1284,14 +1297,21 @@ check_modes(char *fname, int mode)
 			{
 			snprintf(ch_cmd, sizeof(ch_cmd), "sudo chown %s.www-data %s",
 					pikrellcam.effective_user, fname);
+			if (pikrellcam.verbose)
+				log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
+
 			exec_wait(ch_cmd, NULL);
 			}
 		if ((st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)) != mode)
 			{
 			snprintf(ch_cmd, sizeof(ch_cmd), "sudo chmod %o %s", mode, fname);
+			if (pikrellcam.verbose)
+				log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
 			exec_wait(ch_cmd, NULL);
 			}
 		}
+	else
+		log_printf_no_timestamp("  check_modes(%s) stat() failed.\n", fname);
 	}
 
 
@@ -1300,13 +1320,26 @@ make_fifo(char *fifo_path)
     {
     boolean		fifo_exists;
 
+	if (!fifo_path || pikrellcam.verbose)
+		{
+		log_printf_no_timestamp("make_fifo(%s)\n", fifo_path ? fifo_path : "NULL");
+		if (!fifo_path)
+			return FALSE;
+		}
 	if ((fifo_exists = isfifo(fifo_path)) == FALSE)
 		{
         if (mkfifo(fifo_path, 0664) < 0)
-		    log_printf_no_timestamp("Make fifo %s failed: %m\n", fifo_path);
+		    log_printf_no_timestamp("make_fifo(%s) failed: %m\n", fifo_path);
 		else
+			{
+			if (pikrellcam.verbose)
+			    log_printf_no_timestamp("  make_fifo(%s) succeeded.\n", fifo_path);
 			fifo_exists = TRUE;
+			}
 		}
+	else if (pikrellcam.verbose)
+	    log_printf_no_timestamp("  make_fifo(%s) FIFO already exists.\n", fifo_path);
+
 	if (fifo_exists)
 		check_modes(fifo_path, 0664);
 	return fifo_exists;
@@ -1317,14 +1350,28 @@ make_dir(char *dir)
 	{
 	boolean 		dir_exists;
 
+	if (!dir || pikrellcam.verbose)
+		{
+		log_printf_no_timestamp("make_dir(%s)\n", dir ? dir : "NULL");
+		if (!dir)
+			return FALSE;
+		}
 	if ((dir_exists = isdir(dir)) == FALSE)
 		{
+		if (pikrellcam.verbose)
+			log_printf_no_timestamp("  make_dir() execing sudo mkdir -p %s\n", dir);
 		exec_wait("sudo mkdir -p $F", dir);
 		if ((dir_exists = isdir(dir)) == FALSE)
-			log_printf_no_timestamp("Make directory failed: %s\n", dir);
+			log_printf_no_timestamp("make_dir(%s) failed.\n", dir);
 		else
+			{
+			if (pikrellcam.verbose)
+				log_printf_no_timestamp("  make_dir(%s) succeeded.\n", dir);
 			dir_exists = TRUE;
+			}
 		}
+	else if (pikrellcam.verbose)
+		log_printf_no_timestamp("  make_dir(%s) dir already exists.\n", dir);
 	if (dir_exists)
 		check_modes(dir, 0775);
 	return dir_exists;
@@ -1427,9 +1474,14 @@ main(int argc, char *argv[])
 	bcm_host_init();
 	if (!homedir)
 		homedir = getpwuid(geteuid())->pw_dir;
+	if (!homedir)
+		homedir = "/home/pi";
 
 	user = strrchr(homedir, '/');
-	pikrellcam.effective_user = strdup(user ? user + 1 : "pi");
+	if (user)
+		++user;
+
+	pikrellcam.effective_user = strdup(user ? user : "pi");
 
 	if (!motion_regions_config_load(pikrellcam.motion_regions_config_file, FALSE))
 		motion_regions_config_save(pikrellcam.motion_regions_config_file, FALSE);
@@ -1513,7 +1565,11 @@ main(int argc, char *argv[])
 	if (   !make_dir(pikrellcam.media_dir)		// after startup script, will make
 		|| !make_dir(pikrellcam.archive_dir)	// dirs again in case of mount
 	   )
+		{
+		log_printf_no_timestamp(
+				"Failed to create media or archive dir, exiting!\n");
 		exit(1);
+		}
 
 	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G %s",
 		pikrellcam.install_dir,
@@ -1535,7 +1591,11 @@ main(int argc, char *argv[])
 	    || !make_dir(pikrellcam.timelapse_dir)
 	    || !make_fifo(pikrellcam.command_fifo)
 	   )
+		{
+		log_printf_no_timestamp(
+			"Failed to create media/archive directories or FIFO, exiting!\n");
 		exit(1);
+		}
 
 	if ((fifo = open(pikrellcam.command_fifo, O_RDONLY | O_NONBLOCK)) < 0)
 		{
