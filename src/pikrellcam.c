@@ -1281,34 +1281,58 @@ check_modes(char *fname, int mode)
 
 	if (!fname || pikrellcam.verbose)
 		{
-		log_printf_no_timestamp("  check_modes(%s)\n",
-			fname ? fname : "NULL");
+		log_printf_no_timestamp("  check_modes(%s) %o\n",
+			fname ? fname : "NULL", mode);
 		if (!fname)
 			return;
 		}
 	if (stat(fname, &st) == 0)
 		{
 		grp = getgrgid(st.st_gid);
-		pwd = getpwuid(st.st_uid);
-
-		if (   strcmp(pwd->pw_name, pikrellcam.effective_user)
-		    || strcmp(grp->gr_name, "www-data")
-		   )
+		if (pikrellcam.verbose)
 			{
-			snprintf(ch_cmd, sizeof(ch_cmd), "sudo chown %s.www-data %s",
-					pikrellcam.effective_user, fname);
-			if (pikrellcam.verbose)
-				log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
+			if (grp)
+				log_printf_no_timestamp("    getgrgid() current group name: %s\n",
+					grp->gr_name ? grp->gr_name : "(NULL)");
+			else
+				log_printf_no_timestamp("    getgrgid() failed: %m\n");
+			}
+		pwd = getpwuid(st.st_uid);
+		if (pikrellcam.verbose)
+			{
+			if (pwd)
+				log_printf_no_timestamp("    getpwuid() current user name: %s\n",
+					pwd->pw_name ? pwd->pw_name : "(NULL)");
+			else
+				log_printf_no_timestamp("    getpwuid() failed: %m\n");
+			}
 
-			exec_wait(ch_cmd, NULL);
+		if (grp && grp->gr_name && pwd && pwd->pw_name)
+			{
+			if (   strcmp(pwd->pw_name, pikrellcam.effective_user)
+			    || strcmp(grp->gr_name, "www-data")
+			   )
+				{
+				snprintf(ch_cmd, sizeof(ch_cmd), "sudo chown %s.www-data %s",
+						pikrellcam.effective_user, fname);
+				if (pikrellcam.verbose)
+					log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
+
+				exec_wait(ch_cmd, NULL);
+				}
+			else if (pikrellcam.verbose)
+				log_printf_no_timestamp("    User and group names already OK.\n");
 			}
 		if ((st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)) != mode)
 			{
 			snprintf(ch_cmd, sizeof(ch_cmd), "sudo chmod %o %s", mode, fname);
 			if (pikrellcam.verbose)
-				log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
+				log_printf_no_timestamp("  check_modes() (%o) execing: %s\n",
+						st.st_mode, ch_cmd);
 			exec_wait(ch_cmd, NULL);
 			}
+		else if (pikrellcam.verbose)
+				log_printf_no_timestamp("    Access mode %o already OK.\n", mode);
 		}
 	else
 		log_printf_no_timestamp("  check_modes(%s) stat() failed.\n", fname);
