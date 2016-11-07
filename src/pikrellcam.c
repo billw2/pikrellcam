@@ -21,7 +21,9 @@
 #include "pikrellcam.h"
 #include <signal.h>
 #include <locale.h>
+#include <sys/statfs.h>
 #include <sys/statvfs.h>
+#include <linux/magic.h>
 
 
 PiKrellCam	pikrellcam;
@@ -1270,14 +1272,15 @@ command_process(char *command_line)
 		}
 	}
 
-
 static void
 check_modes(char *fname, int mode)
 	{
 	struct stat		st;
+	struct statfs	stfs;
 	struct group	*grp;
 	struct passwd	*pwd;
 	char			ch_cmd[200];
+	char			*skip_fs = NULL;
 
 	if (!fname || pikrellcam.verbose)
 		{
@@ -1288,6 +1291,22 @@ check_modes(char *fname, int mode)
 		}
 	if (stat(fname, &st) == 0)
 		{
+		stfs.f_type = 0;
+		if (statfs(fname, &stfs) == 0)
+			{
+			if (stfs.f_type == NFS_SUPER_MAGIC)
+				skip_fs = "NFS";
+			else if (stfs.f_type == MSDOS_SUPER_MAGIC)
+				skip_fs = "MSDOS";
+
+			if (skip_fs)
+				{
+				log_printf_no_timestamp("%s filesystem: %s.\n", skip_fs, fname);
+				log_printf_no_timestamp("  Cannot set modes - modes must be set when mounted.\n");
+				return;
+				}
+			}
+
 		grp = getgrgid(st.st_gid);
 		if (pikrellcam.verbose)
 			{
@@ -1322,17 +1341,22 @@ check_modes(char *fname, int mode)
 				}
 			else if (pikrellcam.verbose)
 				log_printf_no_timestamp("    User and group names already OK.\n");
-			}
-		if ((st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)) != mode)
-			{
-			snprintf(ch_cmd, sizeof(ch_cmd), "sudo chmod %o %s", mode, fname);
-			if (pikrellcam.verbose)
-				log_printf_no_timestamp("  check_modes() (%o) execing: %s\n",
-						st.st_mode, ch_cmd);
-			exec_wait(ch_cmd, NULL);
-			}
-		else if (pikrellcam.verbose)
+
+			if ((st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)) != mode)
+				{
+				snprintf(ch_cmd, sizeof(ch_cmd), "sudo chmod %o %s", mode, fname);
+				if (pikrellcam.verbose)
+					log_printf_no_timestamp("  check_modes() (%o) execing: %s\n",
+							st.st_mode, ch_cmd);
+				exec_wait(ch_cmd, NULL);
+				}
+			else if (pikrellcam.verbose)
 				log_printf_no_timestamp("    Access mode %o already OK.\n", mode);
+			}
+		else
+			log_printf_no_timestamp("Cannot check modes (f_type:0x%x): %s.\n",
+					stfs.f_type, fname);
+
 		}
 	else
 		log_printf_no_timestamp("  check_modes(%s) stat() failed.\n", fname);
