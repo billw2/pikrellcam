@@ -71,6 +71,26 @@ function mjpeg_start()
 	}
 
 
+function audio_play()
+	{
+	var audio_file = document.getElementById("audio_fifo");
+
+	audio_file.src = document.getElementById("audio_fifo").src;
+	audio_file.play();
+	fifo_command("audio stream_open");
+	}
+
+function audio_stop()
+	{
+	var audio_file = document.getElementById("audio_fifo");
+
+	fifo_command("audio stream_close");
+	audio_fifo.pause();
+	audio_fifo.currentTime = 0;
+	}
+
+
+
 function create_XMLHttpRequest()
 	{
 	if (window.XMLHttpRequest)

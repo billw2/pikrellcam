@@ -32,12 +32,15 @@ THUMB_JPEG=$5
 # OR, to email the smaller motion area thumb jpg, uncomment this line:
 # EMAIL_JPEG=$THUMB_JPEG
 
-# Edit MY_EMAIL to your email address to email the preview jpeg.
+# Edit MY_EMAIL to your email address to email the preview jpeg and uncomment
+# the mpack line.  Run mpack in the background because if it is slow in
+# sending the email, pikrellcam is waiting for this script to end and the
+# preview display can pause.
 #
 MY_EMAIL=myuser@gmail.com
-#mpack -s pikrellcam@$HOSTNAME $EMAIL_JPEG $MY_EMAIL
+#mpack -s pikrellcam@$HOSTNAME $EMAIL_JPEG $MY_EMAIL &
 
-#echo "mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL" >> $LOG_FILE
+#echo "mpack -s pikrellcam@$HOSTNAME $PREVIEW_JPEG $MY_EMAIL &" >> $LOG_FILE
 
 
 

@@ -72,4 +72,12 @@ else
 	fi
 fi
 
+MESSAGE=`$INSTALL_DIR/scripts-dist/_upgrade-message`
+len=${#MESSAGE}
+if (( len > 0 ))
+then
+	echo "inform \"$MESSAGE\" 8 4 1" > $FIFO
+	TIMEOUT=20
+fi
+
 echo "inform timeout $TIMEOUT" > $FIFO

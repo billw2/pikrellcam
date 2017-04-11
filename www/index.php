@@ -91,7 +91,18 @@ function time_lapse_period()
 </head>
 
 <?php
-echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
+	if (isset($_GET["hide_audio"]))
+		{
+		$show_audio_controls = "no";
+		config_user_save();
+		}
+	if (isset($_GET["show_audio"]))
+		{
+		$show_audio_controls = "yes";
+		config_user_save();
+		}
+
+	echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
     echo "<div class=\"text-center\">";
         echo "<div class='text-shadow-large'>";
         echo TITLE_STRING;
@@ -102,28 +113,60 @@ echo "<body background=\"$background_image\" onload=\"mjpeg_start();\">";
           style=\"border:4px groove silver;\"
           onclick=\"image_expand_toggle();\"
         ></div>";
+
+echo "<div class=\"text-center top-margin\">";
+
+if (defined('SHOW_AUDIO_CONTROLS'))
+	{
+	if ($show_audio_controls == "yes")
+		{
+		echo "<audio id=\"audio_fifo\" controls src=\"audio_stream.php\"
+			hidden=\"hidden\" preload=\"none\" type=\"audio/mpeg\" >
+			MP3 not supported </audio>";
+
+		echo "<input type=\"image\" src=\"images/audio-stop.png\"
+			style=\"vertical-align: bottom; margin-left:0px;\"
+			onclick=\"audio_stop()\"
+			width=\"18\" height=\"28\">";
+		echo "<input type=\"image\" src=\"images/audio-play.png\"
+			style=\"vertical-align: bottom; margin-left:3px;\"
+		onclick=\"audio_play()\"
+			width=\"18\" height=\"28\">";
+		echo "<input type=\"image\" src=\"images/mic.png\"
+			style=\"vertical-align: bottom; margin-left:10px;\"
+			onclick=\"fifo_command('audio mic_toggle')\"
+			width=\"18\" height=\"28\">";
+		echo "<input type=\"image\" src=\"images/mic-up.png\"
+			style=\"vertical-align: bottom; margin-left:3px;\"
+			onclick=\"fifo_command('audio gain up')\"
+			width=\"18\" height=\"28\">";
+		echo "<input type=\"image\" src=\"images/mic-down.png\"
+			style=\"vertical-align: bottom; margin-left:3px;\"
+			onclick=\"fifo_command('audio gain down')\"
+			width=\"18\" height=\"28\">";
+		}
+	}
 ?>
 
-    <div class="text-center top-margin">
       <input type="image" src="images/stop.png"
-		style="vertical-align: bottom;"
+		style="vertical-align: bottom; margin-left:20px;"
         onclick="fifo_command('record off')"
-        width="30" height="30"
+        width="28" height="28"
       >
       <input type="image" src="images/pause.png"
 		style="vertical-align: bottom;"
         onclick="fifo_command('pause')"
-        width="30" height="30"
+        width="28" height="28"
       >
       <input type="image" src="images/record.png"
 		style="vertical-align: bottom;"
         onclick="fifo_command('record on')"
-        width="30" height="30"
+        width="28" height="28"
       >
       <input type="image" src="images/shutter.png"
-        width="30" height="30"
+        width="28" height="28"
         onclick="fifo_command('still')"
-        style="margin-left:16px; vertical-align: bottom;"
+        style="margin-left:12px; vertical-align: bottom;"
       >
 
 <?php
@@ -611,6 +654,14 @@ if ($servos_enable == "servos_on")
             onclick="fifo_command('halt')"
             class="btn-control alert-control"
           >
+          <?php
+			echo "<span style='float:right;'>";
+			if ("$show_audio_controls" == "yes")
+				echo "<a href='index.php?hide_audio'>Hide Audio</a>";
+			else
+				echo "<a href='index.php?show_audio'>Show Audio</a>";
+			echo "</span>";
+          ?>
         </div>
     </div>
 <?php

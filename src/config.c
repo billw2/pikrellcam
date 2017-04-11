@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -962,6 +962,50 @@ static Config  config[] =
 	"servo_settle_msec",  "600", FALSE, {.value = &pikrellcam.servo_settle_msec }, config_value_int_set },
 
 
+	{ "\n# ------------------- Audio Options  -----------------------\n"
+	  "#\n"
+	  "# Set to true to capture audio to add to videos.  Web page control of\n"
+	  "# the microphone toggle button sets this on/off\n"
+	  "#",
+	"audio_enable",  "false", TRUE, {.value = &pikrellcam.audio_enable }, config_value_bool_set },
+
+	{ "# ALSA hardware audio input (microphone) capture device. Using the hw:N\n"
+	  "# limits rate values to what the hardware supports.  So use the plughw:N\n"
+	  "# plugin device to get a wider range of rates.\n"
+	  "#",
+	"audio_device",  "plughw:1", FALSE, {.string = &pikrellcam.audio_device },   config_string_set },
+
+	{ "# Audio rate.  See Help page for info on this and remaining audio options.\n"
+	  "# Lame suggests using only MP3 supported sample rates:\n"
+	  "#    8000 11025 12000 16000 22050 24000 32000 44100 48000\n"
+	  "# Audio rate for a Pi model 2 (armv7 quad core Pi2/Pi3).\n"
+	  "#",
+	"audio_rate_Pi2", "48000", FALSE, {.value = &pikrellcam.audio_rate_Pi2}, config_value_int_set },
+
+	{ "# Audio rate for a Pi model 1 (armv6 single core Pi1).\n"
+	  "#",
+	"audio_rate_Pi1", "24000", FALSE, {.value = &pikrellcam.audio_rate_Pi1}, config_value_int_set },
+
+	{ "# Audio channels.  A USB sound card probably supports only mono and\n"
+	  "# setting 2 channels for this case would be reverted to 1 when the\n"
+	  "# microphone is opened.\n"
+	  "#",
+	"audio_channels", "1", FALSE, {.value = &pikrellcam.audio_channels}, config_value_int_set },
+
+	{ "# Microphone audio gain dB (0 - 30). Set using the web page audio\n"
+	  "# gain up/down control buttons.\n"
+	  "#",
+	"audio_gain_dB", "0", FALSE, {.value = &pikrellcam.audio_gain_dB}, config_value_int_set },
+
+	{ "# MP3 lame encode quality for a Pi2/3, range 0 - 9.\n"
+	  "#",
+	"audio_mp3_quality_Pi2", "2", FALSE, {.value = &pikrellcam.audio_mp3_quality_Pi2}, config_value_int_set },
+
+	{ "# MP3 lame encode quality for a Pi1, range 0 - 9.\n"
+	  "#",
+	"audio_mp3_quality_Pi1", "7", FALSE, {.value = &pikrellcam.audio_mp3_quality_Pi1}, config_value_int_set },
+
+
 	{ "\n# ------------------- Miscellaneous Options  -----------------------\n"
 	  "#\n"
 	  "# How long in seconds a notify string should stay on the stream jpeg file.\n"
@@ -1128,7 +1172,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 37;
+	pikrellcam.config_sequence_new = 40;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -1182,6 +1226,12 @@ config_load(char *config_file)
 		pikrellcam.annotate_text_size = 0;
 	else if (pikrellcam.annotate_text_brightness > 255)
 		pikrellcam.annotate_text_size = 255;
+
+	if (pikrellcam.audio_gain_dB > 30)
+		pikrellcam.audio_gain_dB = 30;
+	else if (pikrellcam.audio_gain_dB < 0)
+		pikrellcam.audio_gain_dB = 0;
+
 
 	pikrellcam.annotate_string_space_char = '_';
 

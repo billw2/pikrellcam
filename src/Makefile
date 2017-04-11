@@ -21,10 +21,11 @@ MMAL_LIB ?= -L/opt/vc/lib -lbcm_host -lvcos -lmmal -lmmal_core -lmmal_util \
 
 
 FLAGS = -O2 -Wall $(MMAL_INCLUDE) $(INCLUDES)
-LIBS = $(MMAL_LIB) -lm -lpthread
+LIBS = $(MMAL_LIB) -lm -lpthread -lasound -lmp3lame
 
-LOCAL_SRC = pikrellcam.c mmalcam.c motion.c event.c display.c config.c servo.c \
-			preset.c sunriset.c multicast.c tcpserver.c tcpserver.c tcpserver_mjpeg.c
+LOCAL_SRC = pikrellcam.c mmalcam.c motion.c event.c display.c config.c \
+			servo.c preset.c sunriset.c multicast.c audio.c \
+			tcpserver.c tcpserver.c tcpserver_mjpeg.c
 
 KRELLMLIB_SRC = $(wildcard $(addsuffix /*.c,$(LIBKRELLM_DIRS)))
 SOURCES = $(LOCAL_SRC) $(KRELLMLIB_SRC)

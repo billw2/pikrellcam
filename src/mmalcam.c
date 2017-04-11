@@ -1,4 +1,4 @@
-  /* PiKrellCam
+/* PiKrellCam
 |
 |  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
 |
@@ -401,7 +401,7 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 
 
 void
-circular_buffer_init()
+video_circular_buffer_init()
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
 	int					i, seconds, size;
@@ -412,31 +412,34 @@ circular_buffer_init()
 	*/
 	seconds = MAX(pikrellcam.motion_times.event_gap,
 							pikrellcam.motion_times.pre_capture) + 5;
-	size = pikrellcam.camera_adjust.video_bitrate * seconds / 8;
 	vcb->seconds = seconds;
 
+	size = pikrellcam.camera_adjust.video_bitrate * seconds / 8;
 	if (size != vcb->size)
 		{
 		if (vcb->data)
 			free(vcb->data);
-		vcb->data = (int8_t *)malloc(size);
-		log_printf("circular buffer allocate: %.2f MBytes (%d seconds at %.1f Mbits/sec)\n",
+		vcb->data = (int8_t *) malloc(size);
+		log_printf("video circular buffer - %.2f MB (%d seconds, %.1f Mbits/sec)\n",
 				(float) size / 1000000.0, seconds,
 				(double)pikrellcam.camera_adjust.video_bitrate / 1000000.0);
 		}
+	vcb->size = size;
+	vcb->head = vcb->tail = 0;
+
 	if (!vcb->data)
 		{
-		log_printf("Aborting because circular buffer malloc() failed.\n");
+		log_printf("Aborting because video circular buffer malloc() failed.\n");
 		exit(1);
 		}
-	vcb->size = size;
-	vcb->head = 0;
+
 	vcb->cur_frame_index = 0;
 	vcb->pre_frame_index = 0;
 	vcb->in_keyframe = FALSE;
 	for (i = 0; i < KEYFRAME_SIZE; ++i)
 		{
 		vcb->key_frame[i].position = 0;
+		vcb->key_frame[i].audio_position = 0;
 		vcb->key_frame[i].t_frame = 0;
 		vcb->key_frame[i].frame_count = 0;
 		}
@@ -444,8 +447,8 @@ circular_buffer_init()
 
   /* Write circular buffer data from the tail to head and upate the tail.
   */
-void
-vcb_video_write(VideoCircularBuffer *vcb)
+static void
+video_buffer_write(VideoCircularBuffer *vcb)
 	{
 	if (!vcb || !vcb->file)
 		return;
@@ -487,12 +490,12 @@ void
 video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
+	AudioCircularBuffer	*acb = &audio_circular_buffer;
 	MotionFrame		*mf = &motion_frame;
 	KeyFrame		*kf;
-	int				i, end_space, t_elapsed, event = 0;
+	int				i, end_space, t_elapsed, audio_head, event = 0;
 	int				t_usec, dt_frame;
 	boolean			force_stop;
-	time_t			t_cur = pikrellcam.t_now;
 	static int		fps_count, pause_frame_count_adjust;
 	static time_t	t_sec, t_prev;
 	uint64_t		t64_now;
@@ -509,6 +512,9 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 		return_buffer_to_port(port, mmalbuf);
 		return;
 		}
+
+	vcb->t_cur = pikrellcam.t_now;
+	audio_head = acb->head;
 
 	if (mmalbuf->pts > 0)
 		{
@@ -549,13 +555,13 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 						MMAL_PARAMETER_VIDEO_REQUEST_I_FRAME, 1);
 			}
 		if (   (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
-		         && t_cur < t_sec
+		         && vcb->t_cur < t_sec
 		        )
-			t_cur = t_sec;
+			vcb->t_cur = t_sec;
 		}
 
 	pthread_mutex_lock(&vcb->mutex);
-	
+
 	if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CONFIG)
 		h264_header_save(mmalbuf);
 	else if (mmalbuf->flags & MMAL_BUFFER_HEADER_FLAG_CODECSIDEINFO)
@@ -585,18 +591,21 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb->in_keyframe = TRUE;
 			vcb->cur_frame_index = (vcb->cur_frame_index + 1) % KEYFRAME_SIZE;
 			kf = &vcb->key_frame[vcb->cur_frame_index];
+
 			kf->position = vcb->head;
+			kf->audio_position = audio_head;
 			kf->frame_count = 0;
 			pause_frame_count_adjust = 0;
+
 			if (vcb->pause && vcb->state == VCB_STATE_MANUAL_RECORD)
 				{
 				vcb->tail = vcb->head;
+				audio_buffer_set_record_head_tail(acb, audio_head, audio_head);
 				pts_prev = mmalbuf->pts;
-				pause_frame_count_adjust = 0;
 				}
-			kf->t_frame = t_cur;
+			kf->t_frame = vcb->t_cur;
 			kf->frame_pts = mmalbuf->pts;
-			while (t_cur - vcb->key_frame[vcb->pre_frame_index].t_frame
+			while (vcb->t_cur - vcb->key_frame[vcb->pre_frame_index].t_frame
 						 > pikrellcam.motion_times.pre_capture)
 				{
 				vcb->pre_frame_index = (vcb->pre_frame_index + 1) % KEYFRAME_SIZE;
@@ -626,11 +635,11 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				}
 			}
 
-		if (t_cur > t_prev)
+		if (vcb->t_cur > t_prev)
 			{
 			if (!vcb->pause)
 				++vcb->record_elapsed_time;
-			t_prev = t_cur;
+			t_prev = vcb->t_cur;
 			}
 
 		if (vcb->state == VCB_STATE_MOTION_RECORD_START)
@@ -644,20 +653,27 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			pikrellcam.video_header_size = vcb->h264_header_position;
 			pikrellcam.video_size = vcb->h264_header_position;
 
-			vcb->tail = vcb->key_frame[vcb->record_start_frame_index].position;
-			vcb_video_write(vcb);
-			vcb->frame_count = vcb->key_frame[vcb->record_start_frame_index].frame_count;
+			kf = &vcb->key_frame[vcb->record_start_frame_index];
+			vcb->tail = kf->position;
+			video_buffer_write(vcb);
+
+			vcb->frame_count = kf->frame_count;
 			vcb->video_frame_count = vcb->frame_count;
 			motion_event_write(vcb, mf);
 			vcb->state = VCB_STATE_MOTION_RECORD;
+
+			if (pikrellcam.audio_debug & 0x4)
+				printf("video pre-capture frames:%d\n", vcb->video_frame_count);
+			audio_buffer_set_record_head_tail(acb, audio_head, kf->audio_position);
+
 			if (mf->external_trigger_time_limit > 0)
 				{
-				vcb->motion_sync_time = t_cur + mf->external_trigger_time_limit;
+				vcb->motion_sync_time = vcb->t_cur + mf->external_trigger_time_limit;
 				vcb->max_record_time = mf->external_trigger_time_limit;
 				}
 			else
 				{
-				vcb->motion_sync_time = t_cur + pikrellcam.motion_times.post_capture;
+				vcb->motion_sync_time = vcb->t_cur + pikrellcam.motion_times.post_capture;
 				vcb->max_record_time = pikrellcam.motion_record_time_limit;
 				}
 
@@ -675,12 +691,17 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			pikrellcam.video_header_size = vcb->h264_header_position;
 			pikrellcam.video_size = vcb->h264_header_position;
 
-			vcb->tail = vcb->key_frame[vcb->record_start_frame_index].position;
-
-			vcb_video_write(vcb);
-			vcb->frame_count = vcb->key_frame[vcb->record_start_frame_index].frame_count;
-			pts_prev = 0;
+			kf = &vcb->key_frame[vcb->record_start_frame_index];
+			vcb->tail = kf->position;
+			video_buffer_write(vcb);
+			vcb->frame_count = kf->frame_count;
 			vcb->state = VCB_STATE_MANUAL_RECORD;
+
+			if (pikrellcam.audio_debug & 0x4)
+				printf("video pre-capture frames:%d\n", vcb->video_frame_count);
+			audio_buffer_set_record_head_tail(acb, audio_head, kf->audio_position);
+
+			pts_prev = 0;
 			event |= EVENT_PREVIEW_SAVE;
 			}
 
@@ -741,14 +762,31 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 						vcb->last_pts = mmalbuf->pts;
 					pts_prev = mmalbuf->pts;
 					}
+				i = 0;
 				if (prev_pause)
 					{
 					vcb->frame_count += pause_frame_count_adjust;
+					i = audio_frames_offset_from_video(acb);
+
+					if (pikrellcam.audio_debug & 0x4)
+						printf("Pause stop  - frame_count_adjust:%d frame_count:%d i:%d time_usec:%d\n",
+							pause_frame_count_adjust, vcb->frame_count, i,
+							(int)(vcb->last_pts - pikrellcam.video_start_pts));
+
 					pause_frame_count_adjust = 0;
 					}
 				vcb->video_frame_count = vcb->frame_count;
-				vcb_video_write(vcb);	/* Continuously write video data */
+				if (i >= 0)		/* No adjust if sound leads video */
+					audio_buffer_set_record_head(acb, audio_head);
+				else
+					audio_buffer_set_record_head_tail(acb, audio_head, i);
+				video_buffer_write(vcb);	/* Continuously write video data */
 				}
+			else if ((pikrellcam.audio_debug & 0x4) && !prev_pause)
+				printf("Pause start - frame_count:%d pause_frame_count:%d time_usec:%d\n",
+						vcb->frame_count, pause_frame_count_adjust,
+						(int)(vcb->last_pts - pikrellcam.video_start_pts));
+
 			prev_pause = vcb->pause;
 	
 			if (force_stop)
@@ -765,16 +803,17 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  reached and we stop recording with the post_capture time
 			|  already written.
 			*/
-			if (t_cur <= vcb->motion_sync_time)
+			if (vcb->t_cur <= vcb->motion_sync_time)
 				{
 				if (mmalbuf->pts > 0)
 					vcb->last_pts = mmalbuf->pts;
 				vcb->video_frame_count = vcb->frame_count;
-				vcb_video_write(vcb);
+				video_buffer_write(vcb);
+				audio_buffer_set_record_head(acb, audio_head);
 				}
 			if (   force_stop
 		        || (   mf->external_trigger_time_limit == 0
-			        && t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
+			        && vcb->t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
 			       )
 		       )
 				{

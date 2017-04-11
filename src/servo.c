@@ -269,34 +269,6 @@ gpio_write(int pin, int level)
 	*(gpio_mmap + reg) = 1 << (pin & 0x1f);
 	}
 
-int
-pi_model(void)
-	{
-	FILE       *f;
-	static int model;
-	char       buf[200], arm[32];
-
-	if (model == 0)
-		{
-		if ((f = fopen("/proc/cpuinfo", "r")) != NULL)
-			{
-			while (fgets(buf, sizeof(buf), f) != NULL)
-				{
-				if (sscanf(buf, "model name %*s %31s", arm) > 0)
-					{
-					if (!strcmp(arm, "ARMv7"))
-						model = 2;
-					else
-						model = 1;
-					break;
-					}
-				}
-			fclose(f);
-			}
-		}
-	return model;
-	}
-
 static void
 _servo_move(int pan, int tilt, int delay)
 	{
@@ -454,7 +426,8 @@ servo_init(void)
 		pan_channel = tilt_channel = -1;
 		return;
 		}
-	peripheral_base = (pi_model() == 2) ? PI_2_PERIPHERAL_BASE : PI_1_PERIPHERAL_BASE;
+	peripheral_base = (pikrellcam.pi_model == 2)
+				? PI_2_PERIPHERAL_BASE : PI_1_PERIPHERAL_BASE;
 
 	if ((fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0)
 		{

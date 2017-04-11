@@ -506,6 +506,49 @@ display_preset_settings(void)
 				JUSTIFY_RIGHT(0), info1);
 	}
 
+#define VU_HEIGHT	80
+
+static void
+display_audio(void)
+	{
+	AudioCircularBuffer *acb = &audio_circular_buffer;
+	DrawArea			*da = &inform_area;
+	char				buf[16];
+	int					y0, y, dy;
+	static int			x_stream;
+
+	if (!acb->pcm)
+		return;
+
+	y0 = da->height - normal_font->char_height - 1;
+	snprintf(buf, sizeof(buf), "%ddB", pikrellcam.audio_gain_dB);
+	i420_draw_string(da, normal_font, 0xff, 1, y0, buf);
+
+	dy = acb->vu_meter * VU_HEIGHT / INT16_MAX;
+	acb->vu_meter = 0;
+	y = y0 - dy - 1;
+	if (dy > 0)
+		{
+		glcd_draw_v_line(glcd, da, 0xc0, 3, y, dy);
+		glcd_draw_v_line(glcd, da, 0xff, 4, y, dy);
+		glcd_draw_v_line(glcd, da, 0xff, 5, y, dy);
+		glcd_draw_v_line(glcd, da, 0xc0, 6, y, dy);
+		}
+	glcd_draw_h_line(glcd, da, 0, 3, y, 4);
+	glcd_draw_rectangle(glcd, da, 0xff, 1,
+				y0 - (VU_HEIGHT + 2), 8, VU_HEIGHT + 2);
+	glcd_draw_rectangle(glcd, da, 0, 2,
+				y0 - (VU_HEIGHT + 1), 6, VU_HEIGHT);
+
+	if (acb->mp3_stream_fd > 0)
+		{
+		glcd_draw_h_line(glcd, da, 0xff, x_stream, da->height - 3, 5);
+		glcd_draw_h_line(glcd, da, 0xff, x_stream, da->height - 2, 5);
+		glcd_draw_h_line(glcd, da, 0xff, x_stream, da->height - 1, 5);
+		x_stream = (x_stream + 2) % (4 * normal_font->char_width - 5);
+		}
+	}
+
 static void
 inform_draw(void)
 	{
@@ -1133,9 +1176,19 @@ apply_adjustment(void)
 		   )
 			{
 			pthread_mutex_lock(&vcb->mutex);
-			pikrellcam.motion_times.pre_capture = motion_times_temp.pre_capture;
-			pikrellcam.motion_times.event_gap = motion_times_temp.event_gap;
-			circular_buffer_init();
+			if (vcb->state == VCB_STATE_NONE)
+				{
+				pikrellcam.motion_times.pre_capture = motion_times_temp.pre_capture;
+				pikrellcam.motion_times.event_gap = motion_times_temp.event_gap;
+				video_circular_buffer_init();
+				audio_circular_buffer_init();
+				}
+			else
+				{
+				display_inform("\"Cannot change pre_capture or event_gap\" 3 3 1");
+				display_inform("\"while video is recording.\" 4 3 1");
+				display_inform("timeout 2");
+				}
 			pthread_mutex_unlock(&vcb->mutex);
 			}
 		}
@@ -1773,15 +1826,32 @@ display_inform(char *args)
 	{
 	InformLine *iline;
 	char       str[128];
-	int        n = 0, font = 0, row = 0, xs = 0, ys = 0, justify = 4;
+	int        i, n = 0, font = 0, row = 0, xs = 0, ys = 0, justify = 4;
 
 	if (sscanf(args, "timeout %d\n", &n) == 1)
 		{
-		n = (n <= 0 || n > 30) ? pikrellcam.notify_duration : n;
-		event_count_down_add("display inform expire",
-				n * EVENT_LOOP_FREQUENCY, display_inform_expire, NULL);
+		n = (n < 0 || n > 30) ? pikrellcam.notify_duration : n;
+		if (n == 0)
+			{
+			event_remove_name("display inform expire");
+			display_inform_expire();
+			}
+		else
+			event_count_down_add("display inform expire",
+					n * EVENT_LOOP_FREQUENCY, display_inform_expire, NULL);
 		}
-	else
+	else if (sscanf(args, "clear %d\n", &n) == 1)
+		{
+		for (i = 0; i < N_INFORM_LINES; ++i)
+			{
+			if (inform_line[i].row == n && inform_line[i].string)
+				{
+				free(inform_line[i].string);
+				inform_line[i].string = NULL;
+				}
+			}
+		}
+	else if (inform_line_index < N_INFORM_LINES)
 		{
 		n = sscanf(args, "\"%127[^\"]\" %d %d %d %d %d",
 				str, &row, &justify, &font, &xs, &ys);
@@ -1861,6 +1931,7 @@ display_draw(uint8_t *i420)
 		display_servo_pan();
 		display_servo_tilt();
 		}
+	display_audio();
 	display_preset_setting();
 
 	display_action = ACTION_NONE;

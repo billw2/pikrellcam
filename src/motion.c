@@ -1313,24 +1313,43 @@ motion_command(char *cmd_line)
 
 		case PRE_CAPTURE:
 			pthread_mutex_lock(&vcb->mutex);
-			n = atoi(arg1);
-			pikrellcam.motion_times.pre_capture = n;
-			pthread_mutex_lock(&vcb->mutex);
-			motion_times_temp.pre_capture = n;
-			circular_buffer_init();
+			if (vcb->state == VCB_STATE_NONE)
+				{
+				n = atoi(arg1);
+				pikrellcam.motion_times.pre_capture = n;
+				motion_times_temp.pre_capture = n;
+				video_circular_buffer_init();
+				audio_circular_buffer_init();
+				pikrellcam.config_modified = TRUE;
+				}
+			else
+				{
+				display_inform("\"Cannot change pre_capture or event_gap\" 3 3 1");
+				display_inform("\"while video is recording.\" 4 3 1");
+				display_inform("timeout 2");
+				}
 			pthread_mutex_unlock(&vcb->mutex);
-			pikrellcam.config_modified = TRUE;
 			log_printf("command process: motion %s\n", cmd_line);
 			break;
 
 		case EVENT_GAP:
-			n = atoi(arg1);
-			pikrellcam.motion_times.event_gap = n;
 			pthread_mutex_lock(&vcb->mutex);
-			motion_times_temp.event_gap = n;
-			circular_buffer_init();
+			if (vcb->state == VCB_STATE_NONE)
+				{
+				n = atoi(arg1);
+				pikrellcam.motion_times.event_gap = n;
+				motion_times_temp.event_gap = n;
+				video_circular_buffer_init();
+				audio_circular_buffer_init();
+				pikrellcam.config_modified = TRUE;
+				}
+			else
+				{
+				display_inform("\"Cannot change pre_capture or event_gap\" 3 3 1");
+				display_inform("\"while video is recording.\" 4 3 1");
+				display_inform("timeout 2");
+				}
 			pthread_mutex_unlock(&vcb->mutex);
-			pikrellcam.config_modified = TRUE;
 			log_printf("command process: motion %s\n", cmd_line);
 			break;
 

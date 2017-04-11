@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if ! dpkg -s libmp3lame0 2>/dev/null | grep Status | grep -q installed
+then
+	echo "WARNING: install libmp3lme0 or restart will fail!"
+fi
+
+exit 0

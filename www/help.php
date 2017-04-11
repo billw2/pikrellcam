@@ -65,48 +65,20 @@ Under construction...
 </div>
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
-<div class='indent0'>
+<div class='indent0'> Version 4.0
+<div class='indent1'>
+<a href="help.php#AUDIO">Audio recording</a> - For Jessie Lite & Minibian
+	users, libmp3lame0 and libasound2 need to be installed or else after
+	upgrading to PiKrellCam 4.0, a restart will fail.
+	Rerun the install script or install by apt-get.
+</div>
+
 Version 3.1
 <div class='indent1'>
 <a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
 <a href="help.php#MOTION_EVENTS">motion-events file</a><br>
 </div>
 
-</div>
-Version 3.0
-<div class='indent1'>
-The upgrade from PiKrellcam V2.x to PiKrellCam V3.0 adds presets and servo control.<br>
-This is documented below on this page, but there are changes in how
-motion regions usage is handled that is important to be aware of up front:
-<ul>
-	<li> The use of saving and loading of motion regions by name is no longer the primary
-	way to change the motion regions in effect.  Saving and loading regions by name now
-	has a new role of maintaining a set of motion regions as temporaries for backup or
-	using as an initial condition to be loaded when creating a new preset.
-	</li>
-	<li> If motion regions are edited or a new set loaded by name, the changes are
-	automatically stored into the current preset (unless you have servos and are off
-	a preset - see below).  So if you edit motion regions the current preset is
-	changed and there is no need to save by name unless you want the backup.
-	</li>
-	<li> When pikrellcam is restarted, it loads the preset you were on when pikrellcam
-	stopped.  If for example, you have a preset 1 set up for default use and a preset 2
-	for windy conditions, then if you want to be sure that at program start preset 1 is
-	selected, you should have in at-commands.conf:
-<pre>
-daily  start  "@preset goto 1 1"
-</pre>
-	If you have servos, you might want to have a position number other than "1".<br>
-	This would replace the use of an at command to load regions and if you have such
-	a startup motion load_regions command, you probably want to take that out.  If you
-	don't take it out and don't have a startup preset goto, the regions will be loaded
-	into whatever preset you restart with which can be not what you want.
-	If you do use a startup
-	preset goto command, also having a startup motion load_regions is likely redundant
-	because the preset remembers its motion regions.
-	</li>
-</ul>
-</div>
 </div>
 
 
@@ -520,6 +492,8 @@ again or the servo reaches a pan/tilt limit.
 </div>
 
 
+
+
 <span style='font-size: 1.5em; font-weight: 650;'>Motion Regions Panel</span><hr>
 <img src="images/motion-regions.jpg" alt="motion-regions.jpg"> 
 <div class='indent0'>
@@ -840,6 +814,218 @@ Preset group and there will be no Servo button in the Config group.
 
 </div>
 
+
+
+<a name="AUDIO">
+<span style='font-size: 1.5em; font-weight: 650;'>Audio</span><hr>
+<div class='indent0'>
+Pikrellcam can do two independent audio MP3 encodes.  One encode
+is for recording audio with videos and is sourced from PCM sound data stored
+in a circular buffer so there can be in sync pre-captured sound to track
+video pre-capture.  The other encode is for streaming MP3 sound to a browser
+(but see Issues) and is sourced from PCM sound data as it is read
+from the sound capture device.
+The streamed audio is not in sync with the mjpeg image stream
+displayed by the browser because audio buffering will cause a
+couple of seconds delay.
+<p>
+Connect an ALSA input capture device such as
+USB sound card + microphone, USB mini microphone, or other which can
+be recognized by running
+<span style='font-weight:700'>arecord -l</span>.
+If arecord can record from the device and aplay play the wav file,
+then pikrellcam should work using the same sound device.  You may need to
+run alsamixer to unmute the microphone input and set the capture level.
+If you need more information than the basic setup listed here, the web
+has many Pi microphone tutorials to look at.
+<br>
+So a microphone setup for PiKrellCam is:
+<ul>
+	<li>
+	The user <span style='font-weight:700'>pi</span>
+	must be in the audio group.<br>
+	Connect the USB sound card + microphone and the kernel should
+	load the USB sound modules.
+	Verify the sound card number using arecord.
+	I get card 1 and use that for the remaining examples:
+<pre>
+pi@rpi2: ~$ arecord -l | grep USB
+card 1: Device [USB PnP Sound Device], device 0: USB Audio [USB Audio]
+</pre>
+	</li>
+	<li> Run alsamixer on card 1 and make sure the microphone input is
+	not muted.  Probably set the input sensitivy high.
+	In alsamixer, press F4 to show controls
+	for the microphone capture input for the card.
+<pre>
+pi@rpi2: ~$ alsamixer -c 1
+</pre>
+	</li>
+	<li>
+	For sound card 1, the ALSA hardware device is plughw:1.
+	Test that device by recording and playing an audio wav file:
+<pre>
+  # Do a basic 5 second record:
+pi@rpi2: ~$ arecord  -D plughw:1 -d 5  test.wav
+  # And also check using parameters the same as pikrellcam recording defaults,
+  # defaults are: device: plughw:1  channels: 1  rate: 24000 or 48000  16 bit audio.
+arecord -D plughw:1 -d 5 -c 1 -f s16_LE -r 24000 test.wav
+  # Play the sound:
+pi@rpi2: ~$ aplay test.wav
+</pre>
+	</li>
+	<li> If the USB sound card is not plughw:1, edit
+	audio_device in pikrellcam.conf to be the correct device
+	and restart pikrellcam.
+	</li>
+	<li> Enable/disable audio recording is done by clicking the microphone
+		audio control toggle button on the web page.  An audio VU meter is
+		drawn on the OSD when the microphone is successfully opened.
+	</li>
+</ul>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 680;'>Audio Control Buttons</span><br>
+<div class='indent1'>
+<img src="images/audio-controls.jpg" alt="audio-controls.jpg"> 
+Web page audio control buttons are left to right:
+<ul>
+	<li><span style='font-weight:700'>Audio Stream Stop</span> -
+		The OSD moving stream indicator will disappear.
+	</li>
+	<li><span style='font-weight:700'>Audio Stream Play</span> - If the
+		microphone is open, PCM audio is encoded into MP3 audio
+		which can be played by a browser (see Issues). When streaming is on,
+		the OSD shows a moving streaming indicator under the VU meter and
+		gain value.
+	</li>
+	<li><span style='font-weight:700'>Microphone Toggle</span> - Opens and
+		closes the microphone. When the microphone is open, the OSD shows a
+		vertical audio VU meter with the current gain value printed under
+		it. With the microphone opened, audio is recorded with videos and
+		can be streamed.
+	</li>
+	<li><span style='font-weight:700'>Audio Gain Up</span> - Increment the
+		audio gain up to 30dB.
+		This is not the gain set by alsamixer but is an additional
+		amplication of the PCM sound data read from ALSA to help boost audio
+		at the expense of amplified noise and risk of distortion from clipping.
+	</li>
+	<li><span style='font-weight:700'>Audio Gain Down</span> - Decrement the
+		audio gain in dB to a minimum of 0dB (amplification factor is 1).
+	</li>
+</ul>
+
+</div>
+<span style='font-size: 1.2em; font-weight: 680;'>Audio Parameters in pikrellcam.conf</span><br>
+<div class='indent1'>
+Edit pikrellcam.conf to change these settings:
+
+<ul>
+	<li><span style='font-weight:700'>audio_device</span> - default: plughw:1<br>
+		Sets the ALSA hardware audio input (microphone) capture device.
+	</li>
+	<li><span style='font-weight:700'>audio_rate_Pi2</span> - default: 48000<br>
+	    <span style='font-weight:700'>audio_rate_Pi1</span> - default: 24000<br>
+		Audio sample rate used for Pi model 1 and Pi model 2.
+		Lame docs suggest using only MP3 supported sample rates:<br>
+	&nbsp;&nbsp;&nbsp; 8000 11025 12000 16000 22050 24000 32000 44100 48000<br>
+	</li>
+	<li><span style='font-weight:700'>audio_channels</span> - default: 1<br>
+		Set to 1
+		for mono or 2 (not tested yet) for stereo.  Probably
+		most USB sound card
+		microphone inputs will support only one channel and setting 2 will
+		be reverted to 1 when pikrellcam opens the microphone.
+	</li>
+	<li><span style='font-weight:700'>audio_mp3_quality_Pi2</span> - default: 2<br>
+	    <span style='font-weight:700'>audio_mp3_quality_Pi1</span> - default: 7<br>
+		Value for quality of the lame lib encode of PCM to MP3 audio for
+		Pi model 1 and Pi model 2.
+		Values range from 0 (best quality but very slow encode) to 9
+		(worst qualilty but fast encode). Lame docs say 2 is near best and
+		not too slow and 7 is OK quality and a really fast encode.
+	</li>
+</ul>
+Pi models 1 (ARMv6 single core) and 2 (ARMv7 quad core) have separate settings
+for sample rate and encode quality because two simultaneous audio MP3
+encodings can push a model 1 to very high CPU usage.  A Pi2/3 does not have
+a CPU usage issue.  This image shows CPU usage for a Pi1
+to give an idea of what to expect.  Streaming audio while recording
+(R2 interval: two MP3 encodes) uses high CPU and causes
+an extended video conversion time (C2 interval: one MP3 encode).
+It is the particular Pi1 use case of expected video length/frequency and
+any overclocking that determines what audio sample rate and encode
+quality should be set and whether it is wise to stream audio
+while videos are recording.
+<p>
+<img src="images/cpu-usage.jpg" alt="cpu-usage.jpg">
+
+</div>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 680;'>Limitations & Issues</span><br>
+<div class='indent1'>
+<ul>
+	<li> Audio MP3 streaming works for me to Firefox but not to Chromium
+		for some reason. Don't know if YMMV on this.
+	</li>
+	<li> FYI, sometimes clicking the microphone toggle button can fail to open
+		the microphone because the device is busy, but clicking it
+		some more eventually succeeds.
+		Running arecord can similarly fail with device busy so it may
+		be some issue with USB sound cards.
+	<li> If a video has out of sync audio, check the log to see if
+		the actual video fps and audio rate was what is configured.
+		If these are off, then data has been lost during the record.  This
+		is likely more a possible issue on a Pi1.
+	</li>
+	<li> Audio cannot be streamed to more than one web page at a time.
+	</li>
+	<li> ALSA audio capture devices cannot be opened by more than one
+		application.  If a microphone is needed for another purpose, it
+		cannot also be open in pikrellcam.
+	</li>
+</ul>
+</div>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 680;'>Microphones</span><br>
+<div class='indent1'>
+A high
+<a href="https://geoffthegreygeek.com/microphone-sensitivity/">
+microphone sensitivity</a> is likely needed for a PiKrellCam application
+which wants to pick up related audio when recording events at some
+distance from the camera.
+A cheap way to experiment is to order some
+<a href="http://www.hobby-hour.com/electronics/computer_microphone.php">
+electret microphones</a>
+from an electronics supplier and solder them to a 3.5mm plug.  I have been
+using electrets with sensitivities from
+<a href="http://www.mouser.com/ProductDetail/DB-Unlimited/MO093803-1/?qs=sGAEpiMZZMvxTCYhU%252bW9md6RLkZl0Nse48Qi7C4xp2w%3d">
+-38dB</a> to
+<a href="http://www.mouser.com/ProductDetail/CUI/CMC-6027-24T/?qs=sGAEpiMZZMuCv89HBVkAk5iC6ZN50VtrfpvYg8FFM2E%3d">
+-24dB</a>
+ordered from Mouser, but similar ones should be available from other
+suppliers near you.  USB sound cards I have tried so far have the
+microphone jack tip internally shorted to the ring.  To check, connect the
+plug to the sound card and measure for zero resistance between the tip and
+ring lugs.  So I simply solder the microphone (-) terminal to plug ground
+and the microphone (+) terminal to either the plug tip or ring.
+<p>
+<img src="images/electret.jpg" alt="electret.jpg">
+<p>
+Noise is a possible issue when using sensitive omnidirectional microphones.
+A couple of likely causes are power line hum from the surrounding
+microphone environment or electrical noise getting into the USB sound
+card through the power supply.
+So microphone placement and a clean power supply can be important.
+</div>
+
+</div>
+
+
+
 <span style='font-size: 1.5em; font-weight: 650;'>Configuration Files</span><hr>
 <div class='indent0'>
 <span style='font-size: 1.2em; font-weight: 650;'>~/.pikrellcam/pikrellcam.conf</span>
@@ -965,42 +1151,57 @@ archive_dir archive
 </pre>
 
 With this setup, all media files are stored on the Pi SD card.  Media files may be configured to
-be stored on an external USB disk by editing the <nobr>~/pikrellcam/scripts/startup</nobr> file to uncomment
+be stored on an external disk by editing the <nobr>~/pikrellcam/scripts/startup</nobr> file to uncomment
 the line:
 <pre>
 MOUNT_DISK=sda1
 </pre>
 <p>
 This assumes there is a single USB disk plugged into the Pi and it appears as
-<nobr>/dev/sda</nobr>.  If this USB disk has a linux filesystem on
+<nobr>/dev/sda</nobr>.
+If this USB disk has a linux filesystem on
 <nobr>/dev/sda1</nobr>, pikrellcam can create directories with the
 needed permissions.  However, if the filesystem is not a linux filesystem
-(eg. VFAT or FAT32) then pikrellcam cannot set up the needed permissions for the
-web interface to work and media files will not be shown
+(eg. VFAT or FAT32) then pikrellcam cannot set up the needed permissions for
+the web interface to work and media files will not be shown
 unless the proper permissions are specified when
-the partition is mounted.  For this case, the mount command or fstab entry
-should specify umask or dmask/fmask permissions of 0002.  For example,
-use a mount command like:
+the partition is mounted.
+For this case, the mount command or fstab entry
+should specify umask or dmask/fmask permissions of 0002.
+<p>
+Also, the mount point can be somewhere else in the filesystem.  As an
+example, you want a VFAT disk to be mounted on /media/mountdir.
+For this, use absolute pathnames in pikrellcam.conf:
+<pre>
+media_dir /media/mountdir
+archive_dir /media/mountdir/archive
+</pre>
+In the startup script, use a mount command like:
 <pre>
 sudo mount -t vfat /dev/sda1 /media/mountdir -o rw,user,umask=0002
 </pre>
-or, if using fstab, the entry should be like:
+or, if using fstab instead of the startup script, the entry should be like:
 <pre>
 /dev/sda1   /media/mountdir    vfat    rw,user,umask=0002   0   0
 </pre>
 You can use dmask=0002,fmask=0002 in place of umask=0002.<br>
-With a disk mounted, you can see:
-<pre>
-pi@rpi2: ~$ df -h
-Filesystem      Size  Used Avail Use% Mounted on
-...
-/dev/sda1       3.7G  1.9G  1.6G  54% /home/pi/pikrellcam/media
-</pre>
 <p>
-and the media links in <nobr>~/pikrellcam/www</nobr> will now be pointing into the mounted USB disk.
-The media links may be changed to point to some other part of the filesystem which can be
-mounted with a USB disk or NAS.  Just change the media_dir or archive_dir values in
-pikrellcam.conf to reference an absolute path.
+If mounting a large CIFS filesystem the nounix,noserverino options may
+be needed in fstab so pikrellcam can make directories.  Look at the example
+fstab entry forum
+<a href="https://www.raspberrypi.org/forums/viewtopic.php?p=1123960#p1123960">
+raspberry pi forum</a>
+<p>
+The archive directory can be on a disk different from the media directory.  For example
+to have the media directory on a USB disk mounted on the ~/pikrellcam/media directory and
+the archive directory on a NAS mounted on /mnt/SHARE, in pikrellcam.conf:
+<pre>
+media_dir media
+archive_dir /mnt/SHARE/archive
+</pre>
+The mount of the USB disk could be handled in the startup script and the
+NAS drive mounted in the script or using fstab as described above.
+
 </div><br><br>
 
 <span style='font-size: 1.5em; font-weight: 500;'>Archiving</span><hr>
@@ -1098,6 +1299,12 @@ a communication pipe named
 <p>
 List of <span style='font-weight:700'>FIFO</span> commands:
 <pre>
+audio mic_open
+audio mic_close
+audio mic_toggle
+audio gain [up|down|N]		# range 0 - 30
+audio stream_open
+audio stream_close
 record on
 record on pre_capture_time
 record on pre_capture_time time_limit

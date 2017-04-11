@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -436,7 +436,7 @@ event_preview_save(void)
 			asprintf(&pikrellcam.preview_thumb_filename, "%s/%s",
 							pikrellcam.thumb_dir, base);
 
-			log_printf("event preview save: copy %s -> %s\n",
+			log_printf("    event preview save: copy %s -> %s\n",
 								pikrellcam.mjpeg_filename,
 								pikrellcam.preview_filename);
 			if ((f_dst = fopen(pikrellcam.preview_filename, "w")) != NULL)
@@ -542,7 +542,6 @@ state_file_write(void)
 	PresetSettings		*settings = NULL;
 	char                *state;
 	int					pan, tilt;
-	double				ftmp, fps;
 
 	if (!fname_part)
 		asprintf(&fname_part, "%s.part", pikrellcam.state_filename);
@@ -592,24 +591,10 @@ state_file_write(void)
 	fprintf(f, "video_last %s\n",
 			pikrellcam.video_last ? pikrellcam.video_last : "none");
 	fprintf(f, "video_last_frame_count %d\n", pikrellcam.video_last_frame_count);
-
-	/* The pts end-start diff is from frame start of 1st frame to frame start
-	|  of last frame so is the time of frame_count - 1 frames.
-	*/
-	if (pikrellcam.video_last_frame_count > 1)
-		{
-		ftmp = (double) (pikrellcam.video_end_pts - pikrellcam.video_start_pts) / 1e6;
-		ftmp /= pikrellcam.video_last_frame_count - 1;
-		}
-	else
-		ftmp = 0;
-	ftmp *= pikrellcam.video_last_frame_count;
-	fprintf(f, "video_last_time %.2f\n", (float) ftmp);
-	if (ftmp > 0)
-		fps = (double) pikrellcam.video_last_frame_count / ftmp;
-	else
-		fps = 0;
-	fprintf(f, "video_last_fps %.2f\n", (float) fps);
+	fprintf(f, "video_last_time %.2f\n", (float) pikrellcam.video_last_time);
+	fprintf(f, "video_last_fps %.2f\n", (float) pikrellcam.video_last_fps);
+	fprintf(f, "audio_last_frame_count %d\n", pikrellcam.audio_last_frame_count);
+	fprintf(f, "audio_last_rate %d\n", pikrellcam.audio_last_rate);
 
 	fprintf(f, "still_last %s\n",
 			pikrellcam.still_last ? pikrellcam.still_last : "none");

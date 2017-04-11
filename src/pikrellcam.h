@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <pwd.h>
 #include <grp.h>
 #include <sys/stat.h>
@@ -48,9 +49,12 @@
 #include "interface/mmal/util/mmal_default_components.h"
 #include "interface/mmal/util/mmal_connection.h"
 
+#include <alsa/asoundlib.h>
+#include <lame/lame.h>
+
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"3.1.4"
+#define	PIKRELLCAM_VERSION	"4.0.0"
 
 
 //TCP Stream Server
@@ -344,6 +348,8 @@ typedef struct
 typedef struct
 	{
 	int			position;
+	int			audio_position;
+
 	time_t		t_frame;
 	int			frame_count;
 	uint64_t	frame_pts;
@@ -365,6 +371,7 @@ typedef struct
 	{
 	pthread_mutex_t	mutex;
 
+	time_t		t_cur;
 	FILE		*file,
 				*motion_stats_file;
 	boolean		motion_stats_do_header;
@@ -377,7 +384,7 @@ typedef struct
 
 	int8_t	   *data; 		/* h.264 video data array      */
 	int			size;		/* size in bytes of data array */
-	int         seconds;	/* max seconds in the buffer */
+	int         seconds;	/* max seconds in the buffer   */
 	int			head,
 				tail;
 				
@@ -400,6 +407,54 @@ typedef struct
 				motion_sync_time;
 	}
 	VideoCircularBuffer;
+
+
+/* Only do 16 bit sound samples
+*/
+#define SND_FRAMES_TO_BYTES(acb, n_frames) \
+				((int)(n_frames) * sizeof(int16_t) * acb->channels)
+
+typedef struct
+	{
+	pthread_mutex_t		mutex;
+	boolean				force_thread_exit;
+
+	snd_pcm_t			*pcm;
+	lame_t				lame_record,
+						lame_stream;
+	FILE				*mp3_file;
+	uint8_t				*mp3_record_buffer,
+						*mp3_stream_buffer;
+	int					mp3_record_buffer_size,
+						mp3_stream_buffer_size;
+
+	int					mp3_stream_fd;
+
+	int16_t				*data;			/* circular buffer data */
+	int					data_size;		/* and its size in bytes */
+
+	int					head,			/* Frame ndices into circ buf data */
+						record_head,
+						tail,
+						n_frames,		/* Size in frames of circ buf data */
+						max_record_frames;
+
+	uint32_t			rate,			/* ALSA parameters */
+						channels;
+	int					format,
+						periods;
+	unsigned int		period_usec;
+	snd_pcm_uframes_t	period_frames,
+						buffer_frames;
+
+	int16_t				*buffer;		/* holds read of one period of frames */
+	int					buffer_size;	/* which is copied to circular buffer */
+
+	int					frame_count;
+
+	int					vu_meter;
+	}
+	AudioCircularBuffer;
 
 
   /* -------------- The Global PiKrellCam Environment -----------
@@ -467,6 +522,7 @@ typedef struct
 			t_start;
 	struct tm tm_local;
 	int		second_tick;
+	int		pi_model;
 
 	char	*install_dir,
 			*version,
@@ -545,8 +601,13 @@ typedef struct
 	int		video_manual_sequence,
 			video_motion_sequence,
 			video_header_size,
-			video_size,
-			video_last_frame_count;
+			video_size;
+
+	int		video_last_frame_count,
+			audio_last_frame_count,
+			audio_last_rate;
+	double	video_last_time,
+			video_last_fps;
 	uint64_t video_start_pts,
 			video_end_pts;
 
@@ -590,6 +651,18 @@ typedef struct
 			servo_moving,
 			servo_use_servoblaster,
 			have_servos;
+
+	boolean	audio_enable,
+			audio_debug;
+	char	*audio_device,
+			*audio_pathname,
+			*audio_fifo;
+	int		audio_rate_Pi2,
+			audio_rate_Pi1,
+			audio_channels,
+			audio_gain_dB,
+			audio_mp3_quality_Pi2,
+			audio_mp3_quality_Pi1;
 
 	SList	*preset_position_list;
 	int		preset_position_index,
@@ -722,6 +795,7 @@ extern CameraObject	stream_splitter;
 extern CameraObject	stream_resizer;
 
 extern VideoCircularBuffer video_circular_buffer;
+extern AudioCircularBuffer audio_circular_buffer;
 extern MotionFrame  motion_frame;
 extern TimeLapse	time_lapse;
 
@@ -755,7 +829,7 @@ void		video_h264_encoder_callback(MMAL_PORT_T *port,
 					MMAL_BUFFER_HEADER_T *mmalbuf);
 boolean		camera_create(void);
 void		camera_object_destroy(CameraObject *obj);
-void		circular_buffer_init(void);
+void		video_circular_buffer_init(void);
 
 void		mmalcam_config_parameters_set_camera(void);
 boolean 	mmalcam_config_parameter_set(char *name, char *value, boolean set_camera);
@@ -862,6 +936,17 @@ void	servo_get_position(int *pan, int *tilt);
 void	servo_move(int pan, int tilt, int delay);
 void	servo_command(char *args);
 void	servo_init(void);
+
+boolean	audio_mic_open(boolean inform);
+void	audio_retry_open(void);
+void	audio_buffer_set_record_head(AudioCircularBuffer *acb, int head);
+void	audio_buffer_set_tail(AudioCircularBuffer *acb, int position);
+boolean	audio_record_start(void);
+void	audio_record_stop(void);
+void	audio_buffer_set_record_head_tail(AudioCircularBuffer *acb, int head, int tail);
+int		audio_frames_offset_from_video(AudioCircularBuffer *acb);
+void	audio_command(char *args);
+void	audio_circular_buffer_init(void);
 
 void	set_exec_with_session(boolean set);
 void	sun_times_init(void);

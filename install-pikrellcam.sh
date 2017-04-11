@@ -111,7 +111,9 @@ echo "Starting PiKrellCam install..."
 # =============== apt install needed packages ===============
 #
 PACKAGE_LIST=""
-for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc sshpass mpack imagemagick apache2-utils
+for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc \
+	sshpass mpack imagemagick apache2-utils libasound2 libasound2-dev \
+	libmp3lame0 libmp3lame-dev
 do
 	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
 	then
@@ -124,7 +126,7 @@ then
 	echo "Installing packages: $PACKAGE_LIST"
 	echo "Running: apt-get update"
 	sudo apt-get update
-	sudo apt-get install -y $PACKAGE_LIST
+	sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
 else
 	echo "No packages need to be installed."
 fi
@@ -140,7 +142,7 @@ then
 	if ! dpkg -s realpath 2>/dev/null | grep Status | grep -q installed
 	then
 		echo "Installing package: realpath"
-		sudo apt-get install -y realpath
+		sudo apt-get install -y --no-install-recommends realpath
 	fi
 fi
 
