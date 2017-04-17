@@ -54,7 +54,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.0.0"
+#define	PIKRELLCAM_VERSION	"4.0.1"
 
 
 //TCP Stream Server
@@ -155,7 +155,6 @@ typedef struct
 			period;
 
 	int		count;		/* For one shot events after count expires. */
-	pid_t	child_pid;	/* > 0 if event to be executed after child exit */
 
 	void	(*func)();
 	void	*data;
@@ -902,11 +901,10 @@ void	event_motion_end_cmd(char *cmd);
 void	event_still_capture_cmd(char *cmd);
 
 void	event_notify_expire(boolean *notify);
-void	event_child_signal(int sig_num);
 int		exec_wait(char *command, char *arg);
 void	exec_no_wait(char *command, char *arg);
-Event	*exec_child_event(char *event_name, char *command, char *arg);
 void	event_shutdown_request(boolean reboot);
+char	*expand_command(char *command, char *arg);
 
 void	multicast_init(void);
 void	multicast_recv(void);
@@ -948,7 +946,6 @@ int		audio_frames_offset_from_video(AudioCircularBuffer *acb);
 void	audio_command(char *args);
 void	audio_circular_buffer_init(void);
 
-void	set_exec_with_session(boolean set);
 void	sun_times_init(void);
 void	at_commands_config_save(char *config_file);
 boolean	at_commands_config_load(char *config_file);

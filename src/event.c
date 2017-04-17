@@ -31,8 +31,6 @@ static pthread_mutex_t	event_mutex;
 static SList			*event_list,
 						*at_command_list;
 
-static boolean     exec_with_session = TRUE;
-
 typedef struct
 	{
 	boolean initialized;
@@ -62,28 +60,19 @@ typedef struct
 static Sun	sun;
 
 
-void
-set_exec_with_session(boolean set)
-	{
-	exec_with_session = set;
-	}
-
-  /* exec a command with the given arg.  Any strftime() % replacements should
-  |  have been done before calling this so there will remain only pikrellcam
-  |  specific $X conversions.  Change all '$X' to '%s' and printf in what we
-  |  want according to X.
+  /* Any strftime() % replacements should have been done before calling this
+  |  so only pikrellcam specific $X conversions remain.  Change all '$X' to
+  |  '%s' and printf in according to X.  Returns allocated storage.
   */
-static int
-exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
+char *
+expand_command(char *command, char *arg)
 	{
 	struct tm		*tm_now;
 	PresetPosition	*pos;
 	CompositeVector	*frame_vec = &motion_frame.final_preview_vector;
-	char			specifier, *fmt, *fmt_arg, *copy, *cmd_line, *name, buf[BUFSIZ];
-	int				t, i, status = 0;
-
-	if (!command || !*command)
-		return -1;
+	int				t;
+	char			specifier, *fmt, *fmt_arg, *copy, *cmd_line,
+					*name, buf[BUFSIZ];
 
 	copy = strdup(command);
 	cmd_line = copy;
@@ -167,7 +156,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
 				break;
 			case 'p':
 				pos = (PresetPosition *) slist_nth_data(pikrellcam.preset_position_list,
-								pikrellcam.preset_position_index);
+						pikrellcam.preset_position_index);
 				snprintf(buf, sizeof(buf), "%d %d",
 						pikrellcam.preset_position_index + 1,
 						pos ? pos->settings_index + 1 : 1);
@@ -226,38 +215,48 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
 				break;
 
 			default:
+				log_printf("Bad specifier %c in %s\n", specifier, command);
 				fmt_arg = "?";
 				break;
 			}
-		if (!fmt_arg || !fmt_arg)
-			log_printf("  Bad fmt_arg %p for specifier %c\n", fmt_arg, specifier);
 		asprintf(&cmd_line, copy, fmt_arg);
 		free(copy);
 		copy = cmd_line;
 		}
+	return cmd_line;
+	}
 
-	if (do_log)
-		log_printf("execl:[%s]\n", cmd_line);
+static int
+exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
+	{
+	pid_t	child;
+	char	*cmd_line;
+	int		i, status = -1;
 
-	if ((*pid = fork()) == 0)
-		{			/* child - execute command in background */
+	if (!command || !*command)
+		return -1;
+	cmd_line = expand_command(command, arg);
+
+	if ((child = fork()) == 0)
+		{
 		for (i = getdtablesize(); i > 2; --i)
 			close(i);
-		if (exec_with_session)
-			setsid();		/* new session group - ie detach */
-		execl("/bin/sh", "sh", "-c", cmd_line, " &", NULL);
+		if (!wait && fork() > 0)
+			exit(0);
+		execl("/bin/sh", "sh", "-c", cmd_line, NULL);
 		_exit (EXIT_FAILURE);
 		}
-	else if (*pid < 0)
+	else if (child > 0)
 		{
-		perror("Fork failed.");
-		status = -1;
+		if (do_log)
+			log_printf("execl[wait:%d]: %s\n", wait, cmd_line);
+		if (pid)
+			*pid = child;
+		waitpid(child, &status, 0);
 		}
-	else if (wait)		/* If parent needs to wait */
-		{
-		if (waitpid (*pid, &status, 0) != *pid)
-			status = -1;
-		}
+	else
+		log_printf("fork() failed: %m\n");
+
 	free(cmd_line);
 	return status;
 	}
@@ -343,23 +342,6 @@ event_shutdown_request(boolean shutdown_how) /* 0 - halt  1 - reboot */
 		}
 	}
 
-  /* Create a unactivated event and store the child pid of an exec() in the
-  |  event.  Event will be activated only after the caller fills in the
-  |  Event func() pointer and the child exit is caught where the Event time
-  |  will be set to t_now.
-  */
-Event *
-exec_child_event(char *event_name, char *command, char *arg)
-	{
-	Event	*event;
-
-	/* event is unactivated if time and count are zero or func() is NULL
-	*/
-	event = event_add(event_name, 0, 0, NULL, NULL);
-	exec_command(command, arg, FALSE, &event->child_pid, TRUE);
-	return event;
-	}
-
   /* Time for displaying a notify on the stream jpeg has expired.
   */
 void
@@ -367,33 +349,6 @@ event_notify_expire(boolean *notify)
 	{
 	*notify = FALSE;
 	}
-
-void
-event_child_signal(int sig_num)
-	{
-	siginfo_t	siginfo;
-	int			retval;
-	Event		*event;
-	SList		*list;
-
-	siginfo.si_pid = 0;
-	retval = waitid(P_ALL, 0, &siginfo, WEXITED | WNOHANG);
-	if (pikrellcam.verbose)
-		printf("child exit: ret=%d pid=%d %m\n", retval, siginfo.si_pid);
-
-	pthread_mutex_lock(&event_mutex);
-	for (list = event_list; list; list = list->next)
-		{
-		event = (Event *) list->data;
-		if (event->child_pid == siginfo.si_pid)
-			{
-			event->time = pikrellcam.t_now;
-			break;
-			}
-		}
-	pthread_mutex_unlock(&event_mutex);
-	}
-
 
   /* Handle various savings of a jpeg associated with a video recording.
   |  For motion records: save a copy of the mjpeg.jpg for later processing

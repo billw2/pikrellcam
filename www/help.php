@@ -65,14 +65,18 @@ Under construction...
 </div>
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
-<div class='indent0'> Version 4.0
+<div class='indent0'>
+Version 4.0.1
+<div class='indent1'>
+Change for libmp3lame segfault. Simplify running on_motion_end_cmd.
+</div>
+Version 4.0.0
 <div class='indent1'>
 <a href="help.php#AUDIO">Audio recording</a> - For Jessie Lite & Minibian
 	users, libmp3lame0 and libasound2 need to be installed or else after
 	upgrading to PiKrellCam 4.0, a restart will fail.
 	Rerun the install script or install by apt-get.
 </div>
-
 Version 3.1
 <div class='indent1'>
 <a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
@@ -1558,6 +1562,9 @@ frequency  time   "command"
 		- a system command/script or an internal pikrellcam command if the command
 		is preceeded with the '@' character.  Commands must be enclosed in quotes.
 	</li>
+	<li> Prepend an '!' character to the command if you don't want it logged.
+		See ds18b20.py example below.
+	</li>
 	</ul>
 
 	Command strings may have substitution variables which are expanded by PiKrellCam
@@ -1651,9 +1658,13 @@ daily    23:00  "$C/do-archive"
 	If you have ds18b20 temperature chips connected, append temperature readings
 	to the video annotated text date string.
 	The ds18b20.py script is in the PiKrellCam scripts directory and can be edited
-	to add labels to temperature values.
+	to add labels to temperature values.  The 'F' reports fahrenheit.  Use
+	'C' for centigrade.
+	This example prepends an '!' to the
+	command to disable logging, otherwise the log file gets spammed every
+	minute.
 <pre>
-daily minute "$C/ds18b20.py F fifo"
+daily minute "$C/!ds18b20.py F fifo"
 </pre>
 	</li>
 	</ul>

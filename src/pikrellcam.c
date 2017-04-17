@@ -593,14 +593,14 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 void
 video_record_stop(VideoCircularBuffer *vcb)
 	{
-	struct statvfs st;
-	struct stat    st_h264;
-	MotionFrame    *mf = &motion_frame;
-	unsigned long  tmp_space;
-	Event          *event = NULL;
-	char           *s, *cmd, *tmp_dir, *detect, *thumb_name, *thumb_cmd = NULL;
-	int            thumb_height;
-	double         ftmp, encode_fps;
+	struct statvfs	st;
+	struct stat		st_h264;
+	MotionFrame		*mf = &motion_frame;
+	unsigned long	tmp_space;
+	char			*s, *cmd, *tmp_dir, *detect, *tmp_name;
+	char			*thumb_cmd = NULL, *motion_end_cmd = NULL;
+	int				thumb_height;
+	double			ftmp, encode_fps;
 
 	if (!vcb->file)
 		return;
@@ -679,15 +679,24 @@ video_record_stop(VideoCircularBuffer *vcb)
 			{
 			thumb_height = 150 * pikrellcam.camera_config.video_height
 							/ pikrellcam.camera_config.video_width;
-			asprintf(&thumb_name, "%s/%s   ", pikrellcam.thumb_dir,
+			asprintf(&tmp_name, "%s/%s   ", pikrellcam.thumb_dir,
 					fname_base(pikrellcam.video_pathname));
-			if ((s = strstr(thumb_name, ".mp4")) != NULL)
+			if ((s = strstr(tmp_name, ".mp4")) != NULL)
 				strcpy(s, ".th.jpg");
 
 			asprintf(&thumb_cmd, "&& avconv -i %s -vframes 1 -ss 0 -s 150x%d %s",
-				pikrellcam.video_pathname, thumb_height,
-				thumb_name);
-			free(thumb_name);
+						pikrellcam.video_pathname, thumb_height, tmp_name);
+			free(tmp_name);
+			}
+
+		if (   (vcb->state & VCB_STATE_MOTION_RECORD)
+		    && *pikrellcam.on_motion_end_cmd
+		    && st_h264.st_size > 0
+		   )
+			{
+			tmp_name = expand_command(pikrellcam.on_motion_end_cmd, NULL);
+			asprintf(&motion_end_cmd, "&& %s", tmp_name);
+			free(tmp_name);
 			}
 
 		if (   pikrellcam.camera_adjust.video_mp4box_fps == 0
@@ -702,7 +711,8 @@ video_record_stop(VideoCircularBuffer *vcb)
 			{
 			if (pikrellcam.audio_pathname)
 				{
-				asprintf(&cmd, "(MP4Box %s -tmp %s -fps %.3f -add %s -add %s %s %s && rm %s %s %s)",
+				asprintf(&cmd,
+		"(MP4Box %s -tmp %s -fps %.3f -add %s -add %s %s %s && rm %s %s %s %s)",
 					pikrellcam.verbose ? "" : "-quiet",
 					tmp_dir,
 					(float) encode_fps,
@@ -710,21 +720,24 @@ video_record_stop(VideoCircularBuffer *vcb)
 					pikrellcam.audio_pathname,
 					pikrellcam.video_pathname,
 					pikrellcam.verbose ? "" : "2> /dev/null",
-					pikrellcam.video_h264,
-					pikrellcam.audio_pathname,
-					thumb_cmd ? thumb_cmd : "");
+					pikrellcam.video_h264,		// rm arg
+					pikrellcam.audio_pathname,  // rm arg
+					thumb_cmd ? thumb_cmd : "",
+					motion_end_cmd ? motion_end_cmd : "");
 				}
 			else
 				{
-				asprintf(&cmd, "(MP4Box %s -tmp %s -fps %.3f -add %s %s %s && rm %s %s)",
+				asprintf(&cmd,
+		"(MP4Box %s -tmp %s -fps %.3f -add %s %s %s && rm %s %s %s)",
 					pikrellcam.verbose ? "" : "-quiet",
 					tmp_dir,
 					(float) encode_fps,
 					pikrellcam.video_h264,
 					pikrellcam.video_pathname,
 					pikrellcam.verbose ? "" : "2> /dev/null",
-					pikrellcam.video_h264,
-					thumb_cmd ? thumb_cmd : "");
+					pikrellcam.video_h264,		// rm arg
+					thumb_cmd ? thumb_cmd : "",
+					motion_end_cmd ? motion_end_cmd : "");
 				}
 			}
 		else
@@ -732,14 +745,10 @@ video_record_stop(VideoCircularBuffer *vcb)
 
 		if (thumb_cmd)
 			free(thumb_cmd);
+		if (motion_end_cmd)
+			free(motion_end_cmd);
 
-		if (   (vcb->state & VCB_STATE_MOTION_RECORD)
-		    && *pikrellcam.on_motion_end_cmd
-		    && st_h264.st_size > 0
-		   )
-			event = exec_child_event("motion end command", cmd, NULL);
-		else
-			exec_no_wait(cmd, NULL);
+		exec_no_wait(cmd, NULL);
 		free(cmd);
 		}
 	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
@@ -760,14 +769,10 @@ video_record_stop(VideoCircularBuffer *vcb)
 					event_preview_save_cmd,
 					pikrellcam.on_motion_preview_save_cmd);
 			}
-		if (event)	/* a mp4 video save event needs a MP4Box child exit */
-			{
-			event->data = pikrellcam.on_motion_end_cmd;
-			event->func = event_motion_end_cmd;
-			}
-		else if (   *pikrellcam.on_motion_end_cmd	/* a h264 video save */
-		         && st_h264.st_size > 0
-		        )
+		if (   !pikrellcam.video_mp4box
+			&& *pikrellcam.on_motion_end_cmd
+			&& st_h264.st_size > 0
+		   )
 			event_add("motion end command", pikrellcam.t_now, 0,
 					event_motion_end_cmd, pikrellcam.on_motion_end_cmd);
 		}
@@ -1639,7 +1644,6 @@ main(int argc, char *argv[])
 		while (--argc && i < sizeof(buf) - 64 - strlen(*argv))
 			i += sprintf(buf + i, "%s ", *argv++);
 
-		set_exec_with_session(FALSE);
 		exec_wait(buf, NULL);
 		exit(0);
 		}
@@ -1808,7 +1812,6 @@ main(int argc, char *argv[])
 
 	signal(SIGINT, signal_quit);
 	signal(SIGTERM, signal_quit);
-	signal(SIGCHLD, event_child_signal);
 	signal(SIGPIPE, SIG_IGN);
 
 	setup_h264_tcp_server();

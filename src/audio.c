@@ -475,7 +475,6 @@ audio_record_start(void)
 	quality = (pikrellcam.pi_model == 2)
 		? pikrellcam.audio_mp3_quality_Pi2 : pikrellcam.audio_mp3_quality_Pi1;
 	lame_set_quality(acb->lame_record, quality);
-	lame_set_VBR_q(acb->lame_record, quality); 
 	lame_init_params(acb->lame_record);
 
 	if (pikrellcam.audio_debug & 0x1)
@@ -897,7 +896,6 @@ audio_command(char *cmd_line)
 			quality = (pikrellcam.pi_model == 2)
 				? pikrellcam.audio_mp3_quality_Pi2 : pikrellcam.audio_mp3_quality_Pi1;
 			lame_set_quality(acb->lame_stream, quality);
-			lame_set_VBR_q(acb->lame_stream, quality);
 			lame_init_params(acb->lame_stream);
 
 			/* Reader must open before write NONBLOCK open can succeed, so
