@@ -149,26 +149,25 @@ if (defined('SHOW_AUDIO_CONTROLS'))
 ?>
 
       <input type="image" src="images/stop.png"
-		style="vertical-align: bottom; margin-left:20px;"
-        onclick="fifo_command('record off')"
+		style="vertical-align: bottom; margin-left:20px; margin-right:0px;"
         width="28" height="28"
+        onclick="fifo_command('record off')"
       >
       <input type="image" src="images/pause.png"
-		style="vertical-align: bottom;"
-        onclick="fifo_command('pause')"
+		style="vertical-align: bottom; margin-left:0px; margin-right:0px;"
         width="28" height="28"
+        onclick="fifo_command('pause')"
       >
       <input type="image" src="images/record.png"
-		style="vertical-align: bottom;"
-        onclick="fifo_command('record on')"
+		style="vertical-align: bottom; margin-left:0px; margin-right:0px;"
         width="28" height="28"
+        onclick="fifo_command('record on')"
       >
       <input type="image" src="images/shutter.png"
+		style="vertical-align: bottom; margin-left:9px; margin-right:0px;"
         width="28" height="28"
         onclick="fifo_command('still')"
-        style="margin-left:12px; vertical-align: bottom;"
       >
-
 <?php
 
 if (defined('SERVOS_ENABLE'))

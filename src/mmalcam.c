@@ -468,6 +468,26 @@ video_buffer_write(VideoCircularBuffer *vcb)
 	}
 
 static void
+video_loop_buffer_write(VideoCircularBuffer *vcb)
+	{
+	if (!vcb || !vcb->loop_file)
+		return;
+
+	if (vcb->loop_tail < vcb->head)
+		{
+		fwrite(vcb->data + vcb->loop_tail, vcb->head - vcb->loop_tail, 1,
+					vcb->loop_file);
+		}
+	else
+		{
+		fwrite(vcb->data + vcb->loop_tail, vcb->size - vcb->loop_tail, 1,
+					vcb->loop_file);
+		fwrite(vcb->data, vcb->head, 1, vcb->loop_file);
+		}
+	vcb->loop_tail = vcb->head;
+	}
+
+static void
 h264_header_save(MMAL_BUFFER_HEADER_T *mmalbuf)
 	{
 	VideoCircularBuffer *vcb = &video_circular_buffer;
@@ -633,6 +653,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				else
 					pause_frame_count_adjust += 1;
 				}
+			if (vcb->loop_state == VCB_LOOP_STATE_RECORD)
+				vcb->loop_frame_count += 1;
 			}
 
 		if (vcb->t_cur > t_prev)
@@ -703,6 +725,18 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 			pts_prev = 0;
 			event |= EVENT_PREVIEW_SAVE;
+			}
+
+		if (vcb->loop_state == VCB_LOOP_STATE_RECORD_START && vcb->loop_file)
+			{
+			fwrite(vcb->h264_header, 1, vcb->h264_header_position,
+								vcb->loop_file);
+			kf = &vcb->key_frame[vcb->loop_record_start_frame_index];
+			vcb->loop_frame_count = kf->frame_count;
+			vcb->loop_tail = kf->position;
+			video_loop_buffer_write(vcb);
+			vcb->loop_state = VCB_LOOP_STATE_RECORD;
+//			audio_buffer_set_record_head_tail(acb, audio_head, kf->audio_position);
 			}
 
 		if (h264_conn_status == H264_TCP_SEND_HEADER) 
@@ -826,6 +860,10 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				if (strcmp(pikrellcam.motion_preview_save_mode, "first") != 0)
 					event |= EVENT_MOTION_PREVIEW_SAVE_CMD;
 				}
+			}
+		if (vcb->loop_state == VCB_LOOP_STATE_RECORD)
+			{
+			video_loop_buffer_write(vcb);
 			}
 		}
 	pthread_mutex_unlock(&vcb->mutex);

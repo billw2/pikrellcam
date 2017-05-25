@@ -51,7 +51,10 @@ $header .= "<div><a class='text-shadow-large'
 			style='text-decoration: none;' href='index.php'>$title</a></div></div></div>";
 echo $header;
 
-echo "<div style='color: $default_text_color; margin-left: 1cm; margin-right: 2cm'>"
+//echo "<div style='color: $default_text_color; margin-left: 1cm; margin-right: 2cm'>";
+$div_style = "color: $default_text_color; overflow-y: scroll; height:${n_log_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+echo "<div style='$div_style'>";
+echo "<div style='color: $default_text_color; margin-left: 0.5cm; margin-right: 0.5cm;'>";
 ?>
 
 <span style='font-size: 1.5em; font-weight: 650;'>Introduction</span><hr>
@@ -66,10 +69,13 @@ Under construction...
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
+Version 4.0.2 - Bugfix for $v variable passed to on_motion_end.
+<p>
 Version 4.0.1
 <div class='indent1'>
 Change for libmp3lame segfault. Simplify running on_motion_end_cmd.
 </div>
+
 Version 4.0.0
 <div class='indent1'>
 <a href="help.php#AUDIO">Audio recording</a> - For Jessie Lite & Minibian
@@ -77,6 +83,7 @@ Version 4.0.0
 	upgrading to PiKrellCam 4.0, a restart will fail.
 	Rerun the install script or install by apt-get.
 </div>
+
 Version 3.1
 <div class='indent1'>
 <a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
@@ -315,7 +322,9 @@ get a better look at the vectors, you can temporarily raise the mjpeg_divider
 value so the OSD will update more slowly.  
 <p>
 <span style='font-size: 1.2em; font-weight: 680;'>Example Motion Detects</span>
+<div style='margin-left: 1.5cm;'>
 <img src="images/vector0.jpg" alt="vector0.jpg"> 
+</div>
 <p>
 <span style='font-size: 1.2em; font-weight: 680;'>Notes:</span>
 <ul>
@@ -1079,12 +1088,15 @@ So microphone placement and a clean power supply can be important.
 <p>
 <span style='font-size: 1.2em; font-weight: 650;'>~/pikrellcam/www/config-user.php</span>
 	<div class='indent1'>
-	Edit this file to change web page appearance and some web page behavior.  If the file
-	is edited, reload web pages to see the results.
+	Edit this file to change web page appearance and some web page behavior.
+	Some variables in this file can be modified by web page buttons and some
+	require manual edits. If the file is edited, reload web pages
+	to see the results.
 	<ul>
-	<li> The image used for the web page background can be changed to another PiKrellCam
-	distribution image or to your custom background image.  Any custom background image name
-	must begin with <span style='font-weight:700'>bg_</span>
+	<li> The image used for the web page background can be changed to another
+	PiKrellCam distribution image or to your custom background image you place
+	in the <nobr>~/pikrellcam/www/images</nobr> directory. Any custom image
+	name you create must begin with <span style='font-weight:700'>bg_</span>
 	or else the image will be deleted by git when you do an upgrade.
 	</li>
 	<li> Web page text colors can be changed.  If the background is changed to a
@@ -1349,8 +1361,8 @@ video_mp4box_fps fps
 inform "some string" row justify font xs ys
 	echo inform \"Have a nice day.\" 3 3 1 > FIFO
 	echo inform timeout 3
-archive_video [day|today|yesterday|video.mp4] yyyy-mm-dd
-archive_still [day|today|yesterday|video.mp4] yyyy-mm-dd
+archive_video [day|video.mp4] [today|yesterday|yyyy-mm-dd]
+archive_still [day|video.mp4] [today|yesterday]yyyy-mm-dd]
 annotate_text_background_color [none|rrggbb]   # rrggbb is hex color value 000000 - ffffff
 annotate_text_brightness value   # value is integer 0 - 255, 255 default
 annotate_text_size  value        # value is integer 6 - 160, 32 default
@@ -1918,7 +1930,15 @@ pikrellcam.conf.
 </div>
 
 </div>
-
-
 </div>
-
+</div>
+</div>
+<?php
+echo "<div style='margin-top:12px;'>";
+echo "<a href='index.php' class='btn-control'
+		style='margin-left:8px;'>
+		$title</a>";
+echo "</div>";
+?>
+</body>
+</html>

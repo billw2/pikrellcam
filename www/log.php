@@ -75,11 +75,14 @@ function dump_log()
 			}
 
 		$div_style = "overflow-y: scroll; height:${n_log_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
-		echo "<div style=\"$div_style\">";
+		echo "<div style='$div_style'>";
+		echo "<div style='color: $default_text_color; margin-left: 0.2cm; margin-right: 0.2cm; margin-top: 0.2cm;'>";
+//		echo "<div style=\"$div_style\">";
 //		echo '<div id="" style="overflow-y: scroll; height:770px; overflow-x: auto; border:4px groove silver">';
 
 		dump_log();
 		echo "<a id='anchor'></a>";
+		echo   "</div>";
 		echo   "</div>";
 
 		echo "<div style='margin-top:16px;'>";

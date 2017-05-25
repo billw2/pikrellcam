@@ -528,6 +528,17 @@ audio_record_stop(void)
 						/ pikrellcam.video_last_time + 0.5));
 	}
 
+boolean
+audio_loop_record_start(void)
+	{
+	return TRUE;
+	}
+
+void
+audio_loop_record_stop(void)
+	{
+	}
+
 static int
 audio_error(char *msg, int err)
 	{

@@ -54,7 +54,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.0.1"
+#define	PIKRELLCAM_VERSION	"4.0.2"
 
 
 //TCP Stream Server
@@ -92,6 +92,7 @@ extern int h264_conn_status;
   */
 #define PIKRELLCAM_VIDEO_SUBDIR					"videos"
 #define PIKRELLCAM_THUMBS_SUBDIR				"thumbs"
+#define PIKRELLCAM_LOOP_SUBDIR					"loop"
 #define PIKRELLCAM_STILL_SUBDIR					"stills"
 #define PIKRELLCAM_TIMELAPSE_SUBDIR				"timelapse"
 
@@ -344,6 +345,10 @@ typedef struct
 #define	VCB_STATE_MOTION  (VCB_STATE_MOTION_RECORD_START | VCB_STATE_MOTION_RECORD)
 #define	VCB_STATE_MANUAL  (VCB_STATE_MANUAL_RECORD_START | VCB_STATE_MANUAL_RECORD)
 
+#define	VCB_LOOP_STATE_NONE				0
+#define	VCB_LOOP_STATE_RECORD_START		1
+#define	VCB_LOOP_STATE_RECORD			2
+
 typedef struct
 	{
 	int			position;
@@ -372,11 +377,14 @@ typedef struct
 
 	time_t		t_cur;
 	FILE		*file,
+				*loop_file,
 				*motion_stats_file;
 	boolean		motion_stats_do_header;
 	int			state,
+				loop_state,
 				frame_count,
-				video_frame_count;
+				video_frame_count,
+				loop_frame_count;
 
 	int8_t	   h264_header[H264_MAX_HEADER_SIZE];
 	int		   h264_header_position;
@@ -385,7 +393,8 @@ typedef struct
 	int			size;		/* size in bytes of data array */
 	int         seconds;	/* max seconds in the buffer   */
 	int			head,
-				tail;
+				tail,
+				loop_tail;
 				
 	KeyFrame	key_frame[KEYFRAME_SIZE];
 	int			pre_frame_index,
@@ -396,10 +405,13 @@ typedef struct
 				max_record_time;
 
 	time_t		record_start_time,
-				record_elapsed_time;	/* seconds since record start excluding pause time. */
+				record_elapsed_time,	/* seconds since record start excluding pause time. */
+				loop_record_start_time,
+				loop_record_elapsed_time;
 	uint64_t	last_pts;
 
-	int			record_start_frame_index;
+	int			record_start_frame_index,
+				loop_record_start_frame_index;
 	float		actual_fps;
 
 	time_t		motion_last_detect_time,
@@ -420,12 +432,16 @@ typedef struct
 
 	snd_pcm_t			*pcm;
 	lame_t				lame_record,
-						lame_stream;
-	FILE				*mp3_file;
+						lame_stream,
+						lame_loop;
+	FILE				*mp3_file,
+						*mp3_loop_file;
 	uint8_t				*mp3_record_buffer,
-						*mp3_stream_buffer;
+						*mp3_stream_buffer,
+						*mp3_loop_buffer;
 	int					mp3_record_buffer_size,
-						mp3_stream_buffer_size;
+						mp3_stream_buffer_size,
+						mp3_loop_buffer_size;
 
 	int					mp3_stream_fd;
 
@@ -529,6 +545,7 @@ typedef struct
 			*archive_dir,
 			*media_dir,
 			*video_dir,
+			*loop_dir,
 			*thumb_dir,
 			*still_dir,
 			*timelapse_dir,
@@ -592,26 +609,38 @@ typedef struct
 
 	char	*video_motion_name_format,
 			*video_manual_name_format,
+			*video_loop_name_format,
 			*video_h264,
+			*video_loop_h264,
 			*video_last,
+			*video_loop_last,
 			*video_pathname,
+			*video_loop_pathname,
 			*video_manual_tag,
 			*video_motion_tag;
 	int		video_manual_sequence,
 			video_motion_sequence,
+			video_loop_sequence,
 			video_header_size,
 			video_size;
 
 	int		video_last_frame_count,
+			video_loop_last_frame_count,
 			audio_last_frame_count,
-			audio_last_rate;
+			audio_loop_last_frame_count,
+			audio_last_rate,
+			audio_loop_last_rate;
 	double	video_last_time,
-			video_last_fps;
+			video_loop_last_time,
+			video_last_fps,
+			video_loop_last_fps;
 	uint64_t video_start_pts,
-			video_end_pts;
+			video_loop_start_pts,
+			video_end_pts,
+			video_loop_end_pts;
 
-	boolean	video_mp4box;
-
+	boolean	video_mp4box,
+			video_loop_mp4box;
 
 	char	*mjpeg_filename;
 	int		mjpeg_width,
@@ -655,6 +684,7 @@ typedef struct
 			audio_debug;
 	char	*audio_device,
 			*audio_pathname,
+			*audio_loop_pathname,
 			*audio_fifo;
 	int		audio_rate_Pi2,
 			audio_rate_Pi1,
@@ -849,6 +879,8 @@ void		log_printf_no_timestamp(char *fmt, ...);
 void		log_printf(char *fmt, ...);
 void		video_record_start(VideoCircularBuffer *vcb, int);
 void		video_record_stop(VideoCircularBuffer *vcb);
+void		loop_record_start(VideoCircularBuffer *vcb);
+void		loop_record_stop(VideoCircularBuffer *vcb);
 void		camera_start(void);
 void		camera_stop(void);
 void		camera_restart(void);
@@ -941,6 +973,8 @@ void	audio_buffer_set_record_head(AudioCircularBuffer *acb, int head);
 void	audio_buffer_set_tail(AudioCircularBuffer *acb, int position);
 boolean	audio_record_start(void);
 void	audio_record_stop(void);
+boolean	audio_loop_record_start(void);
+void	audio_loop_record_stop(void);
 void	audio_buffer_set_record_head_tail(AudioCircularBuffer *acb, int head, int tail);
 int		audio_frames_offset_from_video(AudioCircularBuffer *acb);
 void	audio_command(char *args);

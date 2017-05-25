@@ -145,6 +145,9 @@ expand_command(char *command, char *arg)
 			case 'a':
 				fmt_arg = pikrellcam.archive_dir;
 				break;
+			case 'z':
+				fmt_arg = pikrellcam.loop_dir;
+				break;
 			case 'm':
 				fmt_arg = pikrellcam.media_dir;
 				break;

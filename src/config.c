@@ -552,6 +552,13 @@ static Config  config[] =
 	  "#",
 	"archive_dir", "archive", TRUE, { .string = &pikrellcam.archive_dir }, config_string_set },
 
+	{ "# If loop_dir has no leading '/' it will be a sub directory under media_dir.\n"
+	  "# Otherwise it is a full pathname to the loop directory.\n"
+	  "# So the default archive dir is /home/pi/pikrellcam/media/loop.\n"
+	  "# A file system may be mounted on the loop dir in the startup script.\n"
+	  "#",
+	"loop_dir", "loop", TRUE, { .string = &pikrellcam.loop_dir }, config_string_set },
+
 	{ "# Log file.\n"
 	  "#",
 	"log_file",  "/tmp/pikrellcam.log", TRUE, { .string = &pikrellcam.log_file }, config_string_set },
@@ -770,6 +777,13 @@ static Config  config[] =
 	  "#",
 	"video_manual_name_format", "manual_%F_%H.%M.%S_$N.mp4", TRUE,
 		{.string = &pikrellcam.video_manual_name_format}, config_string_set },
+
+	{ "# Loop record video name format.\n"
+	  "# Similar restrictions, not much change can be made to this format.\n"
+	  "#",
+	"video_loop_name_format", "loop_%F_%H.%M.%S_$N.mp4", TRUE,
+		{.string = &pikrellcam.video_loop_name_format}, config_string_set },
+
 
 	{ "# Pixel width of videos recorded.\n"
 	  "#",

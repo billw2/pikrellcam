@@ -578,7 +578,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 		{
 		vcb->state = start_state;
 		pikrellcam.state_modified = TRUE;
-		log_printf("%s record start - %s\n",
+		log_printf("\n%s record start - %s\n",
 			(start_state == VCB_STATE_MOTION_RECORD_START) ? "Motion" : "Manual",
 			path);
 		if (   do_stats
@@ -662,9 +662,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 				mf->direction_detects, mf->burst_detects, mf->max_burst_count);
 		}
 
-
-	pikrellcam.state_modified = TRUE;
-
+	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
 	if (pikrellcam.video_mp4box)
 		{
 		statvfs("/tmp", &st);
@@ -751,8 +749,6 @@ video_record_stop(VideoCircularBuffer *vcb)
 		exec_no_wait(cmd, NULL);
 		free(cmd);
 		}
-	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
-
 
 	pikrellcam.video_notify = TRUE;
 	event_count_down_add("video saved notify",
@@ -787,6 +783,200 @@ video_record_stop(VideoCircularBuffer *vcb)
 	motion_event_write(vcb, mf);
 	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;
+	}
+
+
+void
+loop_record_start(VideoCircularBuffer *vcb)
+	{
+	int			n;
+	char		*s, *path, seq_buf[12];
+
+	if (vcb->loop_state != VCB_LOOP_STATE_NONE)
+		return;
+
+	n = vcb->cur_frame_index;
+	vcb->loop_record_start_frame_index = n;
+	vcb->loop_record_start_time = vcb->key_frame[n].t_frame;
+	vcb->loop_record_elapsed_time = vcb->t_cur - vcb->record_start_time;
+	pikrellcam.video_loop_start_pts = vcb->key_frame[n].frame_pts;
+
+	snprintf(seq_buf, sizeof(seq_buf), "%d", pikrellcam.video_loop_sequence);
+	path = media_pathname(pikrellcam.loop_dir,
+				pikrellcam.video_loop_name_format,
+				vcb->loop_record_start_time,
+				'N',  seq_buf,
+				'H', pikrellcam.hostname);
+	pikrellcam.video_loop_sequence += 1;
+
+	dup_string(&pikrellcam.video_loop_pathname, path);
+	free(path);
+	path = pikrellcam.video_loop_pathname;
+
+	if (pikrellcam.audio_loop_pathname)
+		free(pikrellcam.audio_loop_pathname);
+	pikrellcam.audio_loop_pathname = NULL;
+
+	if ((s = strstr(path, ".mp4")) != NULL && *(s + 4) == '\0')
+		{
+		if (pikrellcam.audio_enable)
+			{
+			*s = '\0';
+			asprintf(&pikrellcam.audio_loop_pathname, "%s.mp3", path);
+			*s = '.';
+			if (!audio_loop_record_start())
+				{
+				free(pikrellcam.audio_loop_pathname);
+				pikrellcam.audio_loop_pathname = NULL;
+				}
+			}
+
+		asprintf(&path, "%s.h264", pikrellcam.video_loop_pathname);
+		dup_string(&pikrellcam.video_loop_h264, path);
+		free(path);
+		path = pikrellcam.video_loop_h264;
+		pikrellcam.video_loop_mp4box = TRUE;
+		}
+	else
+		pikrellcam.video_loop_mp4box = FALSE;
+
+
+	if ((vcb->loop_file = fopen(path, "w")) == NULL)
+		log_printf("Could not create loop video file %s.  %m\n", path);
+	else
+		{
+		vcb->loop_state = VCB_LOOP_STATE_RECORD_START;
+		pikrellcam.state_modified = TRUE;
+		log_printf("\nloop record start - %s\n", path);
+		}
+	}
+
+void
+loop_record_stop(VideoCircularBuffer *vcb)
+	{
+	struct statvfs	st;
+	struct stat		st_h264;
+	unsigned long	tmp_space;
+	char			*s, *cmd, *tmp_dir, *tmp_name;
+	char			*thumb_cmd = NULL;
+	int				thumb_height;
+	double			ftmp, encode_fps;
+
+	if (!vcb->loop_file)
+		return;
+
+	fclose(vcb->loop_file);
+	vcb->loop_file = NULL;
+	
+	st_h264.st_size = 0;
+	stat(pikrellcam.video_loop_h264, &st_h264);
+
+	/* Get video time and fps stats.
+	|  The pts end-start diff is from frame start of 1st frame to frame start
+	|  of last frame so is the time of frame_count - 1 frames.
+	*/
+	pikrellcam.video_loop_last_frame_count = vcb->loop_frame_count;
+	pikrellcam.video_loop_end_pts = vcb->last_pts;
+	if (pikrellcam.video_loop_last_frame_count > 1)
+		{
+		ftmp = (double)(pikrellcam.video_loop_end_pts
+					- pikrellcam.video_loop_start_pts) / 1e6;
+		ftmp /= pikrellcam.video_loop_last_frame_count - 1;
+		}
+	else
+		ftmp = 0;
+	ftmp *= pikrellcam.video_loop_last_frame_count;
+	pikrellcam.video_loop_last_time = ftmp;
+
+	if (ftmp > 0)
+		pikrellcam.video_loop_last_fps =
+						(double) pikrellcam.video_loop_last_frame_count / ftmp;
+	else
+		pikrellcam.video_loop_last_fps = 0;
+
+	audio_loop_record_stop();
+
+	log_printf("loop record stop - vid_time:%.2f  vid_fps:%.2f  audio_frames:%d  audio_rate:%d\n",
+			(float) pikrellcam.video_loop_last_time,
+			(float) pikrellcam.video_loop_last_fps,
+			pikrellcam.audio_loop_last_frame_count,
+			pikrellcam.audio_loop_last_rate);
+
+	pikrellcam.state_modified = TRUE;
+
+	if (pikrellcam.video_loop_mp4box)
+		{
+		statvfs("/tmp", &st);
+		tmp_space = st.f_bfree * st.f_frsize;
+
+		if (tmp_space > 4 * (unsigned long) st_h264.st_size / 3)
+			tmp_dir = "/tmp";
+		else
+			tmp_dir = pikrellcam.loop_dir;
+
+		thumb_height = 150 * pikrellcam.camera_config.video_height
+						/ pikrellcam.camera_config.video_width;
+		asprintf(&tmp_name, "%s/%s   ", pikrellcam.loop_dir,
+				fname_base(pikrellcam.video_loop_pathname));
+		if ((s = strstr(tmp_name, ".mp4")) != NULL)
+			strcpy(s, ".th.jpg");
+
+		asprintf(&thumb_cmd, "&& avconv -i %s -vframes 1 -ss 0 -s 150x%d %s",
+					pikrellcam.video_loop_pathname, thumb_height, tmp_name);
+		free(tmp_name);
+
+		if (   pikrellcam.camera_adjust.video_mp4box_fps == 0
+			|| pikrellcam.camera_adjust.video_mp4box_fps
+						== pikrellcam.camera_adjust.video_fps
+		   )
+			encode_fps = pikrellcam.video_last_fps;
+		else
+			encode_fps = (double) pikrellcam.camera_adjust.video_mp4box_fps;
+
+		if (st_h264.st_size > 0)  // can be 0 if no space left
+			{
+			if (pikrellcam.audio_loop_pathname)
+				{
+				asprintf(&cmd,
+		"(MP4Box %s -tmp %s -fps %.3f -add %s -add %s %s %s && rm %s %s %s)",
+					pikrellcam.verbose ? "" : "-quiet",
+					tmp_dir,
+					(float) encode_fps,
+					pikrellcam.video_loop_h264,
+					pikrellcam.audio_loop_pathname,
+					pikrellcam.video_loop_pathname,
+					pikrellcam.verbose ? "" : "2> /dev/null",
+					pikrellcam.video_loop_h264,		// rm arg
+					pikrellcam.audio_loop_pathname,  // rm arg
+					thumb_cmd ? thumb_cmd : "");
+				}
+			else
+				{
+				asprintf(&cmd,
+		"(MP4Box %s -tmp %s -fps %.3f -add %s %s %s && rm %s %s)",
+					pikrellcam.verbose ? "" : "-quiet",
+					tmp_dir,
+					(float) encode_fps,
+					pikrellcam.video_h264,
+					pikrellcam.video_pathname,
+					pikrellcam.verbose ? "" : "2> /dev/null",
+					pikrellcam.video_h264,		// rm arg
+					thumb_cmd ? thumb_cmd : "");
+				}
+			}
+		else
+			asprintf(&cmd, "rm %s", pikrellcam.video_loop_h264);
+
+		if (thumb_cmd)
+			free(thumb_cmd);
+
+		exec_no_wait(cmd, NULL);
+		free(cmd);
+		}
+	dup_string(&pikrellcam.video_loop_last, pikrellcam.video_loop_pathname);
+
+	vcb->loop_state = VCB_LOOP_STATE_NONE;
+	pikrellcam.state_modified = TRUE;
 	}
 
 static int
@@ -866,6 +1056,7 @@ typedef enum
 	{
 	record,
 	record_pause,
+	loop,
 	still,
 
 	tl_start,
@@ -916,6 +1107,7 @@ static Command commands[] =
 	{ "record",      record,        1, TRUE },
 	{ "record_pause", record_pause, 0, TRUE },
 	{ "pause",       record_pause,  0, TRUE },
+	{ "loop",      loop,        1, TRUE },
 	{ "still",       still,         0, TRUE },
 
 	{ "tl_start",    tl_start,   1, TRUE },
@@ -1058,6 +1250,12 @@ command_process(char *command_line)
 			else
 				vcb->pause = FALSE;
 			pthread_mutex_unlock(&vcb->mutex);
+			break;
+
+		case loop:
+			display_inform("\"Cannot loop record.\" 3 3 1");
+			display_inform("\"Development is in progress...\" 4 3 1");
+			display_inform("timeout 2");
 			break;
 
 		case still:
@@ -1728,6 +1926,11 @@ main(int argc, char *argv[])
 		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.media_dir, pikrellcam.archive_dir);
 		dup_string(&pikrellcam.archive_dir, buf);
 		}
+	if (*pikrellcam.loop_dir != '/')
+		{
+		snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.media_dir, pikrellcam.loop_dir);
+		dup_string(&pikrellcam.loop_dir, buf);
+		}
 
 	snprintf(buf, sizeof(buf), "%s/%s", pikrellcam.install_dir, "www");
 	check_modes(buf, 0775);
@@ -1754,16 +1957,18 @@ main(int argc, char *argv[])
 
 	if (   !make_dir(pikrellcam.media_dir)		// after startup script, will make
 		|| !make_dir(pikrellcam.archive_dir)	// dirs again in case of mount
+		|| !make_dir(pikrellcam.loop_dir)
 	   )
 		{
 		log_printf_no_timestamp(
-				"Failed to create media or archive dir, exiting!\n");
+				"Failed to create media, archive or loop dir, exiting!\n");
 		exit(1);
 		}
 
-	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G %s",
+	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G %s %s",
 		pikrellcam.install_dir,
-		(pikrellcam.have_servos) ? "servos_on" : "servos_off");
+		(pikrellcam.have_servos) ? "servos_on" : "servos_off",
+		pikrellcam.loop_dir);
 	exec_wait(buf, NULL);
 
 	/* User may have enabled a mount disk on media_dir
@@ -1771,12 +1976,14 @@ main(int argc, char *argv[])
 	exec_wait(pikrellcam.on_startup_cmd, NULL);
 	check_modes(pikrellcam.media_dir, 0775);
 	check_modes(pikrellcam.archive_dir, 0775);
+	check_modes(pikrellcam.loop_dir, 0775);
 	check_modes(pikrellcam.log_file, 0664);
 
 	if (   !make_dir(pikrellcam.tmpfs_dir)
 	    || !make_dir(pikrellcam.archive_dir)
 	    || !make_dir(pikrellcam.video_dir)
 	    || !make_dir(pikrellcam.thumb_dir)
+	    || !make_dir(pikrellcam.loop_dir)
 	    || !make_dir(pikrellcam.still_dir)
 	    || !make_dir(pikrellcam.timelapse_dir)
 	    || !make_fifo(pikrellcam.command_fifo)
