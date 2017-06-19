@@ -65,8 +65,20 @@ create_dir()
 create_dir $ARCHIVE_DIR/$YEAR
 create_dir $ARCHIVE_DIR/$YEAR/$MONTH
 create_dir $ARCHIVE_DIR/$YEAR/$MONTH/$DAY
+
 create_dir $ARCHIVE_VIDEOS_PATH
+if [ ! -d $ARCHIVE_VIDEOS_PATH ]
+then
+	echo "  archive-video could not create archive directory: $ARCHIVE_VIDEOS_PATH" >> $LOG_FILE
+	exit 1
+fi
+
 create_dir $ARCHIVE_THUMBS_PATH
+if [ ! -d $ARCHIVE_THUMBS_PATH ]
+then
+	echo "  archive-video could not create archive directory: $ARCHIVE_THUMBS_PATH" >> $LOG_FILE
+	exit 1
+fi
 
 
 if [ "$DAY_FLAG" == "day" ]

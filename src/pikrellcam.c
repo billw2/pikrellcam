@@ -1955,14 +1955,16 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
 	asprintf(&pikrellcam.timelapse_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_TIMELAPSE_SUBDIR);
 
+	/* Make directories in case startup script needs them, but dont't error
+	|  out in case startup script will do something about it.
+	*/
 	if (   !make_dir(pikrellcam.media_dir)		// after startup script, will make
 		|| !make_dir(pikrellcam.archive_dir)	// dirs again in case of mount
 		|| !make_dir(pikrellcam.loop_dir)
 	   )
 		{
 		log_printf_no_timestamp(
-				"Failed to create media, archive or loop dir, exiting!\n");
-		exit(1);
+			"Failed to create media, archive or loop dir, will try again after startup script.\n");
 		}
 
 	snprintf(buf, sizeof(buf), "%s/scripts-dist/_init $I $a $m $M $P $G %s %s",
@@ -1980,7 +1982,6 @@ main(int argc, char *argv[])
 	check_modes(pikrellcam.log_file, 0664);
 
 	if (   !make_dir(pikrellcam.tmpfs_dir)
-	    || !make_dir(pikrellcam.archive_dir)
 	    || !make_dir(pikrellcam.video_dir)
 	    || !make_dir(pikrellcam.thumb_dir)
 	    || !make_dir(pikrellcam.loop_dir)
@@ -1990,9 +1991,14 @@ main(int argc, char *argv[])
 	   )
 		{
 		log_printf_no_timestamp(
-			"Failed to create media/archive directories or FIFO, exiting!\n");
+			"Failed to create media directories or FIFO, exiting!\n");
 		exit(1);
 		}
+
+	if (!make_dir(pikrellcam.archive_dir))
+		log_printf_no_timestamp(
+			"Failed to create archive directory, continuing anyway.\n");
+
 
 	if (!make_fifo(pikrellcam.audio_fifo))
 		log_printf_no_timestamp("Failed to create audio FIFO.\n");
