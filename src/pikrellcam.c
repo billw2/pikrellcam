@@ -1154,13 +1154,13 @@ command_process(char *command_line)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	Command	*cmd;
-	char	command[64], args[128], arg1[128], arg2[64], arg3[64], buf[128], *path;
+	char	command[64], args[256], arg1[128], arg2[64], arg3[256], buf[128], *path;
 	int		i, n;
 
 	if (!command_line || *command_line == '\0')
 		return;
 
-	n = sscanf(command_line, "%63s %127[^\n]", command, args);
+	n = sscanf(command_line, "%63s %255[^\n]", command, args);
 	if (n < 1 || command[0] == '#')
 		return;
 	for (cmd = NULL, i = 0; i < COMMAND_SIZE; cmd = NULL, ++i)
@@ -1497,7 +1497,7 @@ command_process(char *command_line)
 			break;
 
 		case annotate_string:		/* annotate_string cmd id text */
-			n = sscanf(args, "%127s %63s %63s", arg1, arg2, arg3);
+			n = sscanf(args, "%127s %63s %255[^\n]", arg1, arg2, arg3);
 			if (n == 2 && !strcmp(arg1, "remove"))
 				annotate_string_remove(arg2);
 			else if (n == 2 && !strcmp(arg1, "spacechar"))
