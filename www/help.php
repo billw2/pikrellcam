@@ -63,19 +63,23 @@ For an overview description of PiKrellCam, visit the
 <a href="http://billw2.github.io/pikrellcam/pikrellcam.html">PiKrellCam website</a><br>
 And there is a Raspberry Pi
 <a href="https://www.raspberrypi.org/forums/viewtopic.php?f=43&t=115583">PiKrellCam forum</a>
-<p>
-Under construction...
 </div>
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
-Version 4.0.2 - Bugfix for $v variable passed to on_motion_end.
-<p>
-Version 4.0.1
-<div class='indent1'>
-Change for libmp3lame segfault. Simplify running on_motion_end_cmd.
-</div>
 
+Version 4.1.0
+<div class='indent1'>
+<a href="help.php#DISKUSAGE">Disk free limit for media videos</a><br>
+Stills have a thumbs view.
+</div>
+<p>
+Version 4.0.4 - Fix annotation strings to allow spaces and longer length.
+<br>
+Version 4.0.2 - Bugfix for $v variable passed to on_motion_end.
+<br>
+Version 4.0.1 - Change for libmp3lame segfault. Simplify running on_motion_end_cmd.
+<br>
 Version 4.0.0
 <div class='indent1'>
 <a href="help.php#AUDIO">Audio recording</a> - For Jessie Lite & Minibian
@@ -83,7 +87,7 @@ Version 4.0.0
 	upgrading to PiKrellCam 4.0, a restart will fail.
 	Rerun the install script or install by apt-get.
 </div>
-
+<p>
 Version 3.1
 <div class='indent1'>
 <a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
@@ -684,14 +688,40 @@ Preset group and there will be no Servo button in the Config group.
 		<li><span style='font-weight:700'>Still Res</span> - selecting different resolutions
 		gives different fields of view and aspect ratios.
 		</li>
+<a name="DISKUSAGE">
 		<li><span style='font-weight:700'>Settings</span>
 			<ul>
 			<li><span style='font-weight:700'>Startup_Motion</span> - set to
 			<span style='font-weight:700'>ON</span> for motion detection to be enabled each time
-			PiKrellCam starts.  If set to
-			<span style='font-weight:700'>OFF</span>, motion detection will need to be manually
+			PiKrellCam starts.  Motion detection can be
 			enabled from the web page or a script.
 			</li>
+
+			<li><span style='font-weight:700'>Check_Media_Diskfree</span>
+			- if set <span style='font-weight:700'>ON</span>, when new media
+			motion or manual videos are recorded, delete oldest videos so
+			that the configured minimum Diskfree_Percent
+			will be maintained on the media file system.
+			</li>
+
+			<li><span style='font-weight:700'>Check_Archive_Diskfree</span>
+			- if set <span style='font-weight:700'>ON</span>, when media
+			motion or manual videos are archived, delete oldest archived videos
+			so that the configured minimum Diskfree_Percent
+			will be maintained on the archive file system.
+			This is useful when the archive is on a file system
+			separate from the media videos.  But if the archive and media
+			directories are on the same file system, checking the archive
+			has no or negligible effect since an archive operation is simply
+			moving media videos and except for some directory structure overhead
+			is not increasing disk usage.
+			</li>
+			<li><span style='font-weight:700'>Diskfree_Percent</span>
+			- maintain this minimum free percent on media and archive
+			file systems when checking is enabled for those file systems
+			by deleting oldest videos.
+			</li>
+
 			<li><span style='font-weight:700'>video_bitrate</span> - determines the size of a video
 			and its quality.  Adjust up if it improves video quality.  Adjust down if you want
 			to reduce the size of the videos.
@@ -940,7 +970,7 @@ Edit pikrellcam.conf to change these settings:
 	</li>
 	<li><span style='font-weight:700'>audio_rate_Pi2</span> - default: 48000<br>
 	    <span style='font-weight:700'>audio_rate_Pi1</span> - default: 24000<br>
-		Audio sample rate used for Pi model 1 and Pi model 2.
+		Audio sample rate used for a single core Pi and Pi model 2.
 		Lame docs suggest using only MP3 supported sample rates:<br>
 	&nbsp;&nbsp;&nbsp; 8000 11025 12000 16000 22050 24000 32000 44100 48000<br>
 	</li>
@@ -954,16 +984,16 @@ Edit pikrellcam.conf to change these settings:
 	<li><span style='font-weight:700'>audio_mp3_quality_Pi2</span> - default: 2<br>
 	    <span style='font-weight:700'>audio_mp3_quality_Pi1</span> - default: 7<br>
 		Value for quality of the lame lib encode of PCM to MP3 audio for
-		Pi model 1 and Pi model 2.
+		a single core Pi and Pi model 2.
 		Values range from 0 (best quality but very slow encode) to 9
 		(worst qualilty but fast encode). Lame docs say 2 is near best and
 		not too slow and 7 is OK quality and a really fast encode.
 	</li>
 </ul>
-Pi models 1 (ARMv6 single core) and 2 (ARMv7 quad core) have separate settings
+Pi single core and quad core models have separate settings
 for sample rate and encode quality because two simultaneous audio MP3
-encodings can push a model 1 to very high CPU usage.  A Pi2/3 does not have
-a CPU usage issue.  This image shows CPU usage for a Pi1
+encodings can push a single core to very high CPU usage.  A Pi2/3 does not have
+a CPU usage issue.  This image shows CPU usage for a single core Pi
 to give an idea of what to expect.  Streaming audio while recording
 (R2 interval: two MP3 encodes) uses high CPU and causes
 an extended video conversion time (C2 interval: one MP3 encode).
@@ -1036,7 +1066,6 @@ So microphone placement and a clean power supply can be important.
 </div>
 
 </div>
-
 
 
 <span style='font-size: 1.5em; font-weight: 650;'>Configuration Files</span><hr>

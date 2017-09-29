@@ -319,6 +319,7 @@ _servo_move(int pan, int tilt, int delay)
 				usleep(pikrellcam.servo_settle_msec * 1000);
 				pikrellcam.servo_moving = FALSE;
 				pikrellcam.state_modified = TRUE;
+				pikrellcam.preset_state_modified = TRUE;
 				}
 			else
 				pthread_mutex_unlock(&servo_control.mutex);

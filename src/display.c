@@ -748,7 +748,8 @@ motion_draw(uint8_t *i420)
 	else
 		snprintf(info, sizeof(info), "REC (Stop)");
 
-	i420_print(&bottom_status_area, normal_font, 0xff, 2, 1, 0,
+	x = 1;
+	i420_print(&bottom_status_area, normal_font, 0xff, 2, x, 0,
 					JUSTIFY_LEFT, info);
 
 	if (mf->motion_enable)
@@ -1044,7 +1045,7 @@ Adjustment	motion_time_adjustment[] =
 	{ "Pre_Capture",  1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.pre_capture },
 	{ "Event_Gap",    1, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
 	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture },
-	{ "Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
+	{ "Motion_Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
 	};
 
 #define N_MOTION_TIME_ADJUSTMENTS \
@@ -1067,8 +1068,12 @@ Adjustment	motion_limit_adjustment[] =
   */
 Adjustment	settings_adjustment[] =
 	{
-	{ "Startup_Motion",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_enable },
+	{ "Startup_Motion",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.startup_motion_enable },
 //	{ "Vertical_Filter",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_vertical_filter },
+	{ "Check_Media_Diskfree",   0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_media_diskfree },
+	{ "Check_Archive_Diskfree", 0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_archive_diskfree },
+	{ "Diskfree_Percent",  5,  90, 1, 0, 0, 0, "", NULL, &pikrellcam.diskfree_percent },
+
 	{ "video_bitrate",   1000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
 	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
 	{ "video_mp4box_fps",  0,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },

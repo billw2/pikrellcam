@@ -1373,7 +1373,7 @@ motion_init(void)
 	if (!done_once)
 		{
 		done_once = TRUE;
-		motion_frame.motion_enable = pikrellcam.motion_enable;
+		motion_frame.motion_enable = pikrellcam.startup_motion_enable;
 		}
 
 	/* motion frames are from 16x16 macroblocks of the video frame

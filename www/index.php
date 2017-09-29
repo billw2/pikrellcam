@@ -168,6 +168,7 @@ if (defined('SHOW_AUDIO_CONTROLS'))
         width="28" height="28"
         onclick="fifo_command('still')"
       >
+
 <?php
 
 if (defined('SERVOS_ENABLE'))
@@ -241,12 +242,12 @@ if (file_exists("custom-control.php"))
 	<?php
 		echo "<span style=\"color: $default_text_color\"> Media:</span>";
 		echo "<a href='media-archive.php?mode=media&type=videos'
-			style='margin-left:2px;'
 			class='btn-control'
+			style='margin-left:2px;'
 			>Videos</a>";
 		echo "<a href='media-archive.php?mode=media&type=stills'
 			class='btn-control'
-			style='margin-left:2px; margin-right:30px;'
+			style='margin-left:2px; margin-right:8px;'
 			>Stills</a>";
 		echo "<span style=\"color: $default_text_color\"> Enable:</span>";
 	?>

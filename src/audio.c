@@ -67,7 +67,8 @@ audio_circular_buffer_init(void)
 
 	if (!acb->pcm)
 		return;
-	acb->head = acb->tail = 0;
+	acb->head = 0;
+	acb->record_head = acb->record_tail = 0;
 	acb->channels = pikrellcam.audio_channels;
 	acb->n_frames = acb->rate * vcb->seconds;
 	size = SND_FRAMES_TO_BYTES(acb, acb->n_frames);
@@ -120,30 +121,37 @@ audio_record_write(AudioCircularBuffer *acb, void *buf, int n_frames)
 void
 audio_buffer_set_record_head(AudioCircularBuffer *acb, int head)
 	{
-	VideoCircularBuffer	*vcb = &video_circular_buffer;
-
 	if (!acb->pcm || !acb->lame_record)
 		return;
-	acb->record_head = head;	/* don't need mutex */
+	acb->record_head = head;	/* thread samples once so no mutex */
 
 	if (pikrellcam.audio_debug & 0x4)
 		{
-		printf("%.2f audio_set_record_head:%d (tail:%d frames:%d) %.2f video (frames:%d)\n",
-				(float) acb->frame_count / (float) acb->rate,
-				head, acb->tail, acb->frame_count,
-				(float) (vcb->last_pts - pikrellcam.video_start_pts) / 1e6,
-				vcb->frame_count);
-		}
-	}
+		VideoCircularBuffer	*vcb = &video_circular_buffer;
+		float			audio_time, vid_time;
+		static int		last_audio_frames, last_video_frames;
+		static float	last_audio_time;
 
-void
-audio_buffer_set_tail(AudioCircularBuffer *acb, int position)
-	{
-	pthread_mutex_lock(&acb->mutex);
-	acb->tail = position;
-	if (pikrellcam.audio_debug & 0x4)
-		printf("set_tail tail:%d  head: %d\n", acb->tail, acb->head);
-	pthread_mutex_unlock(&acb->mutex);
+		vid_time = (float) (vcb->last_pts - pikrellcam.video_start_pts) / 1e6;
+		audio_time = (float) acb->record_frame_count / (float) acb->rate;
+		if (audio_time < last_audio_time)
+			{
+			last_audio_time = audio_time;
+			last_audio_frames = last_video_frames = 0;
+			}
+		if ((int) audio_time > (int) last_audio_time)
+			{
+			last_audio_time = audio_time;
+			printf(
+"rec audio %.2f h:%d (vid skew:%.2f) rec audio frames: %d (%d) vid frames: %d (%.1f,%d)\n",
+				audio_time, head, vid_time - audio_time,
+				acb->record_frame_count - last_audio_frames, acb->record_frame_count,
+				vcb->frame_count - last_video_frames,
+				(float) vcb->frame_count / vid_time, vcb->frame_count);
+			last_audio_frames = acb->record_frame_count;
+			last_video_frames = vcb->frame_count;
+			}
+		}
 	}
 
   /* If tail < 0, tail is delta to set behind head. Otherwise it is absolute
@@ -158,20 +166,28 @@ audio_buffer_set_record_head_tail(AudioCircularBuffer *acb, int head, int tail)
 	acb->record_head = head;
 	if (tail < 0)
 		{
-		acb->tail = head + tail;
-		if (acb->tail < 0)
-			acb->tail += acb->n_frames;
+		acb->record_tail = head + tail;
+		if (acb->record_tail < 0)
+			acb->record_tail += acb->n_frames;
 		}
 	else
-		acb->tail = tail;
+		acb->record_tail = tail;
 
 	if (pikrellcam.audio_debug & 0x4)
 		{
-		printf("%.2f audio_set_record_head:%d_tail:%d (tail:%d frames:%d) %.2f video (frames:%d)\n",
-				(float) acb->frame_count / (float) acb->rate,
-				head, tail, acb->tail, acb->frame_count,
-				(float) (vcb->last_pts - pikrellcam.video_start_pts) / 1e6,
-				vcb->frame_count);
+		int frames;
+
+		frames = head - acb->record_tail;
+		if (frames < 0)
+			frames += acb->n_frames;
+
+		printf(
+"REC audio (h:%d t[%d]:%d) audio (frames %d time %.2f)  video (frames %d time %.2f)\n",
+				head,
+				vcb->record_start_frame_index, tail,
+				frames, (float) frames / (float) acb->rate,
+				vcb->frame_count,
+				(float) (vcb->last_pts - pikrellcam.video_start_pts) / 1e6);
 		}
 	pthread_mutex_unlock(&acb->mutex);
 	}
@@ -191,17 +207,17 @@ audio_frames_offset_from_video(AudioCircularBuffer *acb)
 	vid_time *= vcb->video_frame_count;
 
 	pthread_mutex_lock(&acb->mutex);
-	pending = acb->record_head - acb->tail;
+	pending = acb->record_head - acb->record_tail;
 	if (pending < 0)
 		pending += acb->n_frames;
 
-	offset = pending + acb->frame_count
+	offset = pending + acb->record_frame_count
 					- (int) (vid_time * (double) acb->rate);
 
 	if (pikrellcam.audio_debug & 0x4)
 		{
 		printf("  rhead:%d tail:%d pending:%d frames:%d vid_time_usec:%d\n",
-				acb->record_head, acb->tail, pending, acb->n_frames,
+				acb->record_head, acb->record_tail, pending, acb->record_frame_count,
 				(int) (vid_time * 1e6));
 		}
 	pthread_mutex_unlock(&acb->mutex);
@@ -398,42 +414,43 @@ audio_thread(void *ptr)
 		|  event-gap can be for many seconds -> long  MP3 convert time. So
 		|  convert only chunks of max_record_frames and catch up in event-gap.
 		*/
-		if (acb->lame_record && acb->mp3_file && acb->tail != rhead)
+		if (acb->lame_record && acb->mp3_file && acb->record_tail != rhead)
 			{
-			avail_record_frames = rhead - acb->tail;
+			avail_record_frames = rhead - acb->record_tail;
 			if (avail_record_frames < 0)
 				avail_record_frames += acb->n_frames;
 			if (avail_record_frames > acb->max_record_frames)
 				use_record_head =
-						(acb->tail + acb->max_record_frames) % acb->n_frames;
+						(acb->record_tail + acb->max_record_frames) % acb->n_frames;
 			else
 				use_record_head = rhead;
 
 			if (pikrellcam.audio_debug & 0x4)
 				micro_elapsed_time(&encode_timer);
 
-			if (acb->tail < use_record_head)
+			if (acb->record_tail < use_record_head)
 				{
-				n_frames = use_record_head - acb->tail;
-				audio_record_write(acb, acb->data + acb->tail, n_frames);
-				acb->frame_count += n_frames;
+				n_frames = use_record_head - acb->record_tail;
+				audio_record_write(acb, acb->data + acb->record_tail, n_frames);
+				acb->record_frame_count += n_frames;
 				}
 			else
 				{
-				n_frames = acb->n_frames - acb->tail;
-				audio_record_write(acb, acb->data + acb->tail, n_frames);
+				n_frames = acb->n_frames - acb->record_tail;
+				audio_record_write(acb, acb->data + acb->record_tail, n_frames);
 				if (use_record_head > 0)
 					audio_record_write(acb, acb->data, use_record_head);
-				acb->frame_count += n_frames + use_record_head;
+				acb->record_frame_count += n_frames + use_record_head;
 				}
-			acb->tail = use_record_head;
+			acb->record_tail = use_record_head;
 			if (pikrellcam.audio_debug & 0x4)
 				{
 				t_usec = micro_elapsed_time(&encode_timer);
 				printf("  audio thread record frames: %d  encode_usec: %d\n",
-						acb->frame_count, t_usec);
+						acb->record_frame_count, t_usec);
 				}
 			}
+
 		pthread_mutex_unlock(&acb->mutex);
 
 		if (err < 0 && errno == EPIPE)
@@ -468,7 +485,7 @@ audio_record_start(void)
 		return FALSE;
 		}
 
-	acb->frame_count = 0;
+	acb->record_frame_count = 0;
 	acb->lame_record = lame_init();
 	lame_set_in_samplerate(acb->lame_record, acb->rate);
 	lame_set_num_channels(acb->lame_record, acb->channels);
@@ -499,11 +516,15 @@ audio_record_stop(void)
 		return;
 		}
 	offset = audio_frames_offset_from_video(acb);
+	if (pikrellcam.audio_debug & 0x4)
+		printf("audio record stop frames offset: %d\n", offset);
 	if (offset < 0)
 		{
 		/* Wait enough time for head to move so have space to move record_head.
 		*/
 		t_usec = (2 - offset / (int) acb->period_frames) * acb->period_usec;
+		if (pikrellcam.audio_debug & 0x4)
+			printf("   usleep: %d\n", t_usec);
 		usleep(t_usec);
 
 		pthread_mutex_lock(&acb->mutex);
@@ -516,27 +537,12 @@ audio_record_stop(void)
 		*/
 		usleep(t_usec);
 		}
-	acb->tail = acb->record_head;
-
-	if (pikrellcam.audio_debug & 0x2)
-		printf("audio_record_stop: audio_frames:%d  offset:%d\n",
-				acb->frame_count, offset);
+	acb->record_tail = acb->record_head;
 
 	audio_record_files_close();
-	pikrellcam.audio_last_frame_count = acb->frame_count;
+	pikrellcam.audio_last_frame_count = acb->record_frame_count;
 	pikrellcam.audio_last_rate = (int) ((pikrellcam.audio_last_frame_count
 						/ pikrellcam.video_last_time + 0.5));
-	}
-
-boolean
-audio_loop_record_start(void)
-	{
-	return TRUE;
-	}
-
-void
-audio_loop_record_stop(void)
-	{
 	}
 
 static int

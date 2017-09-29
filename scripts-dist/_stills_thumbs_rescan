@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Scan stills directory for thumbs to create.
+# Calling format from pikrellcam or a at-commands script:
+#    archive-still stills_dir $I $P $G
+#
+# Which pikrellcam expands into:
+#    archive-still stills_dir install-dir FIFO LOG
+
+# If $1 is the string "day", move all stills for the day yyyy-mm-dd into
+#   the archive directory archive-dir/yyyy/mm/dd/stills
+# Otherwise, $1 should be a jpg still and it
+#   is moved into the archive directory.
+
+
+STILLS_DIR=$1
+INSTALL_DIR=$2
+FIFO=$3
+LOG_FILE=$4
+
+STILLS_FULL_DIR=$INSTALL_DIR/www/$STILLS_DIR
+
+if [ ! -d $STILLS_FULL_DIR ]
+then
+	echo "stills_thumbs_rescan - no stills directory: $STILLS_FULL_DIR" \
+				>> $LOG_FILE
+	exit 1
+fi
+
+if [ ! -d $STILLS_FULL_DIR/.thumbs ]
+then
+	mkdir $STILLS_FULL_DIR/.thumbs
+	sudo chown :www-data $STILLS_FULL_DIR/.thumbs
+	sudo chmod 775  $STILLS_FULL_DIR/.thumbs
+fi
+
+cd $STILLS_FULL_DIR
+
+LOCK_FILE=/tmp/pikrellcam-stills-rescan-lock
+
+if [ -f $LOCK_FILE ]
+then
+	exit 0
+fi
+
+touch $LOCK_FILE
+
+cnt=0
+
+for still in *.jpg
+do
+	thumb=".thumbs/${still%.jpg}.th.jpg"
+	if [ ! -f $thumb ]
+	then
+		nice -n 12 convert -thumbnail 150 $still $thumb
+		((++cnt))
+	fi
+done
+
+rm -f $LOCK_FILE
+
+#echo stills thumbs rescan: $cnt

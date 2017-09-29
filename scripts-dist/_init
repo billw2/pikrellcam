@@ -20,7 +20,6 @@ MJPEG_FILE=$4
 FIFO_FILE=$5
 LOG_FILE=$6
 SERVOS_ENABLE=$7
-LOOP_DIR=$8
 
 STATE_FILE=/run/pikrellcam/state
 MJPEG_FILE=/run/pikrellcam/mjpeg.jpg
@@ -37,7 +36,6 @@ cd $INSTALL_DIR
 WWW_CONFIG=$INSTALL_DIR/www/config.php
 PIKRELLCAM=$INSTALL_DIR/pikrellcam
 ARCHIVE_LINK=www/archive
-LOOP_LINK=www/loop
 MEDIA_LINK=www/media
 STATE_LINK=www/state
 MJPEG_LINK=www/mjpeg.jpg
@@ -84,22 +82,6 @@ else
 		ln -s $ARCHIVE_DIR $ARCHIVE_LINK
 	else
 		echo "  $ARCHIVE_LINK link is already set to $ARCHIVE_DIR" >> $LOG_FILE
-	fi
-fi
-
-if [ ! -h $LOOP_LINK ]
-then
-	echo "  making $LOOP_LINK link to $LOOP_DIR" >> $LOG_FILE
-	ln -s $LOOP_DIR $LOOP_LINK
-else
-	CURRENT_LOOP=`realpath $LOOP_LINK`
-	if [ "$CURRENT_LOOP" != "$LOOP_DIR" ]
-	then
-		echo "  replacing $LOOP_LINK link from $CURRENT_LOOP to $LOOP_DIR" >> $LOG_FILE
-		rm $LOOP_LINK
-		ln -s $LOOP_DIR $LOOP_LINK
-	else
-		echo "  $LOOP_LINK link is already set to $LOOP_DIR" >> $LOG_FILE
 	fi
 fi
 

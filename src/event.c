@@ -31,6 +31,8 @@ static pthread_mutex_t	event_mutex;
 static SList			*event_list,
 						*at_command_list;
 
+static char				*filter_parent;
+
 typedef struct
 	{
 	boolean initialized;
@@ -145,9 +147,6 @@ expand_command(char *command, char *arg)
 			case 'a':
 				fmt_arg = pikrellcam.archive_dir;
 				break;
-			case 'z':
-				fmt_arg = pikrellcam.loop_dir;
-				break;
 			case 'm':
 				fmt_arg = pikrellcam.media_dir;
 				break;
@@ -252,7 +251,7 @@ exec_command(char *command, char *arg, boolean wait, pid_t *pid, boolean do_log)
 	else if (child > 0)
 		{
 		if (do_log)
-			log_printf("execl[wait:%d]: %s\n", wait, cmd_line);
+			log_printf("  execl[wait:%d]: %s\n", wait, cmd_line);
 		if (pid)
 			*pid = child;
 		waitpid(child, &status, 0);
@@ -273,7 +272,7 @@ exec_wait(char *command, char *arg)
 	}
 
 void
-exec_no_wait(char *command, char *arg)
+exec_no_wait(char *command, char *arg, boolean do_log)
 	{
 	pid_t	pid;
 
@@ -284,7 +283,7 @@ exec_no_wait(char *command, char *arg)
 	else if (*command == '!')
 		exec_command(command + 1, arg, FALSE, &pid, FALSE);
 	else
-		exec_command(command, arg, FALSE, &pid, TRUE);
+		exec_command(command, arg, FALSE, &pid, do_log);
 	}
 
 #define	REBOOT	1
@@ -314,9 +313,9 @@ event_shutdown_request(boolean shutdown_how) /* 0 - halt  1 - reboot */
 		if (event->data == (void *) shutdown_how)
 			{
 			if (shutdown_how == REBOOT)
-				exec_no_wait("sudo shutdown -r now", NULL);
+				exec_no_wait("sudo shutdown -r now", NULL, TRUE);
 			else
-				exec_no_wait("sudo shutdown -h now", NULL);
+				exec_no_wait("sudo shutdown -h now", NULL, TRUE);
 			}
 		else
 			{
@@ -394,7 +393,7 @@ event_preview_save(void)
 			asprintf(&pikrellcam.preview_thumb_filename, "%s/%s",
 							pikrellcam.thumb_dir, base);
 
-			log_printf("    event preview save: copy %s -> %s\n",
+			log_printf("  event preview save: copy %s -> %s\n",
 								pikrellcam.mjpeg_filename,
 								pikrellcam.preview_filename);
 			if ((f_dst = fopen(pikrellcam.preview_filename, "w")) != NULL)
@@ -431,6 +430,30 @@ event_motion_area_thumb(void)
 		free(cmd);
 	}
 
+void
+event_manual_thumb(void)
+	{
+	int		h;
+	char	*cmd = NULL;
+
+	if (!pikrellcam.manual_thumb_name)
+		return;
+
+	h = 150 * pikrellcam.camera_config.video_height
+			/ pikrellcam.camera_config.video_width;
+
+	/* FIXME - .th.jpg vs .jpg handling is contorted */
+	asprintf(&cmd, "convert %s/%s.jpg -resize 150x%d %s/%s.th.jpg && rm %s/%s.jpg",
+			pikrellcam.tmpfs_dir, pikrellcam.manual_thumb_name, h,
+			pikrellcam.thumb_dir, pikrellcam.manual_thumb_name,
+			pikrellcam.tmpfs_dir, pikrellcam.manual_thumb_name);
+	exec_no_wait(cmd, NULL, TRUE);
+	free(pikrellcam.manual_thumb_name);
+	pikrellcam.manual_thumb_name = NULL;
+	if (cmd)
+		free(cmd);
+	}
+
   /* Useful for emailing a motion event preview jpeg.
   */
 void
@@ -450,7 +473,14 @@ void
 event_motion_end_cmd(char *cmd)
 	{
 	log_printf("event_motion_end_cmd(); running %s\n", cmd);
-	exec_no_wait(cmd, NULL);
+	exec_no_wait(cmd, NULL, TRUE);
+	}
+
+void
+event_motion_begin_cmd(char *cmd)
+	{
+	log_printf("event_motion_begin_cmd(); running %s\n", cmd);
+	exec_no_wait(cmd, NULL, TRUE);
 	}
 
   /* Motion events are finished with any preview jpeg handling, so delete it.
@@ -461,7 +491,7 @@ event_preview_dispose(void)
 	if (! *pikrellcam.preview_filename)
 		return;
 
-	log_printf("event_preview_dispose(); removing %s\n",
+	log_printf("  event_preview_dispose(); removing %s\n",
 					pikrellcam.preview_filename);
 	unlink(pikrellcam.preview_filename);
 	dup_string(&pikrellcam.preview_filename, "");
@@ -474,6 +504,191 @@ event_still_capture_cmd(char *cmd)
 		return;
 
 	exec_wait(cmd, NULL);
+	}
+
+static boolean
+diskfree_is_low(char *dir)
+	{
+	struct statvfs	st;
+	int				free_pct;
+	boolean			is_low;
+
+	statvfs(dir, &st);
+	free_pct = (int) (100LL * (uint64_t) st.f_bavail / (uint64_t) st.f_blocks);
+	is_low = (free_pct <= pikrellcam.diskfree_percent);
+	if (is_low && pikrellcam.verbose_log)
+		log_printf("%s: free space %d <= Diskfree_percent limit %d\n",
+					dir, free_pct, pikrellcam.diskfree_percent);
+	return is_low;
+	}
+
+static int
+mp4_filter(const struct dirent *entry)
+	{
+	char	*mp4;
+
+	mp4 = strstr(entry->d_name, ".mp4");
+	if (!mp4)
+		mp4 = strstr(entry->d_name, ".mp3");  // to clean out stray mp3 files
+	return (mp4 ? 1 : 0);
+	}
+
+static int
+dir_filter(const struct dirent *entry)
+	{
+	struct stat st;
+	char		filter_dir[512];
+
+	if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+		return 0;
+	snprintf(filter_dir, sizeof(filter_dir), "%s/%s",
+			filter_parent, entry->d_name);
+	stat(filter_dir, &st);
+	return (st.st_mode & S_IFDIR);
+	}
+
+static int
+date_compare(const struct dirent **e1, const struct dirent **e2)
+	{
+	char	*a, *b, *s;
+
+	s = strchr((*e1)->d_name, (int) '_');	/* skip past motion_ or manual_ */
+	a = (s ? s + 1 : (char *)(*e1)->d_name);
+
+	s = strchr((*e2)->d_name, (int) '_');
+	b = (s ? s + 1 : (char *) (*e2)->d_name);
+
+	return strcmp(a, b);
+	}
+
+static boolean
+diskfree_percent_delete(char *media_dir, boolean *empty)
+	{
+	struct dirent	**mp4_list = NULL;
+	char			*s, video_dir[256], thumb_dir[256], fname[256];
+	int				i, n, low_space;
+	boolean			done = FALSE;
+
+	if (empty)
+		*empty = FALSE;
+	if ((low_space = diskfree_is_low(media_dir)) == FALSE)
+		return TRUE;
+
+	snprintf(video_dir, sizeof(video_dir), "%s/%s", media_dir,
+				PIKRELLCAM_VIDEO_SUBDIR);
+	snprintf(thumb_dir, sizeof(thumb_dir), "%s/%s", media_dir,
+				PIKRELLCAM_THUMBS_SUBDIR);
+	if ((n = scandir(video_dir, &mp4_list, mp4_filter, date_compare)) < 0)
+		{
+		log_printf("diskfree percent delete: scandir(%s) failed.\n", video_dir);
+		return FALSE;
+		}
+	if (n == 0 && empty)
+		*empty = TRUE;
+
+	for (i = 0; i < n; ++i)
+		{
+		if (low_space)
+			{
+			snprintf(fname, sizeof(fname), "%s/%s",
+						video_dir, mp4_list[i]->d_name);
+			unlink(fname);
+			log_printf("Low disk space, deleted: %s\n", fname);
+
+			if ((s = strstr(fname, ".mp4")) != NULL)
+				strcpy(s, ".csv");
+			unlink(fname);
+
+			snprintf(fname, sizeof(fname), "%s/%s",
+						thumb_dir, mp4_list[i]->d_name);
+			if ((s = strstr(fname, ".mp4")) != NULL)
+				strcpy(s, ".th.jpg");
+			unlink(fname);
+			if (empty && i == n - 1)
+				*empty = TRUE;
+			low_space = diskfree_is_low(media_dir);
+			}
+		if (!low_space)
+			done = TRUE;
+		free(mp4_list[i]);
+		}
+	if (mp4_list)
+		free(mp4_list);
+	return done;
+	}
+
+void
+event_media_diskfree_percent(char *type)
+	{
+	diskfree_percent_delete(pikrellcam.media_dir, NULL);
+	}
+
+void
+event_archive_diskfree_percent(char *type)
+	{
+	struct dirent	**year_list = NULL,
+					**month_list = NULL,
+					**day_list = NULL;;
+	int				y, n_yr, m, n_mon, d, n_day;
+	char			year_dir[256], mon_dir[256], day_dir[256], del_dir[256];
+	boolean			done = FALSE, dir_empty;
+
+	if (!diskfree_is_low(pikrellcam.archive_dir))
+		return;
+	filter_parent = pikrellcam.archive_dir;
+	n_yr = scandir(pikrellcam.archive_dir, &year_list, dir_filter, alphasort);
+	for (y = 0; y < n_yr; ++y)
+		{
+		snprintf(year_dir, sizeof(year_dir), "%s/%s",
+					pikrellcam.archive_dir, year_list[y]->d_name);
+		filter_parent = year_dir;
+		if ((n_mon = scandir(year_dir, &month_list, dir_filter, alphasort)) <= 0)
+			continue;
+		for (m = 0; m < n_mon; ++m)
+			{
+			snprintf(mon_dir, sizeof(mon_dir), "%s/%s/%s",
+						pikrellcam.archive_dir, year_list[y]->d_name,
+						month_list[m]->d_name);
+			filter_parent = mon_dir;
+			if ((n_day = scandir(mon_dir, &day_list,
+							dir_filter, alphasort)) <= 0)
+				continue;
+			for (d = 0; d < n_day; ++d)
+				{
+				if (!done)
+					{
+					snprintf(day_dir, sizeof(day_dir), "%s/%s/%s/%s",
+								pikrellcam.archive_dir, year_list[y]->d_name,
+								month_list[m]->d_name, day_list[d]->d_name);
+					done = diskfree_percent_delete(day_dir, &dir_empty);
+					if (dir_empty)
+						{
+						snprintf(del_dir, sizeof(del_dir), "%s/videos", day_dir);
+						rmdir(del_dir);
+						snprintf(del_dir, sizeof(del_dir), "%s/thumbs", day_dir);
+						rmdir(del_dir);
+						rmdir(day_dir);
+						if (done && d == n_day - 1)
+							{
+							rmdir(mon_dir);
+							if (done && m == n_mon - 1)
+								rmdir(year_dir);
+							}
+						}
+					}
+				free(day_list[d]);
+				}
+			free(month_list[m]);
+			if (day_list)
+				free(day_list);
+			}
+		free(year_list[y]);
+		if (month_list)
+			free(month_list);
+		}
+	if (year_list)
+		free(year_list);
+	return;
 	}
 
 void
@@ -886,6 +1101,11 @@ event_process(void)
 		hour_tick = (tm_now->tm_hour  != tm_prev.tm_hour)  ? TRUE : FALSE;
 		day_tick =  (tm_now->tm_mday  != tm_prev.tm_mday)  ? TRUE : FALSE;
 
+		if (pikrellcam.preset_state_modified && five_minute_tick)
+			{
+			pikrellcam.preset_state_modified = FALSE;
+			preset_state_save();
+			}
 		if (day_tick || !sun.initialized)
 			{
 			if (sun.initialized)
@@ -977,7 +1197,7 @@ event_process(void)
 					free(cmd);
 					}
 				else
-					exec_no_wait(at->command, NULL);
+					exec_no_wait(at->command, NULL, TRUE);
 				}
 			}
 		start = FALSE;

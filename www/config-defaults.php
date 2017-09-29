@@ -24,6 +24,7 @@ $archive_initial_view = "thumbs";
 $archive_thumbs_scrolled = "yes";
 $media_thumbs_scrolled = "yes";
 $videos_mode = "thumbs";
+$stills_mode = "list";
 
 $video_url = "";
 $show_audio_controls = "yes";
@@ -35,7 +36,8 @@ function config_user_save()
 	global $default_text_color, $selected_text_color, $media_text_color, $manual_video_text_color;
 	global $n_log_scroll_pixels, $log_text_color, $n_thumb_scroll_pixels, $background_image;
 	global $config_event_count, $include_control;
-	global $archive_initial_view, $archive_thumbs_scrolled, $media_thumbs_scrolled, $videos_mode;
+	global $archive_initial_view, $videos_mode, $stills_mode;
+	global $archive_thumbs_scrolled, $media_thumbs_scrolled;
 	global $video_url, $show_audio_controls;
 
 	$file = fopen("config-user.php", "w");
@@ -93,6 +95,7 @@ function config_user_save()
 	fwrite($file, "define(\"NAME_STYLE\", \"$name_style\");\n");
 	fwrite($file, "define(\"N_COLUMNS\", \"$n_columns\");\n");
 	fwrite($file, "define(\"VIDEOS_MODE\", \"$videos_mode\");\n");
+	fwrite($file, "define(\"STILLS_MODE\", \"$stills_mode\");\n");
 	fwrite($file, "define(\"ARCHIVE_INITIAL_VIEW\", \"$archive_initial_view\");\n");
 	fwrite($file, "define(\"ARCHIVE_THUMBS_SCROLLED\", \"$archive_thumbs_scrolled\");\n");
 	fwrite($file, "define(\"MEDIA_THUMBS_SCROLLED\", \"$media_thumbs_scrolled\");\n\n");
@@ -133,6 +136,8 @@ if (defined('MANUAL_VIDEO_TEXT_COLOR'))
 
 if (defined('VIDEOS_MODE'))
     $videos_mode = VIDEOS_MODE;
+if (defined('STILLS_MODE'))
+    $stills_mode = STILLS_MODE;
 if (defined('ARCHIVE_INITIAL_VIEW'))
     $archive_initial_view = ARCHIVE_INITIAL_VIEW;
 if (defined('ARCHIVE_THUMBS_SCROLLED'))

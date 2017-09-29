@@ -47,6 +47,7 @@ DAY=`expr substr $DATE 9 2`
 DATE_PATH=$YEAR/$MONTH/$DAY
 
 ARCHIVE_STILLS_PATH=$ARCHIVE_DIR/$DATE_PATH/stills
+ARCHIVE_THUMBS_PATH=$ARCHIVE_STILLS_PATH/.thumbs
 
 YEAR=`expr substr $DATE 1 4`
 MONTH=`expr substr $DATE 6 2`
@@ -73,18 +74,24 @@ then
 	echo "  archive-still could not create archive directory: $ARCHIVE_STILLS_PATH" >> $LOG_FILE
 	exit 1
 fi
+create_dir $ARCHIVE_THUMBS_PATH
+
 
 if [ "$DAY_FLAG" == "day" ]
 then
 	echo "  archive-still day $DATE to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
 	mv $MEDIA_DIR/stills/*${DATE}*.jpg $ARCHIVE_STILLS_PATH
+	mv $MEDIA_DIR/stills/.thumbs/*${DATE}*.th.jpg $ARCHIVE_THUMBS_PATH
 else
 	echo "  archive-still $STILL to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
 	mv $MEDIA_DIR/stills/$STILL $ARCHIVE_STILLS_PATH
+	THUMB_JPEG=${STILL%.jpg}.th.jpg
+	mv $MEDIA_DIR/stills/.thumbs/$THUMB_JPEG $ARCHIVE_THUMBS_PATH
 fi
 
 # Cleanup in case no files were moved so archive page won't show dangling links
 #
+find $ARCHIVE_THUMBS_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_THUMBS_PATH \;
 find $ARCHIVE_STILLS_PATH -maxdepth 0 -empty -exec rmdir $ARCHIVE_STILLS_PATH \;
 
 ARCHIVE_DATE_PATH=$ARCHIVE_DIR/$DATE_PATH

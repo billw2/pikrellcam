@@ -552,13 +552,6 @@ static Config  config[] =
 	  "#",
 	"archive_dir", "archive", TRUE, { .string = &pikrellcam.archive_dir }, config_string_set },
 
-	{ "# If loop_dir has no leading '/' it will be a sub directory under media_dir.\n"
-	  "# Otherwise it is a full pathname to the loop directory.\n"
-	  "# So the default archive dir is /home/pi/pikrellcam/media/loop.\n"
-	  "# A file system may be mounted on the loop dir in the startup script.\n"
-	  "#",
-	"loop_dir", "loop", TRUE, { .string = &pikrellcam.loop_dir }, config_string_set },
-
 	{ "# Log file.\n"
 	  "#",
 	"log_file",  "/tmp/pikrellcam.log", TRUE, { .string = &pikrellcam.log_file }, config_string_set },
@@ -587,15 +580,13 @@ static Config  config[] =
 	  "#",
 	"multicast_enable",	"on", TRUE, {.value = &pikrellcam.multicast_enable},  config_value_bool_set},
 
-
-
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
 	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
 	  "# Vector and burst limits/counts are no longer saved in pikrellcam.conf.\n"
 	  "#\n"
 	  "# Enable pikrellcam motion detection at startup\n"
 	  "#",
-	"motion_enable",	"off", FALSE, {.value = &pikrellcam.motion_enable},       config_value_bool_set},
+	"motion_enable",	"off", FALSE, {.value = &pikrellcam.startup_motion_enable},       config_value_bool_set},
 
 	{ "# If off, do not detect motion when servos are off a preset.\n"
 	  "#",
@@ -778,12 +769,21 @@ static Config  config[] =
 	"video_manual_name_format", "manual_%F_%H.%M.%S_$N.mp4", TRUE,
 		{.string = &pikrellcam.video_manual_name_format}, config_string_set },
 
-	{ "# Loop record video name format.\n"
-	  "# Similar restrictions, not much change can be made to this format.\n"
+	{ "# Disk free percent (5 - 90).  Loop vidoes and, if enabled, media videos\n"
+	  "# and archived videos are deleted to maintain at least this free percent.\n"
 	  "#",
-	"video_loop_name_format", "loop_%F_%H.%M.%S_$N.mp4", TRUE,
-		{.string = &pikrellcam.video_loop_name_format}, config_string_set },
+	"diskfree_percent",  "20", FALSE, {.value = &pikrellcam.diskfree_percent},      config_value_int_set},
 
+	{ "# If on, check the media file system as each video is recorded and\n"
+	  "# delete the oldest media to maintain the free percent.\n"
+	  "#",
+	"check_media_diskfree",  "off", FALSE, {.value = &pikrellcam.check_media_diskfree}, config_value_bool_set },
+
+	{ "# If on, check the archive file system as each video is archived and\n"
+	  "# delete the oldest archived videos to maintain the free percent.\n"
+	  "# Not useful if the archive file system is the same as the media.\n"
+	  "#",
+	"check_archive_diskfree",  "off", FALSE, {.value = &pikrellcam.check_archive_diskfree}, config_value_bool_set },
 
 	{ "# Pixel width of videos recorded.\n"
 	  "#",
@@ -1186,7 +1186,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 40;
+	pikrellcam.config_sequence_new = 42;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -1223,6 +1223,12 @@ config_load(char *config_file)
 	    && pikrellcam.motion_record_time_limit < 10
 	   )
 		pikrellcam.motion_record_time_limit = 10;
+
+	if (pikrellcam.diskfree_percent < 5)
+		pikrellcam.diskfree_percent = 5;
+
+	if (pikrellcam.diskfree_percent > 90)
+		pikrellcam.diskfree_percent = 90;
 
 	if (pikrellcam.motion_vectors_dimming < 30)
 		pikrellcam.motion_vectors_dimming = 30;

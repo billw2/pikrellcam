@@ -186,9 +186,9 @@ multicast_recv(void)
 					{
 					dup_string(&pikrellcam.multicast_from_hostname, from);
 					if (!strcmp(msg_type, "command"))
-						exec_no_wait(action, NULL);
+						exec_no_wait(action, NULL, TRUE);
 					else if (!strcmp(msg_type, "pkc-message"))	/* user defined */
-						exec_no_wait(pikrellcam.on_multicast_message_cmd, action);
+						exec_no_wait(pikrellcam.on_multicast_message_cmd, action, TRUE);
 					/* ack and other message types are ignored */
 					}
 				else
