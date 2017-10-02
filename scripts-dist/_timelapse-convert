@@ -50,7 +50,7 @@ echo "tl_inform_convert start $SERIES" > $COMMAND_FIFO
 cd $MEDIA_DIR/timelapse
 nice -2 avconv -r 6 -i $FILENAME_FORMAT \
 		-b:v 6M -maxrate 6M -minrate 1M -bufsize 4M \
-		-r 6 -vcodec libx264 -crf 20 -g 4 \
+		-vcodec libx264 -crf 20 -g 4 -movflags faststart \
 		$SERIES.mp4
 
 mv $SERIES.mp4 $VIDEOFILE_MP4
