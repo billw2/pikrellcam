@@ -110,8 +110,29 @@ echo "Starting PiKrellCam install..."
 
 # =============== apt install needed packages ===============
 #
+JESSIE=8
+STRETCH=9
+V=`cat /etc/debian_version`
+DEB_VERSION="${V:0:1}"
+
 PACKAGE_LIST=""
-for PACKAGE in gpac php5 php5-common php5-fpm nginx libav-tools bc \
+
+if ((DEB_VERSION >= STRETCH))
+then
+	PHP_PACKAGES="php7.0 php7.0-common php7.0-fpm"
+else
+	PHP_PACKAGES="php5 php5-common php5-fpm"
+fi
+
+for PACKAGE in $PHP_PACKAGES
+do
+	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
+	then
+		PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+	fi
+done
+
+for PACKAGE in gpac nginx libav-tools bc \
 	sshpass mpack imagemagick apache2-utils libasound2 libasound2-dev \
 	libmp3lame0 libmp3lame-dev
 do
@@ -132,12 +153,7 @@ else
 fi
 
 
-JESSIE=8.0
-DEB_VERSION=`cat /etc/debian_version`
-IS_WHEEZY=`echo "$DEB_VERSION < $JESSIE" | bc`
-
-
-if [ $IS_WHEEZY -gt 0 ]
+if ((DEB_VERSION < JESSIE))
 then
 	if ! dpkg -s realpath 2>/dev/null | grep Status | grep -q installed
 	then
@@ -263,7 +279,7 @@ then
 	sudo sed -i  '/access_log/c\	access_log off;' /etc/nginx/nginx.conf
 fi
 
-if [ $IS_WHEEZY -gt 0 ]
+if ((DEB_VERSION < JESSIE))
 then
 	NGINX_SITE=etc/nginx-wheezy-site-default
 else
