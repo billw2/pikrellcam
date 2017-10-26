@@ -294,6 +294,11 @@ sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 			s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
 
+if ((DEB_VERSION >= STRETCH))
+then
+	sudo sed -i "s/php5/php\/php7.0/" /etc/nginx/sites-available/pikrellcam
+fi
+
 NGINX_SITE=/etc/nginx/sites-available/pikrellcam
 
 if [ "$PORT" == "80" ]
