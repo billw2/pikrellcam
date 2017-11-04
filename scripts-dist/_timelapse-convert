@@ -48,7 +48,11 @@ echo "  $DATE timelapse-convert: converting $FILENAME_FORMAT to $VIDEOFILE_MP4" 
 echo "tl_inform_convert start $SERIES" > $COMMAND_FIFO
 
 cd $MEDIA_DIR/timelapse
-nice -2 avconv -r 6 -i $FILENAME_FORMAT \
+
+FIRST=$(ls tl_${SERIES}_*.jpg | head -n1)
+NUM=${FIRST:9:5}
+
+nice -2 avconv -r 6 -start_number $NUM -i $FILENAME_FORMAT \
 		-b:v 6M -maxrate 6M -minrate 1M -bufsize 4M \
 		-vcodec libx264 -crf 20 -g 4 -movflags faststart \
 		$SERIES.mp4
@@ -57,7 +61,7 @@ mv $SERIES.mp4 $VIDEOFILE_MP4
 
 BASE=`basename $VIDEOFILE_MP4`
 THUMB_JPEG=${BASE%.mp4}.th.jpg
-convert -resize 150 tl_${SERIES}_00001.jpg $MEDIA_DIR/thumbs/$THUMB_JPEG 
+convert -resize 150 tl_${SERIES}_${NUM}.jpg $MEDIA_DIR/thumbs/$THUMB_JPEG 
 
 echo "tl_inform_convert done $SERIES" > $COMMAND_FIFO
 

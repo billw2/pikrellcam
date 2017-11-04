@@ -354,7 +354,7 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 	}
 
 void
-motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf)
+motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 	{
 	static FILE		*f;
 	CompositeVector *cvec, *frame_vec = &mf->frame_vector;
@@ -365,7 +365,7 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 	int				burst, i, pan, tilt;
 	boolean			dir_motion;
 
-	if (vcb->state == VCB_STATE_MOTION_RECORD_START)
+	if (start)
 		{
 		f = fopen(pikrellcam.motion_events_filename, "w");
 		fprintf(f, "<header>\n");
@@ -394,10 +394,7 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 			}
 		fprintf(f, "</header>\n");
 		}
-	if (f && (   vcb->state == VCB_STATE_MOTION_RECORD
-	          || vcb->state == VCB_STATE_MOTION_RECORD_START
-	         )
-	   )
+	if (f && ((vcb->state & VCB_STATE_MOTION_RECORD) || start))
 		{
 		burst = frame_vec->mag2_count + mf->reject_count;
 		fprintf(f, "<motion %6.3f>\n",
@@ -586,7 +583,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	    && fail_count == 0
 	   )
 		{
-		if (   vcb->state != VCB_STATE_MOTION_RECORD
+		if (   !(vcb->state & VCB_STATE_MOTION_RECORD)
 		    && mf->frame_window == 0
 		    && pikrellcam.motion_times.confirm_gap > 0
 		   )
@@ -677,15 +674,33 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 
 		/* Motion detection will be ignored if a manual record is in progress.
 		*/
-		if (vcb->state == VCB_STATE_NONE)
+		if (   vcb->state == VCB_STATE_NONE
+		    || (   (vcb->state & VCB_STATE_LOOP_RECORD)
+		        && !(vcb->state & VCB_STATE_MOTION_RECORD)
+		       )
+		   )
 			{
 			/* Always preview save in case there is a motion preview save
 			|  command. For preview save mode "first", set flag so mjpeg
 			|  callback can immediately schedule the on_preview_save command
 			|  so there is no wait to execute it.
 			*/
-			video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
-			mf->do_preview_save = TRUE;
+			if (!(vcb->state & VCB_STATE_LOOP_RECORD))
+				video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
+			else
+				{
+				pikrellcam.do_preview_save = TRUE;
+				motion_event_write(vcb, &motion_frame, TRUE);
+				vcb->state |= VCB_STATE_MOTION_RECORD;
+				if (*pikrellcam.on_motion_begin_cmd)
+					event_add("motion begin", pikrellcam.t_now, 0,
+							event_motion_begin_cmd,
+							pikrellcam.on_motion_begin_cmd);
+				}
+
+			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
+				pikrellcam.do_preview_save_cmd = TRUE;
+
 			mf->preview_frame_vector = mf->frame_vector;
 			if (mf->motion_status & MOTION_EXTERNAL)
 				{
@@ -699,11 +714,6 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			pikrellcam.still_notify = FALSE;
 			pikrellcam.timelapse_notify = FALSE;
 
-			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
-				{
-				motion_preview_area_fixup();
-				mf->do_preview_save_cmd = TRUE;
-				}
 			mf->first_detect = mf->motion_status;
 			mf->burst_detects = 0;
 			mf->direction_detects = 0;
@@ -723,7 +733,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 				printf("***Motion record start: %s\n\n", pikrellcam.video_pathname);
 			}
-		else if (vcb->state == VCB_STATE_MOTION_RECORD)
+		else if (vcb->state & VCB_STATE_MOTION_RECORD)
 			{
 			/* Already recording, so each motion trigger bumps up the record
 			|  time to now + post capture time.
@@ -738,7 +748,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				{
 				mf->preview_frame_vector = mf->frame_vector;
 				mf->preview_motion_area = mf->motion_area;
-				mf->do_preview_save = TRUE;
+				pikrellcam.do_preview_save = TRUE;
 				/* on_preview_save_cmd for save mode "best" is handled
 				|  in video_record_stop().
 				*/
@@ -751,7 +761,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				if (mf->max_burst_count < frame_vec->mag2_count + mf->reject_count)
 					mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
 				}
-			motion_event_write(vcb, mf);
+			motion_event_write(vcb, mf, FALSE);
 
 			if (pikrellcam.verbose_motion)
 				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);

@@ -216,9 +216,9 @@ audio_frames_offset_from_video(AudioCircularBuffer *acb)
 
 	if (pikrellcam.audio_debug & 0x4)
 		{
-		printf("  rhead:%d tail:%d pending:%d frames:%d vid_time_usec:%d\n",
-				acb->record_head, acb->record_tail, pending, acb->record_frame_count,
-				(int) (vid_time * 1e6));
+		printf("  rhead:%d tail:%d pending:%d offset: %d frames:%d vid_time_usec:%d\n",
+				acb->record_head, acb->record_tail, pending, offset,
+				acb->record_frame_count, (int) (vid_time * 1e6));
 		}
 	pthread_mutex_unlock(&acb->mutex);
 	return offset;
@@ -518,7 +518,7 @@ audio_record_stop(void)
 	offset = audio_frames_offset_from_video(acb);
 	if (pikrellcam.audio_debug & 0x4)
 		printf("audio record stop frames offset: %d\n", offset);
-	if (offset < 0)
+	if (offset < 0 && !pikrellcam.loop_enable)
 		{
 		/* Wait enough time for head to move so have space to move record_head.
 		*/

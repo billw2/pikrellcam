@@ -168,6 +168,11 @@ if (defined('SHOW_AUDIO_CONTROLS'))
         width="28" height="28"
         onclick="fifo_command('still')"
       >
+	  <input type="image" src="images/loop.png"
+		style="vertical-align: bottom; margin-left:9px; margin-right:0px;"
+		width="28" height="28"
+		onclick="fifo_command('loop toggle')"
+	  >
 
 <?php
 
@@ -249,6 +254,10 @@ if (file_exists("custom-control.php"))
 			class='btn-control'
 			style='margin-left:2px; margin-right:8px;'
 			>Stills</a>";
+		echo "<a href='media-archive.php?mode=loop&type=videos'
+			class='btn-control'
+			style='margin-left:2px; margin-right:30px;'
+			>Loop</a>";
 		echo "<span style=\"color: $default_text_color\"> Enable:</span>";
 	?>
 
@@ -418,6 +427,10 @@ if (file_exists("custom-control.php"))
                       <input type="button" value="Times"
                         class="btn-menu"
                         onclick="fifo_command('display motion_time');"
+                      >
+                      <input type="button" value="Loop"
+                        class="btn-menu"
+                        onclick="fifo_command('display loop_settings');"
                       >
 <?php
 if ($servos_enable == "servos_on")

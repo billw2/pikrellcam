@@ -6,47 +6,61 @@
 #
 # Argument substitution done by PiKrellCam before running this script:
 #   $F - the preview jpeg filename full path (from MJPEG_DIR)
-#   $m - the media directory full path
-#   $P - the command FIFO
 #   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $A - the thumb pathname in media_dir or loop_dir
+#   thumb_size
 #   $i	 width of the motion detected area in the preview jpeg
 #   $J	 height of the motion detected area in the preview jpeg
 #   $K	 x coordinate of the motion detected area center in the preview jpeg
 #   $Y	 y coordinate of the motion detected area center in the preview jpeg
 # 
 
-PREVIEW_JPEG=$1
-MEDIA_DIR=$2
-FIFO=$3
-LOG_FILE=$4
+preview_jpeg=$1
+log_file=$2
+thumb_pathname=$3
+thumb_size=$4
+w_motion=$5
+h_motion=$6
+xc=$7
+yc=$8
 
-W=$5
-H=$6
-X=$7
-Y=$8
+w_thumb=$(echo $thumb_size | cut -d "x" -f 1)
+h_thumb=$(echo $thumb_size | cut -d "x" -f 2)
 
-if [ "$W" -gt "$H" ]; then
-	SZ=$W
+if ((w_thumb <=10 || h_thumb <= 10))
+then
+	w_thumb=150
+	h_thumb=150
+fi
+
+if ((w_motion * h_thumb / w_thumb < h_motion))
+then
+	w_motion=$((h_motion * w_thumb / h_thumb))
 else
-	SZ=$H
+	h_motion=$((w_motion * h_thumb / w_thumb))
 fi
 
-XT=`expr $SZ / 2`
-XO=`expr $X - $XT`
-YT=`expr $SZ / 2`
-YO=`expr $Y - $YT`
-if [ "$XO" -lt 0 ]; then
-  XO=0
+x0=$((xc - w_motion / 2))
+y0=$((yc - h_motion / 2))
+
+if ((x0 < 0))
+then
+	x0=0
 fi
-if [ "$YO" -lt 0 ]; then
-  YO=0
+if ((y0 < 0))
+then
+	y0=0
 fi
 
-THUMB_JPEG_DIR=$MEDIA_DIR/thumbs
+if ((w_motion > 0))
+then
+	echo "  convert $preview_jpeg -crop ${w_motion}x${h_motion}+${x0}+${y0} \
+			-resize ${thumb_size}\! $thumb_pathname" >> $log_file
+	convert $preview_jpeg -crop ${w_motion}x${h_motion}+${x0}+${y0} \
+			-resize ${thumb_size}\! $thumb_pathname
+else
+	echo "  convert $preview_jpeg -resize ${thumb_size}\! $thumb_pathname" >> $log_file
+	convert $preview_jpeg -resize ${thumb_size}\! $thumb_pathname
+fi
 
-# Change a motion-xxx.jpg into motion-xxx.th.jpg.  PREVIEW_JPEG is a full path.
-BASE=`basename $PREVIEW_JPEG`
-THUMB_JPEG=${BASE%.jpg}.th.jpg
-
-convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG
-echo "  convert $PREVIEW_JPEG -crop ${SZ}x$SZ+$XO+$YO -resize 150x150\! $THUMB_JPEG_DIR/$THUMB_JPEG" >> $LOG_FILE
+exit 0

@@ -552,6 +552,13 @@ static Config  config[] =
 	  "#",
 	"archive_dir", "archive", TRUE, { .string = &pikrellcam.archive_dir }, config_string_set },
 
+	{ "# If loop_dir has no leading '/' it will be a sub directory under media_dir.\n"
+	  "# Otherwise it is a full pathname to the loop directory.\n"
+	  "# So the default archive dir is /home/pi/pikrellcam/media/loop.\n"
+	  "# A file system may be mounted on the loop dir in the startup script.\n"
+	  "#",
+	"loop_dir", "loop", TRUE, { .string = &pikrellcam.loop_dir }, config_string_set },
+
 	{ "# Log file.\n"
 	  "#",
 	"log_file",  "/tmp/pikrellcam.log", TRUE, { .string = &pikrellcam.log_file }, config_string_set },
@@ -580,6 +587,22 @@ static Config  config[] =
 	  "#",
 	"multicast_enable",	"on", TRUE, {.value = &pikrellcam.multicast_enable},  config_value_bool_set},
 
+	{ "\n# -------------------- Loop Record Options -----------------------\n"
+	  "# Enable loop recording at startup.\n"
+	  "#",
+	"loop_enable",	"off", FALSE, {.value = &pikrellcam.loop_startup_enable},       config_value_bool_set},
+
+	{ "# Time length limit of a loop video record.\n"
+	  "#",
+	"loop_record_time_limit",  "30", FALSE, {.value = &pikrellcam.loop_record_time_limit},      config_value_int_set},
+
+	{ "# Loop videos disk usage max percent (5 - 95).  Oldest loop videos are\n"
+	  "# deleted to limit loop video disk usage to this percent.\n"
+	  "# Loop videos are also subject to diskfree_percent deletion.\n"
+	  "#",
+	"loop_diskusage_percent",  "30", FALSE, {.value = &pikrellcam.loop_diskusage_percent},      config_value_int_set},
+
+
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
 	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
 	  "# Vector and burst limits/counts are no longer saved in pikrellcam.conf.\n"
@@ -587,6 +610,7 @@ static Config  config[] =
 	  "# Enable pikrellcam motion detection at startup\n"
 	  "#",
 	"motion_enable",	"off", FALSE, {.value = &pikrellcam.startup_motion_enable},       config_value_bool_set},
+
 
 	{ "# If off, do not detect motion when servos are off a preset.\n"
 	  "#",
@@ -639,7 +663,7 @@ static Config  config[] =
 	  "#",
 	"on_motion_begin",  "", TRUE, {.string = &pikrellcam.on_motion_begin_cmd}, config_string_set },
 
-	{ "# Command/script to run when a motion detect event ends.\n"
+	{ "# Command/script to run when a motion detect record ends.\n"
 	  "# The motion_end script uses scp to immediately archive motion detect\n"
 	  "# videos to a different computer.\n"
 	  "# To enable this, add your machine information to the motion-end script\n"
@@ -647,6 +671,22 @@ static Config  config[] =
 	  "#   on_motion_end $C/motion-end $v $P $G\n"
 	  "#",
 	"on_motion_end",    "", TRUE, {.string = &pikrellcam.on_motion_end_cmd}, config_string_set },
+
+	{ "# Command/script to run when a motion enable changes.\n"
+	  "# $o variable is enabled state: on|off\n"
+	  "#   on_motion_enable $C/motion-enable-script $o\n"
+	  "#",
+	"on_motion_enable",  "", TRUE, {.string = &pikrellcam.on_motion_enable_cmd}, config_string_set },
+
+	{ "# Command/script to run when a loop record ends.\n"
+	  "# If motion is enabled and detected during the loop video, the\n"
+	  "# on_motion_end command is run instead of on_loop_end.\n"
+	  "#",
+	"on_loop_end",    "", TRUE, {.string = &pikrellcam.on_loop_end_cmd}, config_string_set },
+
+	{ "# Command/script to run when a manual record ends.\n"
+	  "#",
+	"on_manual_end",    "", TRUE, {.string = &pikrellcam.on_manual_end_cmd}, config_string_set },
 
 	{ "# When to save the motion preview file.\n"
 	  "#     first  - when motion is first detected.\n"
@@ -768,6 +808,7 @@ static Config  config[] =
 	  "#",
 	"video_manual_name_format", "manual_%F_%H.%M.%S_$N.mp4", TRUE,
 		{.string = &pikrellcam.video_manual_name_format}, config_string_set },
+
 
 	{ "# Disk free percent (5 - 90).  Loop vidoes and, if enabled, media videos\n"
 	  "# and archived videos are deleted to maintain at least this free percent.\n"
@@ -1138,7 +1179,8 @@ config_set_defaults(char *home_dir)
 
 	pikrellcam.version = strdup(PIKRELLCAM_VERSION);
 	pikrellcam.timelapse_format = strdup("tl_$n_$N.jpg");
-	pikrellcam.preview_filename = strdup("");
+	pikrellcam.preview_pathname = strdup("");
+	pikrellcam.thumb_name = strdup("");
 	pikrellcam.multicast_group_IP = "225.0.0.55";
 	pikrellcam.multicast_group_port = 22555;
 	gethostname(pikrellcam.hostname, HOST_NAME_MAX);	
@@ -1186,7 +1228,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 42;
+	pikrellcam.config_sequence_new = 43;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -1209,8 +1251,8 @@ config_load(char *config_file)
 	/* Round off mjpeg_width to multiple of 16 */
 	pikrellcam.mjpeg_width = (pikrellcam.mjpeg_width + 8) & ~0xf;
 
-	if (pikrellcam.motion_magnitude_limit < 3)
-		pikrellcam.motion_magnitude_limit = 3;
+	if (pikrellcam.motion_magnitude_limit < 2)
+		pikrellcam.motion_magnitude_limit = 2;
 	if (pikrellcam.motion_magnitude_limit_count < 2)
 		pikrellcam.motion_magnitude_limit_count = 2;
 
@@ -1226,9 +1268,17 @@ config_load(char *config_file)
 
 	if (pikrellcam.diskfree_percent < 5)
 		pikrellcam.diskfree_percent = 5;
+	if (pikrellcam.loop_diskusage_percent < 5)
+		pikrellcam.loop_diskusage_percent = 5;
+
 
 	if (pikrellcam.diskfree_percent > 90)
 		pikrellcam.diskfree_percent = 90;
+	if (pikrellcam.loop_diskusage_percent > 95)
+		pikrellcam.loop_diskusage_percent = 95;
+
+	if (pikrellcam.loop_record_time_limit < 10)
+		pikrellcam.loop_record_time_limit = 10;
 
 	if (pikrellcam.motion_vectors_dimming < 30)
 		pikrellcam.motion_vectors_dimming = 30;
@@ -1266,6 +1316,8 @@ config_load(char *config_file)
 	       )
 	   )
 		pikrellcam.have_servos = TRUE;
+
+	pikrellcam.loop_name_format = strdup("loop_%F_%H.%M.%S_$N.mp4");
 
 	asprintf(&pikrellcam.preset_config_file, "%s/preset-%s.conf",
 					pikrellcam.config_dir,

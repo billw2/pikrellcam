@@ -52,6 +52,7 @@ MotionTimes		motion_times_temp;
 #define SETTINGS			18
 #define MOTION_TIME			19
 #define SERVO_SETTINGS		20
+#define LOOP_SETTINGS		21
 
 typedef struct
 	{
@@ -73,6 +74,7 @@ static DisplayCommand display_commands[] =
 	{ "video_presets",      VIDEO_PRESET		  },
 	{ "still_presets",      STILL_PRESET	  },
 	{ "settings",        SETTINGS },
+	{ "loop_settings",  LOOP_SETTINGS },
 	{ "servo_settings",  SERVO_SETTINGS },
 	{ "picture",  PICTURE		  },
 	{ "metering", METERING		  },
@@ -720,7 +722,17 @@ motion_draw(uint8_t *i420)
 		mf->selected_region = -1;
 
 	t_record = vcb->record_elapsed_time;
-	if (vcb->state & VCB_STATE_MOTION_RECORD)
+
+	if (vcb->state & VCB_STATE_LOOP_RECORD)
+		{
+		msg = (vcb->state & VCB_STATE_MOTION_RECORD) ? "-motion" : "";
+		t_record = vcb->max_record_time - t_record;
+		if (t_record < 0)
+			t_record = 0;
+		snprintf(info, sizeof(info), "REC (Loop%s) %d:%02d",
+					msg, t_record / 60, t_record % 60);
+		}
+	else if (vcb->state & VCB_STATE_MOTION_RECORD)
 		{
 		if (pikrellcam.t_now > vcb->motion_sync_time)
 			t_record -= pikrellcam.t_now - vcb->motion_sync_time;
@@ -741,7 +753,7 @@ motion_draw(uint8_t *i420)
 						t_hold / 60, t_hold % 60);
 			}
 		}
-	else if (vcb->state & VCB_STATE_MANUAL_RECORD)
+	else if (vcb->state == VCB_STATE_MANUAL_RECORD)
 		snprintf(info, sizeof(info), "REC (%s) %d:%02d",
 					vcb->pause ? "Pause" : "Manual",
 					t_record / 60, t_record % 60);
@@ -754,7 +766,7 @@ motion_draw(uint8_t *i420)
 
 	if (mf->motion_enable)
 		{
-		if (vcb->state & VCB_STATE_MANUAL_RECORD)
+		if (vcb->state == VCB_STATE_MANUAL_RECORD)
 			msg = "Motion ---";
 		else if (pikrellcam.servo_moving)
 			msg = "Motion hold (moving)";
@@ -887,6 +899,9 @@ static int		menu_settings_index;
 
 static SList 	*menu_servo_settings_list;
 static int		menu_servo_settings_index;
+
+static SList 	*menu_loop_settings_list;
+static int		menu_loop_settings_index;
 
 
 static char	*video_presets_entry[] =
@@ -1053,7 +1068,7 @@ Adjustment	motion_time_adjustment[] =
 
 Adjustment	motion_limit_adjustment[] =
 	{
-	{ "Vector_Magnitude",  3, 50, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit },
+	{ "Vector_Magnitude",  2, 50, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit },
 	{ "Vector_Count",      2, 50, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit_count },
 	{ "Burst_Count",      50, 2000, 10, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_count },
 	{ "Burst_Frames",      2, 20, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_frames }
@@ -1073,7 +1088,6 @@ Adjustment	settings_adjustment[] =
 	{ "Check_Media_Diskfree",   0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_media_diskfree },
 	{ "Check_Archive_Diskfree", 0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_archive_diskfree },
 	{ "Diskfree_Percent",  5,  90, 1, 0, 0, 0, "", NULL, &pikrellcam.diskfree_percent },
-
 	{ "video_bitrate",   1000000, 25000000, 100000, 0, 0, 0, "", NULL, &camera_adjust_temp.video_bitrate },
 	{ "video_fps",       1,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_fps },
 	{ "video_mp4box_fps",  0,    30,    1,   0, 0, 0, "", NULL, &camera_adjust_temp.video_mp4box_fps },
@@ -1088,6 +1102,16 @@ Adjustment	settings_adjustment[] =
 #define VECTOR_DIMMING_INDEX	1  /* Must track above Vector_Dimming entry */
 #define N_SETTINGS_ADJUSTMENTS \
 		(sizeof(settings_adjustment) / sizeof(Adjustment))
+
+Adjustment	loop_settings_adjustment[] =
+	{
+	{ "Startup_Loop",     0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.loop_startup_enable },
+	{ "Time_Limit",   10, 900, 10, 0, 0, 0, "sec", NULL, &pikrellcam.loop_record_time_limit },
+	{ "Diskusage_Percent", 5, 95, 1,   0, 0, 0, "", NULL, &pikrellcam.loop_diskusage_percent }
+	};
+
+#define N_LOOP_SETTINGS_ADJUSTMENTS \
+		(sizeof(loop_settings_adjustment) / sizeof(Adjustment))
 
 Adjustment	servo_settings_adjustment[] =
 	{
@@ -1517,6 +1541,11 @@ display_draw_menu(uint8_t *i420)
 				adjustments = &settings_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
+			case LOOP_SETTINGS:
+				display_state = DISPLAY_ADJUSTMENT;
+				adjustments = &loop_settings_adjustment[0];
+				cur_adj_start = TRUE;
+				break;
 			case SERVO_SETTINGS:
 				display_state = DISPLAY_ADJUSTMENT;
 				adjustments = &servo_settings_adjustment[0];
@@ -1719,6 +1748,12 @@ display_command(char *cmd)
 			display_state = DISPLAY_MENU;
 			display_menu = SETTINGS;
 			break;
+		case LOOP_SETTINGS:
+			display_menu_list = menu_loop_settings_list;
+			display_menu_index = &menu_loop_settings_index;
+			display_state = DISPLAY_MENU;
+			display_menu = LOOP_SETTINGS;
+			break;
 		case SERVO_SETTINGS:
 			display_menu_list = menu_servo_settings_list;
 			display_menu_index = &menu_servo_settings_index;
@@ -1892,9 +1927,7 @@ display_draw(uint8_t *i420)
 	/* If this frame will be a preview save jpeg and the user wants it clean,
 	|  do not draw.
 	*/
-	if (   motion_frame.do_preview_save			/* This frame will be preview */
-	    && pikrellcam.motion_preview_clean
-	   )
+	if (pikrellcam.do_preview_save && pikrellcam.motion_preview_clean)
 		clean_count = 2;	/* Failsafe maybe.  Try hard to get a clean. */
 
 	if (clean_count > 0)
@@ -2062,6 +2095,19 @@ display_init(void)
 			entry->line_position = position;
 			position += entry->length + 1;
 			menu_settings_list = slist_append(menu_settings_list, entry);
+			}
+		}
+	if (!menu_loop_settings_list)
+		{
+		for (i = 0, position = 0; i < N_LOOP_SETTINGS_ADJUSTMENTS; ++i)
+			{
+			adj = &loop_settings_adjustment[i];
+			entry = calloc(1, sizeof(MenuEntry));
+			entry->name = adj->name;
+			entry->length = strlen(entry->name);
+			entry->line_position = position;
+			position += entry->length + 1;
+			menu_loop_settings_list = slist_append(menu_loop_settings_list, entry);
 			}
 		}
 	if (!menu_servo_settings_list)

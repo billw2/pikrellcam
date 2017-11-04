@@ -69,12 +69,13 @@ static Sun	sun;
 char *
 expand_command(char *command, char *arg)
 	{
-	struct tm		*tm_now;
-	PresetPosition	*pos;
-	CompositeVector	*frame_vec = &motion_frame.final_preview_vector;
-	int				t;
-	char			specifier, *fmt, *fmt_arg, *copy, *cmd_line,
-					*name, buf[BUFSIZ];
+	struct tm			*tm_now;
+	VideoCircularBuffer	*vcb = &video_circular_buffer;
+	PresetPosition		*pos;
+	CompositeVector		*frame_vec = &motion_frame.final_preview_vector;
+	int					t;
+	char				specifier, *fmt, *fmt_arg, *copy, *cmd_line,
+						*name, buf[BUFSIZ];
 
 	copy = strdup(command);
 	cmd_line = copy;
@@ -147,6 +148,9 @@ expand_command(char *command, char *arg)
 			case 'a':
 				fmt_arg = pikrellcam.archive_dir;
 				break;
+			case 'z':
+				fmt_arg = pikrellcam.loop_dir;
+				break;
 			case 'm':
 				fmt_arg = pikrellcam.media_dir;
 				break;
@@ -181,9 +185,17 @@ expand_command(char *command, char *arg)
 				snprintf(buf, sizeof(buf), "%05d", time_lapse.series);
 				fmt_arg = buf;
 				break;
-
-			case 'A':	/* thumb filename that is motion area jpg.*/
-				fmt_arg = pikrellcam.preview_thumb_filename;
+			case 'o':
+				snprintf(buf, sizeof(buf), "%s",
+						motion_frame.motion_enable ? "on" : "off");
+				fmt_arg = buf;
+				break;
+			case 'A':
+				snprintf(buf, sizeof(buf), "%s/%s",
+						(vcb->state & VCB_STATE_LOOP_RECORD) ?
+							pikrellcam.loop_thumb_dir : pikrellcam.thumb_dir,
+						pikrellcam.thumb_name);
+				fmt_arg = buf;
 				break;
 			case 'i':	/* width of motion area */
 				t = frame_vec->box_w;
@@ -312,6 +324,7 @@ event_shutdown_request(boolean shutdown_how) /* 0 - halt  1 - reboot */
 		event_list = slist_remove(event_list, event);
 		if (event->data == (void *) shutdown_how)
 			{
+			pikrellcam_cleanup();
 			if (shutdown_how == REBOOT)
 				exec_no_wait("sudo shutdown -r now", NULL, TRUE);
 			else
@@ -352,149 +365,18 @@ event_notify_expire(boolean *notify)
 	*notify = FALSE;
 	}
 
-  /* Handle various savings of a jpeg associated with a video recording.
-  |  For motion records: save a copy of the mjpeg.jpg for later processing
-  |  with on_motion_preview_save_cmd.  If mode is "best", this copy may be
-  |  written multiple times.  This copy will be disposed of.
-  */
 void
-event_preview_save(void)
+event_motion_enable_cmd(char *cmd)
 	{
-	FILE	*f_src, *f_dst;
-	char	*s, *base, *path, *thumb, buf[BUFSIZ];
-	int		n;
-
-	path = strdup(pikrellcam.video_pathname);
-	if (   (s = strstr(path, ".mp4")) != NULL
-	    || (s = strstr(path, ".h264")) != NULL
-	   )
-		{
-		*s = '\0';
-		asprintf(&thumb, "%s.th.jpg", path);
-		strcpy(s, ".jpg");
-
-		/* Copy the current mjpeg.jpg into a motion preview file.
-		*/
-		if ((f_src = fopen(pikrellcam.mjpeg_filename, "r")) != NULL)
-			{
-			base = fname_base(path);	// motion_xxx.jpg
-			if (pikrellcam.preview_filename)
-				free(pikrellcam.preview_filename);
-			asprintf(&pikrellcam.preview_filename, "%s/%s",
-							pikrellcam.tmpfs_dir, base);
-
-			/* thumb motion_xxx.th.jpg will be created in _thumb script, so
-			|  mirror create the filename here so it can be passed to
-			|  preview_save_cmd script.
-			*/
-			base = fname_base(thumb);	// motion_xxx.th.jpg
-			if (pikrellcam.preview_thumb_filename)
-				free(pikrellcam.preview_thumb_filename);
-			asprintf(&pikrellcam.preview_thumb_filename, "%s/%s",
-							pikrellcam.thumb_dir, base);
-
-			log_printf("  event preview save: copy %s -> %s\n",
-								pikrellcam.mjpeg_filename,
-								pikrellcam.preview_filename);
-			if ((f_dst = fopen(pikrellcam.preview_filename, "w")) != NULL)
-				{
-				while ((n = fread(buf, 1, sizeof(buf), f_src)) > 0)
-					{
-					if (fwrite(buf, 1, n, f_dst) != n)
-						break;
-					}
-				fclose(f_dst);
-				}
-			fclose(f_src);
-			}
-		free(thumb);
-		}
-	free(path);
-
-	/* Let mmalcam.c mjpeg_callback() continue renaming the mjpeg file.
-	*/
-	pikrellcam.mjpeg_rename_holdoff = FALSE;
-	}
-
-  /* Generate a motion area thumb.
-  */
-void
-event_motion_area_thumb(void)
-	{
-	char	*cmd = NULL;
-
-	asprintf(&cmd, "%s/scripts-dist/_thumb $F $m $P $G $i $J $K $Y",
-			pikrellcam.install_dir);
-	exec_wait(cmd, pikrellcam.preview_filename);
-	if (cmd)
-		free(cmd);
-	}
-
-void
-event_manual_thumb(void)
-	{
-	int		h;
-	char	*cmd = NULL;
-
-	if (!pikrellcam.manual_thumb_name)
-		return;
-
-	h = 150 * pikrellcam.camera_config.video_height
-			/ pikrellcam.camera_config.video_width;
-
-	/* FIXME - .th.jpg vs .jpg handling is contorted */
-	asprintf(&cmd, "convert %s/%s.jpg -resize 150x%d %s/%s.th.jpg && rm %s/%s.jpg",
-			pikrellcam.tmpfs_dir, pikrellcam.manual_thumb_name, h,
-			pikrellcam.thumb_dir, pikrellcam.manual_thumb_name,
-			pikrellcam.tmpfs_dir, pikrellcam.manual_thumb_name);
-	exec_no_wait(cmd, NULL, TRUE);
-	free(pikrellcam.manual_thumb_name);
-	pikrellcam.manual_thumb_name = NULL;
-	if (cmd)
-		free(cmd);
-	}
-
-  /* Useful for emailing a motion event preview jpeg.
-  */
-void
-event_preview_save_cmd(char *cmd)
-	{
-	if (!cmd || !*cmd)
-		return;
-
-//	log_printf("event_preview_save_cmd(); running %s %s\n", cmd,
-//					pikrellcam.preview_filename);
-	exec_wait(cmd, pikrellcam.preview_filename);
-	}
-
-  /* Do something with a motion video, eg scp to archive, etc.
-  */
-void
-event_motion_end_cmd(char *cmd)
-	{
-	log_printf("event_motion_end_cmd(); running %s\n", cmd);
-	exec_no_wait(cmd, NULL, TRUE);
+	log_printf("on_motion_enable: - running: %s\n", cmd);
+	exec_no_wait(cmd, NULL, pikrellcam.verbose_log);
 	}
 
 void
 event_motion_begin_cmd(char *cmd)
 	{
-	log_printf("event_motion_begin_cmd(); running %s\n", cmd);
-	exec_no_wait(cmd, NULL, TRUE);
-	}
-
-  /* Motion events are finished with any preview jpeg handling, so delete it.
-  */
-void
-event_preview_dispose(void)
-	{
-	if (! *pikrellcam.preview_filename)
-		return;
-
-	log_printf("  event_preview_dispose(); removing %s\n",
-					pikrellcam.preview_filename);
-	unlink(pikrellcam.preview_filename);
-	dup_string(&pikrellcam.preview_filename, "");
+	log_printf("on_motion_begin: - running: %s\n", cmd);
+	exec_no_wait(cmd, NULL, pikrellcam.verbose_log);
 	}
 
 void
@@ -520,6 +402,15 @@ diskfree_is_low(char *dir)
 		log_printf("%s: free space %d <= Diskfree_percent limit %d\n",
 					dir, free_pct, pikrellcam.diskfree_percent);
 	return is_low;
+	}
+
+static int
+jpg_filter(const struct dirent *entry)
+	{
+	char	*jpg;
+
+	jpg = strstr(entry->d_name, ".jpg");
+	return (jpg ? 1 : 0);
 	}
 
 static int
@@ -562,7 +453,7 @@ date_compare(const struct dirent **e1, const struct dirent **e2)
 	}
 
 static boolean
-diskfree_percent_delete(char *media_dir, boolean *empty)
+video_diskfree_percent_delete(char *media_dir, boolean *empty)
 	{
 	struct dirent	**mp4_list = NULL;
 	char			*s, video_dir[256], thumb_dir[256], fname[256];
@@ -580,7 +471,7 @@ diskfree_percent_delete(char *media_dir, boolean *empty)
 				PIKRELLCAM_THUMBS_SUBDIR);
 	if ((n = scandir(video_dir, &mp4_list, mp4_filter, date_compare)) < 0)
 		{
-		log_printf("diskfree percent delete: scandir(%s) failed.\n", video_dir);
+		log_printf("video diskfree percent delete: scandir(%s) failed.\n", video_dir);
 		return FALSE;
 		}
 	if (n == 0 && empty)
@@ -618,9 +509,59 @@ diskfree_percent_delete(char *media_dir, boolean *empty)
 	}
 
 void
-event_media_diskfree_percent(char *type)
+event_video_diskfree_percent(char *type)
 	{
-	diskfree_percent_delete(pikrellcam.media_dir, NULL);
+	video_diskfree_percent_delete(pikrellcam.media_dir, NULL);
+	}
+
+static boolean
+still_diskfree_percent_delete(char *media_dir, char *sub_dir, boolean *empty)
+	{
+	struct dirent	**jpg_list = NULL;
+	char			still_dir[256], fname[256];
+	int				i, n, low_space;
+	boolean			done = FALSE;
+
+	if (empty)
+		*empty = FALSE;
+	if ((low_space = diskfree_is_low(media_dir)) == FALSE)
+		return TRUE;
+
+	snprintf(still_dir, sizeof(still_dir), "%s/%s", media_dir, sub_dir);
+	if ((n = scandir(still_dir, &jpg_list, jpg_filter, date_compare)) < 0)
+		{
+		log_printf("still diskfree percent delete: scandir(%s) failed.\n", still_dir);
+		return FALSE;
+		}
+	if (n == 0 && empty)
+		*empty = TRUE;
+
+	for (i = 0; i < n; ++i)
+		{
+		if (low_space)
+			{
+			snprintf(fname, sizeof(fname), "%s/%s",
+						still_dir, jpg_list[i]->d_name);
+			unlink(fname);
+			log_printf("Low disk space, deleted: %s\n", fname);
+
+			if (empty && i == n - 1)
+				*empty = TRUE;
+			low_space = diskfree_is_low(still_dir);
+			}
+		if (!low_space)
+			done = TRUE;
+		free(jpg_list[i]);
+		}
+	if (jpg_list)
+		free(jpg_list);
+	return done;
+	}
+
+void
+event_still_diskfree_percent(char *subdir)
+	{
+	still_diskfree_percent_delete(pikrellcam.media_dir, subdir, NULL);
 	}
 
 void
@@ -660,7 +601,7 @@ event_archive_diskfree_percent(char *type)
 					snprintf(day_dir, sizeof(day_dir), "%s/%s/%s/%s",
 								pikrellcam.archive_dir, year_list[y]->d_name,
 								month_list[m]->d_name, day_list[d]->d_name);
-					done = diskfree_percent_delete(day_dir, &dir_empty);
+					done = video_diskfree_percent_delete(day_dir, &dir_empty);
 					if (dir_empty)
 						{
 						snprintf(del_dir, sizeof(del_dir), "%s/videos", day_dir);
@@ -689,6 +630,106 @@ event_archive_diskfree_percent(char *type)
 	if (year_list)
 		free(year_list);
 	return;
+	}
+
+void
+event_loop_diskusage_percent(void)
+	{
+	struct statvfs	st;
+	struct stat		sb;
+	DIR				*dir;
+	struct dirent	*entry, **mp4_list = NULL;
+	int				i, n, used_percent;
+	boolean			diskfree_low;
+	char			*loop_dir = pikrellcam.loop_dir;
+	char			fname[256], *s;
+	uint64_t		used_blocks = 0, fs_blocks;
+
+	if (   !loop_dir
+		|| statvfs(loop_dir, &st) != 0
+	   )
+		{
+		log_printf("loop diskusage percent: failed to access %s", loop_dir);
+		return;
+		}
+
+	/* Work with 512B blocks. st_blocks is 512B, f_blocks is f_frsize (4096)
+	*/ 
+	if ((dir = opendir(pikrellcam.loop_video_dir)) != NULL)
+		{
+		for (entry = readdir(dir); entry; entry = readdir(dir))
+			{
+			if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+				continue;
+			snprintf(fname, sizeof(fname), "%s/%s",
+						pikrellcam.loop_video_dir, entry->d_name);
+			if (lstat(fname, &sb) == 0)
+				used_blocks += sb.st_blocks;
+			}
+		closedir(dir);
+		}
+	if ((dir = opendir(pikrellcam.loop_thumb_dir)) != NULL)
+		{
+		for (entry = readdir(dir); entry; entry = readdir(dir))
+			{
+			if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+				continue;
+			snprintf(fname, sizeof(fname), "%s/%s",
+						pikrellcam.loop_thumb_dir, entry->d_name);
+			if (lstat(fname, &sb) == 0)
+				used_blocks += sb.st_blocks;
+			}
+		closedir(dir);
+		}
+
+
+	fs_blocks = (uint64_t) st.f_blocks * (uint64_t) (st.f_frsize / 512);
+	used_percent = (int) ((100LL * used_blocks) / fs_blocks);
+	diskfree_low = diskfree_is_low(pikrellcam.loop_dir);
+
+	if (used_percent < pikrellcam.loop_diskusage_percent && !diskfree_low)
+		return;
+
+	n = scandir(pikrellcam.loop_video_dir, &mp4_list,
+					mp4_filter, date_compare);
+	if (n < 0)
+		{
+		log_printf("loop diskusage percent: scandir(%s) failed.",
+				pikrellcam.loop_video_dir);
+		return;
+		}
+	for (i = 0; i < n; ++i)
+		{
+		if (   used_percent >= pikrellcam.loop_diskusage_percent
+		    || diskfree_low
+		   )
+			{
+			if (pikrellcam.verbose_log)
+				log_printf("loop delete(%d used,%d low): %s\n",
+							used_percent, diskfree_low, fname);
+
+			snprintf(fname, sizeof(fname), "%s/%s",
+						pikrellcam.loop_video_dir, mp4_list[i]->d_name);
+			if (lstat(fname, &sb) == 0)
+				used_blocks -= sb.st_blocks;
+			unlink(fname);
+
+			snprintf(fname, sizeof(fname) - 3, "%s/%s",
+						pikrellcam.loop_thumb_dir, mp4_list[i]->d_name);
+			if ((s = strstr(fname, ".mp4")) != NULL)
+				{
+				strcpy(s, ".th.jpg");
+				if (lstat(fname, &sb) == 0)
+					used_blocks -= sb.st_blocks;
+				unlink(fname);
+				}
+			used_percent = (int) ((100LL * used_blocks) / fs_blocks);
+			diskfree_low = diskfree_is_low(pikrellcam.loop_dir);
+			}
+		free(mp4_list[i]);
+		}
+	if (mp4_list)
+		free(mp4_list);
 	}
 
 void
@@ -753,9 +794,11 @@ state_file_write(void)
 		fprintf(f, "tilt %d\n", tilt);
 		}
 
-	if (vcb->state & VCB_STATE_MOTION)
+	if (vcb->state & VCB_STATE_LOOP_RECORD)
+		state = "loop";
+	else if (vcb->state & VCB_STATE_MOTION_RECORD)
 		state = "motion";
-	if (vcb->state & VCB_STATE_MANUAL)
+	else if (vcb->state == VCB_STATE_MANUAL_RECORD)
 		state = "manual";
 	else
 		state = "stop";
@@ -1258,7 +1301,8 @@ at_commands_config_save(char *config_file)
 	"#     frequency: daily Mon-Fri Sat-Sun Mon Tue Wed Thu Fri Sat Sun\n"
 	"#     time:      hh:mm start dawn dusk sunrise sunset minute hour\n"
 	"#     command:   a command with possible substitution variables:\n"
-	"#                $C - script commands directory full path\n"
+	"#                $C - user scripts directory full path\n"
+	"#                $c - distribution scripts directory full path\n"
 	"#                $I - the PiKrellCam install directory\n"
 	"#                $a - archive directory full path\n"
 	"#                $m - media directory full path\n"
@@ -1266,19 +1310,26 @@ at_commands_config_save(char *config_file)
 	"#                $P - command FIFO full path\n"
 	"#                $G - log file full path\n"
 	"#                $H - hostname\n"
+	"#                $h - multicast from hostname\n"
 	"#                $E - effective user running PiKrellCam\n"
 	"#                $V - video files directory full path\n"
 	"#                $t - thumb files directory full path\n"
+	"#                $z - loop files directory full path\n"
 	"#                $v - last video saved full path filename\n"
+	"#                $A - last thumb saved full path filename\n"
 	"#                $S - still files directory full path\n"
 	"#                $s - last still saved full path filename\n"
 	"#                $L - timelapse files directory full path\n"
 	"#                $l - timelapse current series filename format: tl_sssss_%%05d.jpg\n"
 	"#                     in timelapse sub directory.  If used in any script\n"
 	"#                     arg list, $l must be the last argument.\n"
-	"#                $T - timelapse video full path filename in video sub directory\n"
 	"#                $N - timelapse sequence last number\n"
+	"#                $n - timelapse series\n"
+	"#                $T - timelapse video full path filename in video sub directory\n"
+	"#                $o - motion enable state\n"
+	"#                $p - current preset number pair: position setting\n"
 	"#                $D - current_minute dawn sunrise sunset dusk\n"
+	"#                $X - motion video sequence number\n"
 	"#                $Z - pikrellcam version\n"
 	"# \n"
 	"# Commands must be enclosed in quotes.\n"

@@ -82,7 +82,7 @@ void setup_h264_tcp_server(void)
   }
   #endif
  
- if(bind (listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr))<0);
+ if(bind (listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr))<0)
  { 
 //    perror("Server: error binding\n");
     log_printf("Server: error binding\n");  

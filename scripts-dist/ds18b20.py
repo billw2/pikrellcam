@@ -66,7 +66,7 @@ try:
 	if output == "fifo":
 #		fifo = open(home + "/pikrellcam/www/FIFO", "w")
 		fifo = open("/home/pi/pikrellcam/www/FIFO", "w")
-		fifo.write("annotate_string append ds18b20 " + out_string)
+		fifo.write("annotate_string append ds18b20 " + out_string + "\n")
 		fifo.close()
 	else:
 		print out_string

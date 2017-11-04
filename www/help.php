@@ -70,10 +70,20 @@ And there is a Raspberry Pi
 
 Version 4.1.0
 <div class='indent1'>
-<a href="help.php#DISKUSAGE">Disk free limit for media videos</a><br>
+<a href="help.php#LOOP">Loop recording</a> with percent
+<a href="help.php#DISKUSAGE">diskusage limit</a>
+checking to auto delete oldest loop videos.<br>
+Disk free percent checking for stills/timelapse.<br>
+pikrellcam.conf: on_manual_end on_loop_end on_motion_enable.
+</div>
+
+Version 4.0.5
+<div class='indent1'>
+<a href="help.php#DISKFREE">Disk free limit for media videos</a><br>
 Stills have a thumbs view.
 </div>
 <p>
+
 Version 4.0.4 - Fix annotation strings to allow spaces and longer length.
 <br>
 Version 4.0.2 - Bugfix for $v variable passed to on_motion_end.
@@ -688,7 +698,7 @@ Preset group and there will be no Servo button in the Config group.
 		<li><span style='font-weight:700'>Still Res</span> - selecting different resolutions
 		gives different fields of view and aspect ratios.
 		</li>
-<a name="DISKUSAGE">
+<a name="DISKFREE">
 		<li><span style='font-weight:700'>Settings</span>
 			<ul>
 			<li><span style='font-weight:700'>Startup_Motion</span> - set to
@@ -698,10 +708,10 @@ Preset group and there will be no Servo button in the Config group.
 			</li>
 
 			<li><span style='font-weight:700'>Check_Media_Diskfree</span>
-			- if set <span style='font-weight:700'>ON</span>, when new media
-			motion or manual videos are recorded, delete oldest videos so
-			that the configured minimum Diskfree_Percent
-			will be maintained on the media file system.
+			- if set <span style='font-weight:700'>ON</span>, when new motion
+			or manual videos or stills/timelapse are recorded, delete
+			oldest videos or jpegs so that the configured minimum
+			Diskfree_Percent will be maintained on the media file system.
 			</li>
 
 			<li><span style='font-weight:700'>Check_Archive_Diskfree</span>
@@ -719,7 +729,9 @@ Preset group and there will be no Servo button in the Config group.
 			<li><span style='font-weight:700'>Diskfree_Percent</span>
 			- maintain this minimum free percent on media and archive
 			file systems when checking is enabled for those file systems
-			by deleting oldest videos.
+			by deleting oldest videos or stills/timelapse.
+			This is always enabled for loop videos and overrides
+			Diskusage_Percent.
 			</li>
 
 			<li><span style='font-weight:700'>video_bitrate</span> - determines the size of a video
@@ -809,6 +821,27 @@ Preset group and there will be no Servo button in the Config group.
 			circular buffer and so the actual pre capture time will be less than what
 			is configured.
 			</div>
+		</li>
+<a name="DISKUSAGE">
+		<li><span style='font-weight:700'>Loop</span><br>
+			<ul>
+			<li><span style='font-weight:700'>Startup_Loop</span> - set to
+			<span style='font-weight:700'>ON</span> for loop recordings to
+			be enabled each time PiKrellCam starts.  Loop recording can be
+			enabled from the web page or a script or an at-command.
+			</li>
+			<li><span style='font-weight:700'>Time_Limit</span>
+			- loop video length in seconds.
+			</li>
+			<li><span style='font-weight:700'>Diskusage_Percent</span>
+			- Limit disk space used by loop videos to this percent
+			by deleting oldest loop videos as new ones are recorded.
+			Loop diskusage checks cannot be disabled.  If the free space on
+			on the loop videos filesystem falls to the configured
+			Diskfree_Percent then that will override this disk usage percent
+			and allowed loop video disk usage can shrink below this value.
+            </li>
+			</ul>
 		</li>
 		<li><span style='font-weight:700'>Servo</span><br>
 			The Servo menu is shown only if servos have been configured.
@@ -1066,6 +1099,84 @@ So microphone placement and a clean power supply can be important.
 </div>
 
 </div>
+
+
+
+<a name="LOOP">
+<span style='font-size: 1.5em; font-weight: 650;'>Loop Recording</span><hr>
+<div class='indent0'>
+Click the loop record button
+<input type="image" src="images/loop.png">
+to toggle recording continuous loop videos.
+If motion is enabled during a loop video and motion
+detected, the motion commands are run (on_motion_begin, on_motion_preview_save,
+on_motion_end) and the web page thumbnail for the loop video will
+show that motion occurred.
+<p>
+The default loop directory is under the ~/pikrellcam/media directory.
+This directory can be mounted with a dedicated loop file system and mounting
+can be done in fstab or in the pikrellcam startup script.  Or a
+dedicated disk can be mounted to some other directory if the loop_dir
+value in pikrellcam.conf is edited to reference that location.
+<p>
+Loop video recording continuously wears flash disks,
+so if that is an issue, they can be enabled only for limited times
+of interest with commands sent to the FIFO:
+<pre>
+echo "loop on" > ~/pikrellcam/www/FIFO
+echo "loop off" > ~/pikrellcam/www/FIFO
+echo "loop toggle" > ~/pikrellcam/www/FIFO
+</pre>
+or commands in at-commands.conf like:
+<pre>
+Mon-Fri 7:30   "@loop on"
+Mon-Fri 9:30   "@loop off"
+</pre>
+
+Oldest loop videos are automatically deleted to enforce both a configured
+maximum disk usage percent and configured minimum disk free percent with a
+priority on minimum disk free percent.  The idea is to have a fixed maximum
+diskusage percent for loop videos and then media videos (manual and motion)
+and archived videos are allowed to grow until a minimum disk free percent
+remains if disk free checking is enabled for those videos.
+<p>
+Examples on the interactions of loop recording, setting disk percent
+limits and enabling disk free checking for motion videos:
+        <ul>
+            <li> Media videos, archived videos and loop videos
+            are all on the same mounted file system that is different
+            from the SD card OS file system.  If the
+            Diskusage_Percent is set to say 50% and Diskfree_Percent
+            is 10%, then there will be up to 40% of shared disk space
+            available for media and archived videos. Setting
+            Check_Archive_Diskfree ON has little to no effect because
+            archiving is moving files within the same file system and
+            not using more disk space.
+            </li>
+            <li> Media videos and loop videos are all on
+            the same file system that is shared with the OS on a
+            SD card where the OS uses about 1/2 of the space. If
+            Diskusage_Percent is set to 25% and Diskfree_Percent
+            is set to 10%, then up to 15% disk space will be
+            available for media videos.  Archiving has the same effect
+            as above.
+            </li>
+            <li> Media videos, archive videos and loop videos are each
+            on separate file systems (disks mounted and dedicated to each
+            video type).  If Diskfree_Percent is 10%, media videos
+            can use up to 90% disk space, and Diskusage_Percent
+            can be set high to 90% to use almost all of loop video disk
+            space. In this case Check_Archive_Diskfree can be set ON
+            and the oldest archived videos will be deleted to maintain a
+            Diskfree_Percent minimum applied to the archive disk.
+            </li>
+        </ul>
+Configure the loop time limit and max diskusage percent in the web page
+Setup->Config->Loop.
+
+</div>
+
+
 
 
 <span style='font-size: 1.5em; font-weight: 650;'>Configuration Files</span><hr>
@@ -1355,6 +1466,7 @@ record on pre_capture_time
 record on pre_capture_time time_limit
 record pause
 record off
+loop [on|off|toggle]
 still
 tl_start period
 tl_end

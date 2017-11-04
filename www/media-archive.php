@@ -74,6 +74,8 @@ function media_dir_array_create($media_dir)
 			$extension = substr(strrchr($file_name, "."), 0);
 			if ("$extension" != ".mp4" && "$extension" != ".jpg" && "$extension" != ".h264")
 				continue;
+			if ("$extension" == ".h264" && "$media_mode" == "loop")
+				continue;
 
 			// Try to use an mtime from file name ccc_yyyy-mm-dd_hh.mm.ss_ccc.[mp4|jpg] which
 			// has date embedded in name instead of filesystem mtime which can change if file
@@ -407,13 +409,15 @@ function restart_page($selected)
 
 	$media_mode = "archive";
 	if (isset($_GET["mode"]))
-		$media_mode = $_GET["mode"];	// "archive" or "media"
+		$media_mode = $_GET["mode"];	// "archive", "media" or "loop"
 	$title = TITLE_STRING;
 
 	$header = "<!DOCTYPE html><html><head>";
 	$header .= "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
 	if ("$media_mode" == "archive")
 		$header .= "<title>$title Archive</title>";
+	else if ("$media_mode" == "loop")
+		$header .= "<title>$title Loop</title>";
 	else
 		$header .= "<title>$title Media</title>";
 	$header .= "<link rel=\"stylesheet\" href=\"js-css/pikrellcam.css\" />";
@@ -464,6 +468,11 @@ function restart_page($selected)
 		$day1 = $_GET["d1"];
 		$env = "mode=$media_mode&type=$media_type&label=$label&year=$year&m0=$month0&d0=$day0&m1=$month1&d1=$day1";
 		}
+	else if ("$media_mode" == "loop")
+		{
+		$media_dir = "loop";
+		$env = "mode=$media_mode&type=$media_type";
+		}
 	else
 		{
 		$media_dir = "media";
@@ -478,6 +487,16 @@ function restart_page($selected)
 	if (isset($_GET["videos_mode_thumbs"]))
 		{
 		$videos_mode = "thumbs";
+		config_user_save();
+		}
+	if (isset($_GET["loop_mode_list"]))
+		{
+		$loop_mode = "list";
+		config_user_save();
+		}
+	if (isset($_GET["loop_mode_thumbs"]))
+		{
+		$loop_mode = "thumbs";
 		config_user_save();
 		}
 	if (isset($_GET["stills_mode_list"]))
@@ -495,6 +514,14 @@ function restart_page($selected)
 		{
 		$media_view = $stills_mode;
 		$media_subdir = "stills";
+		}
+	else if ("$media_mode" == "loop")
+		{
+		$media_view = $loop_mode;
+		if ("$loop_mode" == "thumbs")
+			$media_subdir = "thumbs";
+		else
+			$media_subdir = "videos";
 		}
 	else
 		{
@@ -517,6 +544,13 @@ function restart_page($selected)
 				$archive_thumbs_scrolled = "no";
 			else
 				$archive_thumbs_scrolled = "yes";
+			}
+		else if ("$media_mode" == "loop")
+			{
+			if ("$loop_thumbs_scrolled" == "yes")
+				$loop_thumbs_scrolled = "no";
+			else
+				$loop_thumbs_scrolled = "yes";
 			}
 		else
 			{
@@ -650,6 +684,7 @@ function restart_page($selected)
 	if (   "$media_view" == "thumbs" &&
 	       (   ("$media_mode" == "archive" && "$archive_thumbs_scrolled" == "no")
 	        || ("$media_mode" == "media" && "$media_thumbs_scrolled" == "no")
+	        || ("$media_mode" == "loop" && "$loop_thumbs_scrolled" == "no")
 	       )
 	   )
 		$scrolled = "no";
@@ -750,18 +785,32 @@ function restart_page($selected)
 
 //	echo "<span style=\"font-size: 1.2em; font-weight: 500;\">
 //			$media_label</span>";
-
-	if ("$media_type" == "videos")
+	if ("$media_mode" == "loop")
 		{
-		echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Videos $media_label</span> &nbsp;&nbsp;";
-		echo "<a href=\"media-archive.php?newtype=stills&$env\"
-				class='btn-control' style='margin-left:8px;'>Stills</a>";
+		echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Loop</span> &nbsp;&nbsp;";
+		echo "<a href=\"media-archive.php?mode=media&type=videos\"
+					class='btn-control' style='margin-left:8px;'>Videos</a>";
+		echo "<a href=\"media-archive.php?mode=media&type=stills\"
+					class='btn-control' style='margin-left:4px;'>Stills</a>";
 		}
-	else if ("$media_type" == "stills")
+	else
 		{
-		echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Stills $media_label</span> &nbsp; &nbsp;";
-		echo "<a href=\"media-archive.php?newtype=videos&$env\"
-				class='btn-control' style='margin-left:8px;'>Videos</a>";
+		if ("$media_type" == "videos")
+			{
+			echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Videos $media_label</span> &nbsp;&nbsp;";
+			echo "<a href=\"media-archive.php?newtype=stills&$env\"
+					class='btn-control' style='margin-left:8px;'>Stills</a>";
+			echo "<a href=\"media-archive.php?mode=loop&type=videos\"
+					class='btn-control' style='margin-left:4px;'>Loop</a>";
+			}
+		else if ("$media_type" == "stills")
+			{
+			echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Stills $media_label</span> &nbsp; &nbsp;";
+			echo "<a href=\"media-archive.php?newtype=videos&$env\"
+					class='btn-control' style='margin-left:8px;'>Videos</a>";
+			echo "<a href=\"media-archive.php?mode=loop&newtype=videos\"
+					class='btn-control' style='margin-left:4px;'>Loop</a>";
+			}
 		}
 
 	if ("$media_mode" == "archive")
@@ -784,7 +833,14 @@ function restart_page($selected)
 		Disk:&thinsp;${total}B &nbsp Free:&thinsp;${free}B&thinsp;($free_percent %)</span>";
 
 	echo "<span style='float:right;'>";
-	if ("$media_type" == "stills")
+	if ("$media_mode" == "loop")
+		{
+		if ("$loop_mode" == "thumbs")
+			echo "<a href='media-archive.php?$env&loop_mode_list'>List View</a>";
+		else
+			echo "<a href='media-archive.php?$env&loop_mode_thumbs'>Thumbs View</a>";
+		}
+	else if ("$media_type" == "stills")
 		{
 		if ("$stills_mode" == "thumbs")
 			echo "<a href='media-archive.php?$env&stills_mode_list'>List View</a>";
@@ -844,10 +900,10 @@ function restart_page($selected)
 					$next_file = "&file=$next_select";
 				else
 					$next_file = "";
-				if ("$media_view" == "thumbs")
+				if ("$media_view" == "thumbs" && "$media_mode" != "loop")
 					echo "<input style='margin-left: 16px' type='checkbox' name='checkbox_list[]'
 						onClick=\"select_day(this, '$ymd')\"/>";
-				else
+				else if ("$media_mode" != "loop")
 					{
 					if ("$media_mode" != "archive")
 						{
@@ -893,6 +949,13 @@ function restart_page($selected)
 					$out = "<fieldset style=\"display:inline; $border_color margin:1px; padding:2px 0px 1px 1px; vertical-align:top; font-size: 0.88em\">";
 					$out .= "<span style=\"color: $color;\">$display_name &nbsp</span>";
 					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"/></span>";
+					if ("$media_mode" == "loop")
+						{
+						if (substr($fname, -5, 1) == "0")
+							$fsize = "";
+						else
+							$fsize = "motion";
+						}
 					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
 					if (substr($fname, 0, 3) == "man")
 						$out .= "<span style=\"color: $color;\">Manual</span><br>";
@@ -909,6 +972,11 @@ function restart_page($selected)
 						if (substr($period, 0, 1) == "0")
 							$period = "---";
 						$out .= "<span style=\"color: $color;\">Timelapse: $period</span><br>";
+						}
+					else if (substr($fname, 0, 4) == "loop")
+						{
+						if ("$media_mode" == "archive")
+							$out .= "<span style=\"color: $color;\">Loop</span><br>";
 						}
 					else if (   "$media_type" == "stills"
 					         && substr($fname, 0, 6) != "image_")
@@ -970,7 +1038,11 @@ function restart_page($selected)
 							else
 								$color = $media_text_color;
 
-							echo "<a href='media-archive.php?$env&file=$fname'
+							if ("$media_mode" == "loop")
+								echo "<a href='media-archive.php?$env&file=$fname'
+									style=\"color: $color; text-decoration: none;\">$display_name</a>";
+							else
+								echo "<a href='media-archive.php?$env&file=$fname'
 									style=\"color: $color; text-decoration: none;\">$display_name</a>
 									<span style='font-size: 0.86em; color: $default_text_color;'>
 										($fsize)</span>";

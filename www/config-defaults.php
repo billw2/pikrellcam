@@ -23,8 +23,10 @@ $background_image = "images/paper1.png";
 $archive_initial_view = "thumbs";
 $archive_thumbs_scrolled = "yes";
 $media_thumbs_scrolled = "yes";
+$loop_thumbs_scrolled = "yes";
 $videos_mode = "thumbs";
 $stills_mode = "list";
+$loop_mode = "thumbs";
 
 $video_url = "";
 $show_audio_controls = "yes";
@@ -36,8 +38,8 @@ function config_user_save()
 	global $default_text_color, $selected_text_color, $media_text_color, $manual_video_text_color;
 	global $n_log_scroll_pixels, $log_text_color, $n_thumb_scroll_pixels, $background_image;
 	global $config_event_count, $include_control;
-	global $archive_initial_view, $videos_mode, $stills_mode;
-	global $archive_thumbs_scrolled, $media_thumbs_scrolled;
+	global $archive_initial_view, $videos_mode, $stills_mode, $loop_mode;
+	global $archive_thumbs_scrolled, $media_thumbs_scrolled, $loop_thumbs_scrolled;
 	global $video_url, $show_audio_controls;
 
 	$file = fopen("config-user.php", "w");
@@ -96,9 +98,11 @@ function config_user_save()
 	fwrite($file, "define(\"N_COLUMNS\", \"$n_columns\");\n");
 	fwrite($file, "define(\"VIDEOS_MODE\", \"$videos_mode\");\n");
 	fwrite($file, "define(\"STILLS_MODE\", \"$stills_mode\");\n");
+	fwrite($file, "define(\"LOOP_MODE\", \"$loop_mode\");\n");
 	fwrite($file, "define(\"ARCHIVE_INITIAL_VIEW\", \"$archive_initial_view\");\n");
 	fwrite($file, "define(\"ARCHIVE_THUMBS_SCROLLED\", \"$archive_thumbs_scrolled\");\n");
 	fwrite($file, "define(\"MEDIA_THUMBS_SCROLLED\", \"$media_thumbs_scrolled\");\n\n");
+	fwrite($file, "define(\"LOOP_THUMBS_SCROLLED\", \"$loop_thumbs_scrolled\");\n\n");
 
 	fwrite($file, "// Do not edit this value..\n");
 	fwrite($file, "define(\"CONFIG_EVENT_COUNT\", \"$config_event_count\");\n");
@@ -138,12 +142,16 @@ if (defined('VIDEOS_MODE'))
     $videos_mode = VIDEOS_MODE;
 if (defined('STILLS_MODE'))
     $stills_mode = STILLS_MODE;
+if (defined('LOOP_MODE'))
+    $loop_mode = LOOP_MODE;
 if (defined('ARCHIVE_INITIAL_VIEW'))
     $archive_initial_view = ARCHIVE_INITIAL_VIEW;
 if (defined('ARCHIVE_THUMBS_SCROLLED'))
     $archive_thumbs_scrolled = ARCHIVE_THUMBS_SCROLLED;
 if (defined('MEDIA_THUMBS_SCROLLED'))
     $media_thumbs_scrolled = MEDIA_THUMBS_SCROLLED;
+if (defined('LOOP_THUMBS_SCROLLED'))
+    $loop_thumbs_scrolled = LOOP_THUMBS_SCROLLED;
 if (defined('N_THUMB_SCROLL_PIXELS'))
     $n_thumb_scroll_pixels = N_THUMB_SCROLL_PIXELS;
 
