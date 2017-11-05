@@ -847,13 +847,18 @@ loop_record(void)
 	VideoCircularBuffer *vcb = &video_circular_buffer;
 	int 			n;
 	static time_t	t_loop_start;
-	static int		n_loops;
+	static int		n_loops, last_time_limit;
 
 	if (pikrellcam.loop_enable && vcb->state == VCB_STATE_NONE)
 		{
 		pthread_mutex_lock(&vcb->mutex);
-		if (t_loop_start == 0)
+		if (   t_loop_start == 0
+		    || last_time_limit != pikrellcam.loop_record_time_limit
+		   )
+			{
 			t_loop_start = vcb->t_cur;
+			n_loops = 0;
+			}
 		vcb->loop_start_time =
 					t_loop_start + n_loops * pikrellcam.loop_record_time_limit;
 		++n_loops;
@@ -864,6 +869,7 @@ loop_record(void)
 
 		video_record_start(vcb, VCB_STATE_LOOP_RECORD_START);
 		pthread_mutex_unlock(&vcb->mutex);
+		last_time_limit = pikrellcam.loop_record_time_limit;
 		}
 	else if (!pikrellcam.loop_enable)
 		{
