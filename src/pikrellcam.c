@@ -467,6 +467,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 	   )
 		return;
 
+	vcb->record_hold = FALSE;
 	if (start_state == VCB_STATE_MOTION_RECORD_START)
 		{
 		if (mf->external_trigger_pre_capture > 0)
@@ -839,6 +840,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	motion_event_write(vcb, mf, FALSE);
 	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;
+	vcb->record_hold =FALSE;
 	}
 
 void
@@ -1399,7 +1401,7 @@ command_process(char *command_line)
 		case archive_video:		/* ["day"|video.mp4] yyyy-mm-dd */
 			if (sscanf(args, "%127s %63s", arg1, arg2) == 2)
 				{
-				if (!strncmp(arg1, "loop", 4))
+				if (!strncmp(arg1, "day_loop", 4))
 					fmt = "%s/scripts-dist/_archive-video %s %s $a $z $P $G";
 				else
 					fmt = "%s/scripts-dist/_archive-video %s %s $a $m $P $G";

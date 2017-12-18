@@ -81,7 +81,7 @@ then
 fi
 
 
-if [ "$DAY_FLAG" == "day" ]
+if [ "$DAY_FLAG" == "day" ] || [ "$DAY_FLAG" == "day_loop" ]
 then
 	echo "  archive day $DATE to $ARCHIVE_DIR/$DATE_PATH" >> $LOG_FILE
 	mv $MEDIA_DIR/videos/*${DATE}*.mp4 $ARCHIVE_VIDEOS_PATH

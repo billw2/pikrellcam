@@ -67,7 +67,8 @@ And there is a Raspberry Pi
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
-
+Version 4.1.2 - Fix record to end of event_gap bug. Add day_loop arg to archive_video command.
+<br>
 Version 4.1.0
 <div class='indent1'>
 <a href="help.php#LOOP">Loop recording</a> with percent
@@ -1008,10 +1009,8 @@ Edit pikrellcam.conf to change these settings:
 	&nbsp;&nbsp;&nbsp; 8000 11025 12000 16000 22050 24000 32000 44100 48000<br>
 	</li>
 	<li><span style='font-weight:700'>audio_channels</span> - default: 1<br>
-		Set to 1
-		for mono or 2 (not tested yet) for stereo.  Probably
-		most USB sound card
-		microphone inputs will support only one channel and setting 2 will
+		Set to 1 for mono or 2 for stereo.  If using a common
+		USB sound card that supports only one channel, setting 2 will
 		be reverted to 1 when pikrellcam opens the microphone.
 	</li>
 	<li><span style='font-weight:700'>audio_mp3_quality_Pi2</span> - default: 2<br>
@@ -1436,10 +1435,15 @@ or a specific video (including its thumb) can be archived with:
 <pre>
 echo "archive_video motion_2015-11-05_14.46.14_456.mp4 2015-11-05" > ~/pikrellcam/www/FIFO
 </pre>
-To archive all videos for today or yesterday:
+To archive all media videos for today or yesterday:
 <pre>
 echo "archive_video day today" > ~/pikrellcam/www/FIFO
 echo "archive_video day yesterday" > ~/pikrellcam/www/FIFO
+</pre>
+To archive all loop videos for today or yesterday:
+<pre>
+echo "archive_video day_loop today" > ~/pikrellcam/www/FIFO
+echo "archive_video day_loop yesterday" > ~/pikrellcam/www/FIFO
 </pre>
 Stills may be script archived using the same set of arguments with the archive_still FIFO command.
 </div>
@@ -1502,7 +1506,7 @@ video_mp4box_fps fps
 inform "some string" row justify font xs ys
 	echo inform \"Have a nice day.\" 3 3 1 > FIFO
 	echo inform timeout 3
-archive_video [day|video.mp4] [today|yesterday|yyyy-mm-dd]
+archive_video [day|day_loop|video.mp4] [today|yesterday|yyyy-mm-dd]
 archive_still [day|video.mp4] [today|yesterday]yyyy-mm-dd]
 annotate_text_background_color [none|rrggbb]   # rrggbb is hex color value 000000 - ffffff
 annotate_text_brightness value   # value is integer 0 - 255, 255 default

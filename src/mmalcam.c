@@ -499,6 +499,7 @@ video_write_thread(void *ptr)
 		        || (vcb->state & VCB_STATE_MANUAL_RECORD)
 		       )
 		    && tail != head
+			&& !vcb->record_hold
 		   )
 			vcb->file_writing = TRUE;
 		else
@@ -876,13 +877,17 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 					audio_buffer_set_record_head(acb, audio_head);
 				else
 					audio_buffer_set_record_head_tail(acb, audio_head, i);
+				vcb->record_hold = FALSE;
 //				video_buffer_write(vcb);
 				}
-			else if ((pikrellcam.audio_debug & 0x4) && !prev_pause)
-				printf("Pause start - frame_count:%d pause_frame_count:%d time_usec:%d\n",
+			else
+				{
+				vcb->record_hold = TRUE;
+				if ((pikrellcam.audio_debug & 0x4) && !prev_pause)
+					printf("Pause start - frame_count:%d pause_frame_count:%d time_usec:%d\n",
 						vcb->frame_count, pause_frame_count_adjust,
 						(int)(vcb->last_pts - pikrellcam.video_start_pts));
-
+				}
 			prev_pause = vcb->pause;
 	
 			if (force_stop)
@@ -904,9 +909,13 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				if (mmalbuf->pts > 0)
 					vcb->last_pts = mmalbuf->pts;
 				vcb->video_frame_count = vcb->frame_count;
+				vcb->record_hold = FALSE;
 //				video_buffer_write(vcb);
 				audio_buffer_set_record_head(acb, audio_head);
 				}
+			else
+				vcb->record_hold = TRUE;
+
 			if (   force_stop
 		        || (   mf->external_trigger_time_limit == 0
 			        && vcb->t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap

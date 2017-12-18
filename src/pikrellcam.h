@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.1.1"
+#define	PIKRELLCAM_VERSION	"4.1.2"
 
 
 //TCP Stream Server
@@ -371,6 +371,7 @@ typedef struct
 	FILE		*file,
 				*motion_stats_file;
 	boolean		file_writing,
+				record_hold,
 				motion_stats_do_header;
 	int			state,
 				frame_count,
