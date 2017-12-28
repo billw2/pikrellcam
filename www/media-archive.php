@@ -951,10 +951,15 @@ function restart_page($selected)
 					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"/></span>";
 					if ("$media_mode" == "loop")
 						{
-						if (substr($fname, -5, 1) == "0")
-							$fsize = "";
+						$type = substr($fname, -5, 1);
+						if ("$type" == "m" || "$type" == "1")
+							$fsize = "Motion";
+						else if ("$type" == "a")
+							$fsize = "Audio";
+						else if ("$type" == "e")
+							$fsize = "Extern";
 						else
-							$fsize = "motion";
+							$fsize = "";
 						}
 					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
 					if (substr($fname, 0, 3) == "man")
@@ -976,7 +981,24 @@ function restart_page($selected)
 					else if (substr($fname, 0, 4) == "loop")
 						{
 						if ("$media_mode" == "archive")
-							$out .= "<span style=\"color: $color;\">Loop</span><br>";
+							{
+							if (substr($fname, -5, 1) == "1")
+								$out .= "<span style=\"color: $color;\">Loop Motion</span><br>";
+							if (substr($fname, -5, 1) == "a")
+								$out .= "<span style=\"color: $color;\">Loop Audio</span><br>";
+							else if (substr($fname, -5, 1) == "e")
+								$out .= "<span style=\"color: $color;\">Loop Extern</span><br>";
+							else
+								$out .= "<span style=\"color: $color;\">Loop</span><br>";
+							}
+						}
+					else if (substr($fname, 0, 3) == "aud")
+						{
+						$out .= "<span style=\"color: $color;\">Audio</span><br>";
+						}
+					else if (substr($fname, 0, 3) == "ext")
+						{
+						$out .= "<span style=\"color: $color;\">Extern</span><br>";
 						}
 					else if (   "$media_type" == "stills"
 					         && substr($fname, 0, 6) != "image_")

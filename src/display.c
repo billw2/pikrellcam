@@ -53,6 +53,7 @@ MotionTimes		motion_times_temp;
 #define MOTION_TIME			19
 #define SERVO_SETTINGS		20
 #define LOOP_SETTINGS		21
+#define AUDIO_SETTINGS		22
 
 typedef struct
 	{
@@ -76,6 +77,7 @@ static DisplayCommand display_commands[] =
 	{ "settings",        SETTINGS },
 	{ "loop_settings",  LOOP_SETTINGS },
 	{ "servo_settings",  SERVO_SETTINGS },
+	{ "audio_settings",  AUDIO_SETTINGS },
 	{ "picture",  PICTURE		  },
 	{ "metering", METERING		  },
 	{ "exposure", EXPOSURE		  },
@@ -526,8 +528,8 @@ display_audio(void)
 	snprintf(buf, sizeof(buf), "%ddB", pikrellcam.audio_gain_dB);
 	i420_draw_string(da, normal_font, 0xff, 1, y0, buf);
 
-	dy = acb->vu_meter * VU_HEIGHT / INT16_MAX;
-	acb->vu_meter = 0;
+	dy = acb->vu_meter0 * VU_HEIGHT / INT16_MAX;
+	acb->vu_meter0 = 0;
 	y = y0 - dy - 1;
 	if (dy > 0)
 		{
@@ -541,6 +543,33 @@ display_audio(void)
 				y0 - (VU_HEIGHT + 2), 8, VU_HEIGHT + 2);
 	glcd_draw_rectangle(glcd, da, 0, 2,
 				y0 - (VU_HEIGHT + 1), 6, VU_HEIGHT);
+
+	dy = acb->vu_meter1 * VU_HEIGHT / INT16_MAX;
+	acb->vu_meter1 = 0;
+	if (acb->channels == 2)
+		{
+		y = y0 - dy - 1;
+		if (dy > 0)
+			{
+			glcd_draw_v_line(glcd, da, 0xc0, 10, y, dy);
+			glcd_draw_v_line(glcd, da, 0xff, 11, y, dy);
+			glcd_draw_v_line(glcd, da, 0xff, 12, y, dy);
+			glcd_draw_v_line(glcd, da, 0xc0, 13, y, dy);
+			}
+		glcd_draw_h_line(glcd, da, 0, 10, y, 4);
+		glcd_draw_rectangle(glcd, da, 0xff, 8,
+					y0 - (VU_HEIGHT + 2), 8, VU_HEIGHT + 2);
+		glcd_draw_rectangle(glcd, da, 0, 9,
+					y0 - (VU_HEIGHT + 1), 6, VU_HEIGHT);
+		}
+	if (pikrellcam.audio_trigger_video)
+		{
+		dy = pikrellcam.audio_trigger_level * VU_HEIGHT / 100;
+		glcd_draw_h_line(glcd, da, 0, 3, y0 - dy,
+					acb->channels == 2 ? 11 : 4);
+		glcd_draw_h_line(glcd, da, 0xff, 3, y0 - dy - 1,
+					acb->channels == 2 ? 11 : 4);
+		}
 
 	if (acb->mp3_stream_fd > 0)
 		{
@@ -725,7 +754,10 @@ motion_draw(uint8_t *i420)
 
 	if (vcb->state & VCB_STATE_LOOP_RECORD)
 		{
-		msg = (vcb->state & VCB_STATE_MOTION_RECORD) ? "-motion" : "";
+		msg = "";
+		if (vcb->state & VCB_STATE_MOTION_RECORD)
+			msg = pikrellcam.external_motion ?
+				(mf->external_detects ? "-extern" : "-audio") : "-motion";
 		t_record = vcb->max_record_time - t_record;
 		if (t_record < 0)
 			t_record = 0;
@@ -740,7 +772,7 @@ motion_draw(uint8_t *i420)
 			{
 			t_hold = vcb->max_record_time -
 					(pikrellcam.t_now - vcb->record_start_time);
-			snprintf(info, sizeof(info), "REC (Motion) %d:%02d  end %d:%02d",
+			snprintf(info, sizeof(info), "REC (Extern) %d:%02d  end %d:%02d",
 						t_record / 60, t_record % 60,
 						t_hold / 60, t_hold % 60);
 			}
@@ -748,9 +780,11 @@ motion_draw(uint8_t *i420)
 			{
 			t_hold = pikrellcam.motion_times.event_gap -
 					(pikrellcam.t_now - vcb->motion_last_detect_time);
-			snprintf(info, sizeof(info), "REC (Motion) %d:%02d  hold %d:%02d",
-						t_record / 60, t_record % 60,
-						t_hold / 60, t_hold % 60);
+			snprintf(info, sizeof(info), "REC (%s) %d:%02d  hold %d:%02d",
+					pikrellcam.external_motion ?
+						(mf->external_detects ? "Extern" : "Audio") : "Motion",
+					t_record / 60, t_record % 60,
+					t_hold / 60, t_hold % 60);
 			}
 		}
 	else if (vcb->state == VCB_STATE_MANUAL_RECORD)
@@ -902,6 +936,9 @@ static int		menu_servo_settings_index;
 
 static SList 	*menu_loop_settings_list;
 static int		menu_loop_settings_index;
+
+static SList 	*menu_audio_settings_list;
+static int		menu_audio_settings_index;
 
 
 static char	*video_presets_entry[] =
@@ -1112,6 +1149,16 @@ Adjustment	loop_settings_adjustment[] =
 
 #define N_LOOP_SETTINGS_ADJUSTMENTS \
 		(sizeof(loop_settings_adjustment) / sizeof(Adjustment))
+
+Adjustment	audio_settings_adjustment[] =
+	{
+	{ "Audio_Trigger_Video", 0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.audio_trigger_video },
+	{ "Audio_Trigger_Level", 2, 100, 1, 0, 0, 0, "", NULL, &pikrellcam.audio_trigger_level },
+	{ "Box_MP3_Only",  0, 1, 1, 0, 0, 0, "", NULL, &pikrellcam.audio_box_MP3_only }
+	};
+
+#define N_AUDIO_SETTINGS_ADJUSTMENTS \
+		(sizeof(audio_settings_adjustment) / sizeof(Adjustment))
 
 Adjustment	servo_settings_adjustment[] =
 	{
@@ -1546,6 +1593,11 @@ display_draw_menu(uint8_t *i420)
 				adjustments = &loop_settings_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
+			case AUDIO_SETTINGS:
+				display_state = DISPLAY_ADJUSTMENT;
+				adjustments = &audio_settings_adjustment[0];
+				cur_adj_start = TRUE;
+				break;
 			case SERVO_SETTINGS:
 				display_state = DISPLAY_ADJUSTMENT;
 				adjustments = &servo_settings_adjustment[0];
@@ -1753,6 +1805,12 @@ display_command(char *cmd)
 			display_menu_index = &menu_loop_settings_index;
 			display_state = DISPLAY_MENU;
 			display_menu = LOOP_SETTINGS;
+			break;
+		case AUDIO_SETTINGS:
+			display_menu_list = menu_audio_settings_list;
+			display_menu_index = &menu_audio_settings_index;
+			display_state = DISPLAY_MENU;
+			display_menu = AUDIO_SETTINGS;
 			break;
 		case SERVO_SETTINGS:
 			display_menu_list = menu_servo_settings_list;
@@ -2108,6 +2166,19 @@ display_init(void)
 			entry->line_position = position;
 			position += entry->length + 1;
 			menu_loop_settings_list = slist_append(menu_loop_settings_list, entry);
+			}
+		}
+	if (!menu_audio_settings_list)
+		{
+		for (i = 0, position = 0; i < N_AUDIO_SETTINGS_ADJUSTMENTS; ++i)
+			{
+			adj = &audio_settings_adjustment[i];
+			entry = calloc(1, sizeof(MenuEntry));
+			entry->name = adj->name;
+			entry->length = strlen(entry->name);
+			entry->line_position = position;
+			position += entry->length + 1;
+			menu_audio_settings_list = slist_append(menu_audio_settings_list, entry);
 			}
 		}
 	if (!menu_servo_settings_list)

@@ -708,6 +708,10 @@ static Config  config[] =
 	  "#     $K  x coordinate of the area center\n"
 	  "#     $Y  y coordinate of the area center\n"
 	  "#     $A  the filename of the thumb jpeg of the motion area\n"
+	  "#         But if save mode is first and the first detect is audio or external:\n"
+	  "#            1) The thumb jpeg is of the preview jpeg and not a motion.\n"
+	  "#            2) The thumb jpeg will be renamed if there is later motion.\n"
+	  "#         \n"
 	  "# Example command to email the motion detect preview jpeg:\n"
 	  "#     on_motion_preview_save mpack -s pikrellcam@$H $F myuser@gmail.com\n"
 	  "# Or, example command to run the default preview-save script which you\n"
@@ -748,6 +752,23 @@ static Config  config[] =
 	  "# See the help page.\n"
 	  "#",
 	"on_multicast_pkc_message",  "", TRUE, {.string = &pikrellcam.on_multicast_message_cmd}, config_string_set },
+
+
+	{ "\n# -------------------- Audio Trigger Options -----------------------\n"
+	  "# Enable audio events to trigger a motion video.\n"
+	  "#",
+	"audio_trigger_video",	"off", FALSE, {.value = &pikrellcam.audio_trigger_video},       config_value_bool_set},
+
+	{ "# Audio level to trigger a motion video, range 2 - 100\n"
+	  "#",
+	"audio_trigger_level",  "50", FALSE, {.value = &pikrellcam.audio_trigger_level},      config_value_int_set},
+
+	{ "# If this is on and an there is no video motion detected during a video\n"
+	  "# triggered by audio, then do not include the h264 video in the boxing.\n"
+	  "# See the help page.\n"
+	  "#",
+	"box_MP3_only",  "off", FALSE, {.value = &pikrellcam.audio_box_MP3_only}, config_value_bool_set },
+
 
 
 	{ "\n# --------------------- Video Record Options -----------------------\n"
@@ -1287,6 +1308,11 @@ config_load(char *config_file)
 
 	if (pikrellcam.motion_times.post_capture > pikrellcam.motion_times.event_gap)
 		pikrellcam.motion_times.event_gap = pikrellcam.motion_times.post_capture;
+
+	if (pikrellcam.audio_trigger_level < 2)
+		pikrellcam.audio_trigger_level = 2;
+	if (pikrellcam.audio_trigger_level > 100)
+		pikrellcam.audio_trigger_level = 100;
 
 	if (pikrellcam.annotate_text_size < 6)
 		pikrellcam.annotate_text_size = 6;

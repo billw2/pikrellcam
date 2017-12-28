@@ -432,6 +432,10 @@ if (file_exists("custom-control.php"))
                         class="btn-menu"
                         onclick="fifo_command('display loop_settings');"
                       >
+                      <input type="button" value="Audio"
+                        class="btn-menu"
+                        onclick="fifo_command('display audio_settings');"
+                      >
 <?php
 if ($servos_enable == "servos_on")
 	{

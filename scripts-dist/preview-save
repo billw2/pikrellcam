@@ -13,7 +13,12 @@
 #   $P - the command FIFO
 #   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
 #   $A - the filename full path of the thumb jpeg of the motion area
-# 
+#        Note: if motion_preview_save_mode is "first" and the detect
+#        that triggers this script is audio or external, then there is no
+#        motion area and the thumb jpeg will be from the full preview jpeg.
+#        Additionally, if there is subsequent motion, the thumb jpeg will
+#        be renamed after the motion video ends.
+#
 # In ~/.pikrellcam.conf, for this script as is, make on_motion_preview_save:
 #
 # on_motion_preview_save  $C/preview-save  $F $m $P $G

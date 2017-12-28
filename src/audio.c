@@ -96,23 +96,33 @@ audio_circular_buffer_init(void)
 	}
 
 static void
-audio_record_write(AudioCircularBuffer *acb, void *buf, int n_frames)
+audio_record_write(AudioCircularBuffer *acb, int start_frame, int n_frames)
 	{
+	uint8_t	*audio_data;
 	int		n;
 
 	if (!acb->mp3_file)
 		return;
 	if (acb->channels == 1)
-		n = lame_encode_buffer(acb->lame_record, buf, NULL, n_frames,
-				acb->mp3_record_buffer, acb->mp3_record_buffer_size);
-	else
-		n = lame_encode_buffer_interleaved(acb->lame_record, buf, n_frames,
-				acb->mp3_record_buffer, acb->mp3_record_buffer_size);
+		{
+		audio_data = (uint8_t *) (acb->data + start_frame);
+		n = lame_encode_buffer(acb->lame_record,
+				(int16_t *) audio_data, NULL,
+				n_frames, acb->mp3_record_buffer, acb->mp3_record_buffer_size);
+		}
+	else	// 2 channels
+		{
+		audio_data = (uint8_t *) (acb->data + 2 * start_frame);
+		n = lame_encode_buffer_interleaved(acb->lame_record,
+				(int16_t *) audio_data,
+				n_frames, acb->mp3_record_buffer, acb->mp3_record_buffer_size);
+		}
 	if (n > 0)
 		fwrite(acb->mp3_record_buffer, n, 1, acb->mp3_file);
 
 	if ((pikrellcam.audio_debug & 0x1) && debug_wave_file)
-		fwrite(buf, SND_FRAMES_TO_BYTES(acb, n_frames), 1, debug_wave_file);
+		fwrite(audio_data, SND_FRAMES_TO_BYTES(acb, n_frames), 1,
+				debug_wave_file);
 	}
 
   /* When set head/tail functions are called from h264 encoder callback,
@@ -247,26 +257,48 @@ wave_header_init(WaveHeader *header, uint32_t sample_rate, uint16_t bit_depth,
 	header->data_size = header->file_size - sizeof(WaveHeader);
 	}
 
-static int
+static void
 audio_gain(AudioCircularBuffer *acb, int16_t *pcm_buf, int frames)
 	{
-	int		i, peak, pcm, n_pcm;
+	int		i, f, pcm;
+	int		peak0 = 0, peak1 = 0;
 
-	n_pcm = frames * acb->channels;
-	for (i = 0, peak = 0; i < n_pcm; ++i)
+	for (i = 0; i < frames; ++i)
 		{
-		pcm = (int) ((float) pcm_buf[i] * gain);
+		f = i * acb->channels;
+		pcm = (int) ((float) pcm_buf[f] * gain);
 		if (pcm > INT16_MAX)
 			pcm = INT16_MAX;
 		else if (pcm < INT16_MIN)
 			pcm = INT16_MIN;
-		pcm_buf[i] = (int16_t) pcm;
+		pcm_buf[f] = (int16_t) pcm;
 		if (pcm < 0)
 			pcm = -pcm;
-		if (pcm > peak)
-			peak = pcm;
+		if (pcm > peak0)
+			peak0 = pcm;
+		if (acb->channels == 2)
+			{
+			pcm = (int) ((float) pcm_buf[f + 1] * gain);
+			if (pcm > INT16_MAX)
+				pcm = INT16_MAX;
+			else if (pcm < INT16_MIN)
+				pcm = INT16_MIN;
+			pcm_buf[f + 1] = (int16_t) pcm;
+			if (pcm < 0)
+				pcm = -pcm;
+			if (pcm > peak1)
+				peak1 = pcm;
+			}
 		}
-	return peak;
+	if (peak0 > acb->vu_meter0)
+		acb->vu_meter0 = peak0;
+	if (peak1 > acb->vu_meter1)
+		acb->vu_meter1 = peak1;
+
+	if (peak0 > pikrellcam.audio_level)
+		pikrellcam.audio_level = peak0;
+	if (peak1 > pikrellcam.audio_level)
+		pikrellcam.audio_level = peak1;
 	}
 
 static void
@@ -330,7 +362,7 @@ audio_thread(void *ptr)
 	{
 	AudioCircularBuffer		*acb = &audio_circular_buffer;
 	static struct timeval	encode_timer;
-	int						n, err, end_frames, t_usec, frames, rhead, peak,
+	int						n, err, end_frames, t_usec, frames, rhead,
 							n_frames, avail_record_frames, use_record_head;
 	int16_t					*buf = acb->buffer;
 
@@ -366,18 +398,17 @@ audio_thread(void *ptr)
 		if (frames <= 0)
 			continue;
 
-		if ((peak = audio_gain(acb, buf, frames)) > acb->vu_meter)
-			acb->vu_meter = peak;
+		audio_gain(acb, buf, frames);
 
 		end_frames = acb->n_frames - acb->head;
 		if (frames <= end_frames)
-			memcpy(acb->data + acb->head, buf,
+			memcpy(acb->data + acb->head * acb->channels, buf,
 						SND_FRAMES_TO_BYTES(acb, frames));
 		else
 			{
-			memcpy(acb->data + acb->head, buf,
+			memcpy(acb->data + acb->head * acb->channels, buf,
 						SND_FRAMES_TO_BYTES(acb, end_frames));
-			memcpy(acb->data, buf + end_frames,
+			memcpy(acb->data, buf + end_frames * acb->channels,
 						SND_FRAMES_TO_BYTES(acb, frames - end_frames));
 			}
 
@@ -431,15 +462,15 @@ audio_thread(void *ptr)
 			if (acb->record_tail < use_record_head)
 				{
 				n_frames = use_record_head - acb->record_tail;
-				audio_record_write(acb, acb->data + acb->record_tail, n_frames);
+				audio_record_write(acb, acb->record_tail, n_frames);
 				acb->record_frame_count += n_frames;
 				}
 			else
 				{
 				n_frames = acb->n_frames - acb->record_tail;
-				audio_record_write(acb, acb->data + acb->record_tail, n_frames);
+				audio_record_write(acb, acb->record_tail, n_frames);
 				if (use_record_head > 0)
-					audio_record_write(acb, acb->data, use_record_head);
+					audio_record_write(acb, 0, use_record_head);
 				acb->record_frame_count += n_frames + use_record_head;
 				}
 			acb->record_tail = use_record_head;

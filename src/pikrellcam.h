@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.1.2"
+#define	PIKRELLCAM_VERSION	"4.1.3"
 
 
 //TCP Stream Server
@@ -265,6 +265,7 @@ typedef struct
 #define	MOTION_EXTERNAL      8
 #define	MOTION_PENDING_DIR   0x10
 #define	MOTION_PENDING_BURST 0x20
+#define	MOTION_AUDIO         0x40
 
 /* Possible motion types for a region
 */
@@ -308,8 +309,9 @@ typedef struct
 			first_detect,
 			direction_detects,
 			burst_detects,
-			first_burst_count,
-			max_burst_count;
+			max_burst_count,
+			audio_detects,
+			external_detects;
 
 	boolean	external_trigger;
 	int		external_trigger_mode,
@@ -451,7 +453,8 @@ typedef struct
 
 	int					record_frame_count;
 
-	int					vu_meter;
+	int					vu_meter0,
+						vu_meter1;
 	}
 	AudioCircularBuffer;
 
@@ -463,7 +466,8 @@ typedef struct
 	int		event_gap,
 			pre_capture,
 			post_capture,
-			confirm_gap;
+			confirm_gap,
+			confirm_delay;
 	boolean	modified;
 	}
 	MotionTimes;
@@ -565,6 +569,7 @@ typedef struct
 			*longitude;
 
 	boolean	startup_motion_enable,
+			external_motion,
 			state_modified,
 			preset_state_modified,
 			config_modified,
@@ -675,6 +680,8 @@ typedef struct
 			have_servos;
 
 	boolean	audio_enable,
+			audio_trigger_video,
+			audio_box_MP3_only,
 			audio_debug;
 	char	*audio_device,
 			*audio_pathname,
@@ -684,7 +691,12 @@ typedef struct
 			audio_channels,
 			audio_gain_dB,
 			audio_mp3_quality_Pi2,
-			audio_mp3_quality_Pi1;
+			audio_mp3_quality_Pi1,
+			audio_level,
+			audio_trigger_level,
+			audio_level_event,
+			audio_confirm_gap,
+			audio_confirm_delay;
 
 	SList	*preset_position_list;
 	int		preset_position_index,

@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -403,6 +403,11 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 		fprintf(f, "f %3d %3d %3d %3d %3.0f %4d\n",
 				frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
 				sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
+		if (mf->motion_status & MOTION_AUDIO)
+			fprintf(f, "a %3d\n", pikrellcam.audio_level_event);
+		if (mf->motion_status & MOTION_EXTERNAL)
+			fprintf(f, "e %3d\n", 1);
+
 		if (mf->motion_status & MOTION_DIRECTION)
 			{
 			for (i = 0, mrlist = mf->motion_region_list; mrlist;
@@ -610,6 +615,19 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		mf->frame_window = 0;
 		}
 
+	pikrellcam.audio_level_event = pikrellcam.audio_level * 100 / INT16_MAX;
+	if (   pikrellcam.audio_trigger_video
+	    && pikrellcam.audio_level_event >= pikrellcam.audio_trigger_level
+	   )
+		{
+		mf->motion_status &= ~(MOTION_PENDING_DIR | MOTION_PENDING_BURST);
+		mf->motion_status |= (MOTION_DETECTED | MOTION_AUDIO);
+		mf->frame_window = 0;
+		}
+	else
+		pikrellcam.audio_level_event = 0;
+	pikrellcam.audio_level = 0;
+
 	if (mf->frame_window > 0)
 		mf->frame_window -= 1;
 
@@ -702,33 +720,21 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				pikrellcam.do_preview_save_cmd = TRUE;
 
 			mf->preview_frame_vector = mf->frame_vector;
-			if (mf->motion_status & MOTION_EXTERNAL)
-				{
-				mf->preview_motion_area.x0 = mf->preview_motion_area.y0 = 0;
-				mf->preview_motion_area.x1 = mf->width - 1;
-				mf->preview_motion_area.y1 = mf->height - 1;
-				}
-			else
+			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
 				mf->preview_motion_area = mf->motion_area;
+			else	/* (MOTION_EXTERNAL | MOTION_AUDIO)*/
+				pikrellcam.external_motion = TRUE;
+
 			pikrellcam.video_notify = FALSE;
 			pikrellcam.still_notify = FALSE;
 			pikrellcam.timelapse_notify = FALSE;
 
 			mf->first_detect = mf->motion_status;
-			mf->burst_detects = 0;
-			mf->direction_detects = 0;
+			mf->direction_detects = (mf->motion_status & MOTION_DIRECTION) ? 1 : 0;
+			mf->burst_detects = (mf->motion_status & MOTION_BURST) ? 1 : 0;
 			mf->max_burst_count = 0;
-			mf->first_burst_count = 0;
-			if (mf->motion_status & MOTION_DIRECTION)
-				{
-				mf->direction_detects = 1;
-				}
-			if (mf->motion_status & MOTION_BURST)
-				{
-				mf->burst_detects = 1;
-				mf->first_burst_count = frame_vec->mag2_count;
-				mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
-				}
+			mf->external_detects = (mf->motion_status & MOTION_EXTERNAL) ? 1 : 0;
+			mf->audio_detects = (mf->motion_status & MOTION_AUDIO) ? 1 : 0;
 
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 				printf("***Motion record start: %s\n\n", pikrellcam.video_pathname);
@@ -741,7 +747,10 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			*/
 			vcb->motion_sync_time = pikrellcam.t_now + pikrellcam.motion_times.post_capture;
 
-			if (   !(mf->motion_status & MOTION_EXTERNAL)
+			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+				pikrellcam.external_motion = FALSE;
+
+			if (   (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
 			    && !strcmp(pikrellcam.motion_preview_save_mode, "best")
 			    && composite_vector_better(&mf->frame_vector, &mf->preview_frame_vector)
 			   )
@@ -761,6 +770,10 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				if (mf->max_burst_count < frame_vec->mag2_count + mf->reject_count)
 					mf->max_burst_count = frame_vec->mag2_count + mf->reject_count;
 				}
+			if (mf->motion_status & MOTION_AUDIO)
+				++mf->audio_detects;
+			if (mf->motion_status & MOTION_EXTERNAL)
+				++mf->external_detects;
 			motion_event_write(vcb, mf, FALSE);
 
 			if (pikrellcam.verbose_motion)

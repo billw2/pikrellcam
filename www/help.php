@@ -67,6 +67,15 @@ And there is a Raspberry Pi
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
+
+Version 4.1.3
+<div class='indent1'>
+An <a href="help.php#AUDIO_TRIGGER">audio trigger</a>
+event can start a motion video record.<br>
+This help page describes <a href="help.php#VIDEO_TYPES">Video Types</a><br>
+Fix 2 channel audio recording bug.
+</div>
+
 Version 4.1.2 - Fix record to end of event_gap bug. Add day_loop arg to archive_video command.
 <br>
 Version 4.1.0
@@ -271,6 +280,90 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	</li>
 	</ul>
 </div>
+</div>
+
+<a name="VIDEO_TYPES">
+<span style='font-size: 1.5em; font-weight: 650;'>Video Types</span><hr>
+<div class='indent0'>
+There are two top level video types each viewed on a separate page and each
+has subtypes encoded in the video name:
+<p>
+<nobr><span style=\"color: $default_text_color\"> Media:</span>
+<span class='btn-control'>Videos</span></nobr>
+<div class='indent1'>
+These are videos of variable length with the recording triggered by some
+event:
+<ul>
+	<li>
+		<span style='font-weight:700'>Manual</span> - videos are triggered by
+		a record on|off command sent into the FIFO and have a "manual_"
+		prefix.  The web page thumb will have a "Manual" label and will be
+		of the full preview image.
+	</li>
+	<li>
+		<span style='font-weight:700'>Motion</span> - videos are triggered by
+		a motion vector detect and may also have external or audio triggers.
+		These will have a "motion_" prefix.
+		The web page thumb will have no extra label and will be
+		of a detected motion area.
+	</li>
+	<li>
+		<span style='font-weight:700'>External</span> - videos are triggered by
+		a motion trigger command sent into the FIFO and will have no motion
+		vector detects but may have audio triggers.
+		These will have an "extern_" prefix.
+		The web page thumb will have an "Extern" label and will be
+		of the full preview image.
+	</li>
+	<li>
+		<span style='font-weight:700'>Audio</span> - videos are triggered by
+		an audio trigger and will have no motion vector detects or external
+		triggers.
+		These will have an "audio_" prefix.
+		The web page thumb will have an "Audio" label and will be
+		of the full preview image.  Since this is an audio event only video
+		there is an option to omit boxing the h264 video.  In this case the
+		resulting .mp4 file will have only MP3 audio and no video and so will
+		be a much smaller size.
+		See the "Box_MP3_Only" option in the Config Settings->Audio.
+	</li>
+</ul>
+
+</div>
+<p>
+<nobr><span style=\"color: $default_text_color\"> Media:</span>
+<span class='btn-control'>Loop</span></nobr>
+<div class='indent1'>
+These are continuously recorded videos of a fixed configurable length.  If
+motion is enabled while loop recording, any motion, external or audio trigger
+event will cause the video to be tagged as having a motion event and the web
+page thumb will show that.
+<ul>
+	<li>
+	Loop videos with no motion event will end with
+	<span style='font-weight:700'>_0.mp4</span>.
+	</li>
+	<li>
+	Loop videos with a motion vector detect will end with
+	<span style='font-weight:700'>_m.mp4</span> (previous versions used
+	 _1.mp4) and will have a "Motion" label on the web page thumb.
+	The thumb image will be a motion detect area.
+	</li>
+	<li>
+	Loop videos with motion externally triggered (motion trigger command was sent into
+	the FIFO) and no motion vector detects will end with
+	<span style='font-weight:700'>_e.mp4</span> and will have an "Extern" label
+	on the web page thumb.  The thumb image will be of the full preview image.
+	</li>
+	<li>
+	Loop videos with an audio trigger and no motion vector detects or external
+	triggers will end with
+	<span style='font-weight:700'>_a.mp4</span> and will have an "Audio" label
+	on the web page thumb. The thumb image will be of the full preview image.
+	</li>
+</ul>
+</div>
+
 </div>
 
 
@@ -842,6 +935,30 @@ Preset group and there will be no Servo button in the Config group.
 			Diskfree_Percent then that will override this disk usage percent
 			and allowed loop video disk usage can shrink below this value.
             </li>
+			</ul>
+		</li>
+<a name="AUDIO_TRIGGER">
+		<li><span style='font-weight:700'>Audio</span><br>
+			<ul>
+			<li><span style='font-weight:700'>Audio_Trigger_Video</span>
+			- set to <span style='font-weight:700'>ON</span>
+			to enable audio events to be treated as motion events to trigger
+			motion videos.
+			</li>
+			<li><span style='font-weight:700'>Audio_Trigger_Level</span>
+			- sets the audio level to be met or exceeded for triggering a
+			motion video.
+			</li>
+			<li><span style='font-weight:700'>Box_MP3_Only</span>
+			- if set <span style='font-weight:700'>ON</span>
+			and there are only audio triggers (no motion vector detects or
+			external triggers)
+			during a video recording, then do not include the h264 video
+			in the MP4 boxing.  The resulting recording will be a .mp4
+			boxed file containing only MP3 data and no video.  Use this option
+			if you want to save disk space for recordings that have audio
+			but may not have interesting video.
+			</li>
 			</ul>
 		</li>
 		<li><span style='font-weight:700'>Servo</span><br>
@@ -1462,9 +1579,12 @@ List of <span style='font-weight:700'>FIFO</span> commands:
 audio mic_open
 audio mic_close
 audio mic_toggle
-audio gain [up|down|N]		# range 0 - 30
+audio gain [up|down|N]		# N: 0 - 30
 audio stream_open
 audio stream_close
+audio_trigger_video [on|off]
+audio_trigger_level N		# N: 2 - 100
+box_MP3_only [on|off]
 record on
 record on pre_capture_time
 record on pre_capture_time time_limit
@@ -1885,6 +2005,8 @@ b   0
 f  49  43  57  -2  57  263
 1  44  42  53  -4  53  144
 2  55  44  61   0  61  119
+a   45
+e   0
 &lt;/motion&gt;
 ...
 &lt;end&gt;
@@ -1912,6 +2034,12 @@ code x y dx dy magnitude count
 	motion.  Just like the overall frame vector, for a motion region to have
 	motion, the configured magnitude and count limits must be met.
 	For this detect there was motion in regions 1 and 2.
+	</li>
+	<li> <span style='font-weight:700'>a|e</span>
+	- shows audio or external triggers.  If an audio level exceeded the
+	audio_trigger_level value it is printed, otherwise 0 is shown. If there
+	was an external trigger (motion trigger command into the FIFO), then
+	the e line will show 1, otherwise 0.
 	</li>
 	</div>
 The end tag is written when the motion video ends.

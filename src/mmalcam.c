@@ -173,15 +173,12 @@ preview_save(void)
 	char	*s, *base, buf[BUFSIZ];
 	int		n;
 
-	base = strdup(fname_base(pikrellcam.video_pathname));
+	base = fname_base(pikrellcam.video_pathname);
 	if (   (s = strstr(base, ".mp4")) != NULL
 	    || (s = strstr(base, ".h264")) != NULL
 	   )
 		{
 		*s = '\0';
-		snprintf(buf, sizeof(buf), "%s.th.jpg", base);
-		dup_string(&pikrellcam.thumb_name, buf);
-
 		snprintf(buf, sizeof(buf), "%s/%s.jpg", pikrellcam.tmpfs_dir, base);
 		if (dup_string(&pikrellcam.preview_pathname, buf))
 			log_printf("  event preview save: copy %s -> %s\n",
@@ -200,8 +197,8 @@ preview_save(void)
 				}
 			fclose(f_src);
 			}
+		*s = '.';
 		}
-	free(base);
 	}
 
   /* If video_fps is too high and strains GPU, resized frames to this

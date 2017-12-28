@@ -197,6 +197,14 @@ expand_command(char *command, char *arg)
 						pikrellcam.thumb_name);
 				fmt_arg = buf;
 				break;
+			case 'e':
+				if (pikrellcam.external_motion)
+					snprintf(buf, sizeof(buf), "%s",
+						motion_frame.external_detects ? "external" : "audio");
+				else
+					snprintf(buf, sizeof(buf), "%s", "motion");
+				fmt_arg = buf;
+				break;
 			case 'i':	/* width of motion area */
 				t = frame_vec->box_w;
 				snprintf(buf, sizeof(buf), "%d", t);
@@ -1317,6 +1325,9 @@ at_commands_config_save(char *config_file)
 	"#                $z - loop files directory full path\n"
 	"#                $v - last video saved full path filename\n"
 	"#                $A - last thumb saved full path filename\n"
+	"#                     If motion_preview_save_mode is first and there are\n"
+	"#                     only audio or external detects, this name will be,\n"
+	"#                     renamed after the video ends.\n"
 	"#                $S - still files directory full path\n"
 	"#                $s - last still saved full path filename\n"
 	"#                $L - timelapse files directory full path\n"
