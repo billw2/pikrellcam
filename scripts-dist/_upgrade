@@ -84,10 +84,10 @@ echo "inform timeout $TIMEOUT" > $FIFO
 
 
 # tab before define!
-if ! fgrep E_USER $WWW_CONFIG | fgrep -q $USER
-then
-	CMD="/E_USER/c\	define\(\"E_USER\", \"$USER\"\);"
-	sed -i "$CMD" $WWW_CONFIG
-	echo "  Upgrade setting pikrellcam to run as user: $USER" >> $LOG_FILE
-fi
+#if ! fgrep E_USER $WWW_CONFIG | fgrep -q $USER
+#then
+#	CMD="/E_USER/c\	define\(\"E_USER\", \"$USER\"\);"
+#	sed -i "$CMD" $WWW_CONFIG
+#	echo "  Upgrade setting pikrellcam to run as user: $USER" >> $LOG_FILE
+#fi
 
