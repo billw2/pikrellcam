@@ -9,7 +9,7 @@ if (isset($_GET['cmd']))
 
 	if ($cmd === "pikrellcam_start")
 		{
-		$SUDO_CMD = "sudo -u pi " . PIKRELLCAM . " > /dev/null 2>&1 &";
+		$SUDO_CMD = "sudo -u " . E_USER . " " . PIKRELLCAM . " > /dev/null 2>&1 &";
 		$res = exec($SUDO_CMD);
 		}
 	else if ($cmd === "pikrellcam_stop")

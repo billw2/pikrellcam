@@ -276,7 +276,8 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	setup are required.  Follow the
 	<nobr><a href="https://www.raspberrypi.org/forums/viewtopic.php?p=862399#p862399">
 	rtsp live video setup instructions</a></nobr> on the forum and you can view the stream
-	with vlc.
+	with vlc.  See also
+	<nobr><a href="https://www.raspberrypi.org/forums/viewtopic.php?f=43&t=115583&start=1200#p1239346">.
 	</li>
 	</ul>
 </div>

@@ -183,6 +183,13 @@ fi
 #
 ./pikrellcam -quit
 
+# tab before define!
+if ! fgrep E_USER www/config.php | fgrep -q $USER
+then
+	CMD="/E_USER/c\	define\(\"E_USER\", \"$USER\"\);"
+	sed -i "$CMD" www/config.php
+	echo "Installing pikrellcam to be run as user: $USER"
+fi
 
 # =============== set install_dir in pikrellcam.conf ===============
 #
