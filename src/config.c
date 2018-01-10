@@ -660,6 +660,7 @@ static Config  config[] =
 	"motion_post_capture",  "5", TRUE, {.value = &pikrellcam.motion_times.post_capture}, config_value_int_set },
 
 	{ "# Command/script to run when a motion detect event begins.\n"
+	  "#     $e variable gives the trigger: motion audio FIFO (or FIFO code)\n"
 	  "#",
 	"on_motion_begin",  "", TRUE, {.string = &pikrellcam.on_motion_begin_cmd}, config_string_set },
 

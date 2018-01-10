@@ -68,6 +68,18 @@ And there is a Raspberry Pi
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
 
+Version 4.1.4
+<div class='indent1'>
+Bug fix for pikrellcam Start from web page: use installing user instead
+of hard wired "pi".<br>
+New scripts-dist/example-motion-events demo of processing
+<nobr>/run/pikrellcam/motion-events.</nobr><br>
+The <a href="help.php#MOTION_TRIGGER">motion trigger</a> FIFO command can
+encode for user defined trigger type (PIR, laser, etc).
+Previously web page showed "Extern" for videos with only a FIFO trigger, but
+now shows either "FIFO" or the user defined trigger type string.
+</div>
+
 Version 4.1.3
 <div class='indent1'>
 An <a href="help.php#AUDIO_TRIGGER">audio trigger</a>
@@ -120,8 +132,10 @@ Version 3.1
 <span style='font-size: 1.5em; font-weight: 650;'>Install</span><hr>
 <div class='indent0'>
 PiKrellCam is installed from a github git repository using the command line. The install
-is cloning the repository in the /home/pi directory and running the install script
-(an install for a user other than pi is possible):
+is cloning the repository in the /home/pi directory and running the install script.
+An install for a user other than pi should be possible.  The user needs sudo permission at
+least for commands chown, chmod, mkdir and should be in groups audio and video
+(and gpio if using servos).
 <pre>
 cd /home/pi
 git clone https://github.com/billw2/pikrellcam.git
@@ -293,7 +307,7 @@ has subtypes encoded in the video name:
 <span class='btn-control'>Videos</span></nobr>
 <div class='indent1'>
 These are videos of variable length with the recording triggered by some
-event:
+event.
 <ul>
 	<li>
 		<span style='font-weight:700'>Manual</span> - videos are triggered by
@@ -302,24 +316,28 @@ event:
 		of the full preview image.
 	</li>
 	<li>
-		<span style='font-weight:700'>Motion</span> - videos are triggered by
-		a motion vector detect and may also have external or audio triggers.
+		<span style='font-weight:700'>Motion</span> - videos have
+		motion vector direction or burst detects and may also have
+		FIFO motion trigger commands or audio triggers.
 		These will have a "motion_" prefix.
 		The web page thumb will have no extra label and will be
-		of a detected motion area.
+		a square aspect image of the detected motion area.
 	</li>
 	<li>
-		<span style='font-weight:700'>External</span> - videos are triggered by
+		<span style='font-weight:700'>FIFO</span> - videos are triggered by
 		a motion trigger command sent into the FIFO and will have no motion
 		vector detects but may have audio triggers.
-		These will have an "extern_" prefix.
-		The web page thumb will have an "Extern" label and will be
-		of the full preview image.
+		These will have an "ext-code_" prefix where code is "FIFO" or a
+		user supplied code string (such as "PIR" or "laser", new for V 4.1.4)
+		in the motion trigger command.
+		The web page thumb will have "FIFO" or the user supplied
+		code string as a label and will be of the full preview image.<br>
+		Before V 4.1.4, these types of videos were labeled "Extern".
 	</li>
 	<li>
 		<span style='font-weight:700'>Audio</span> - videos are triggered by
-		an audio trigger and will have no motion vector detects or external
-		triggers.
+		an audio trigger and will have no motion vector detects or FIFO
+		command triggers.
 		These will have an "audio_" prefix.
 		The web page thumb will have an "Audio" label and will be
 		of the full preview image.  Since this is an audio event only video
@@ -329,16 +347,18 @@ event:
 		See the "Box_MP3_Only" option in the Config Settings->Audio.
 	</li>
 </ul>
-
+A video that starts as type "FIFO" or "Audio" will change to
+type "Motion" if motion direction vectors or bursts are detected later
+during the video.  Similarly, type "Audio" can change to type "FIFO".
 </div>
 <p>
 <nobr><span style=\"color: $default_text_color\"> Media:</span>
 <span class='btn-control'>Loop</span></nobr>
 <div class='indent1'>
 These are continuously recorded videos of a fixed configurable length.  If
-motion is enabled while loop recording, any motion, external or audio trigger
+motion is enabled while loop recording, any motion, FIFO or audio trigger
 event will cause the video to be tagged as having a motion event and the web
-page thumb will show that.
+page thumb will be labeled to show that.
 <ul>
 	<li>
 	Loop videos with no motion event will end with
@@ -351,13 +371,15 @@ page thumb will show that.
 	The thumb image will be a motion detect area.
 	</li>
 	<li>
-	Loop videos with motion externally triggered (motion trigger command was sent into
-	the FIFO) and no motion vector detects will end with
-	<span style='font-weight:700'>_e.mp4</span> and will have an "Extern" label
-	on the web page thumb.  The thumb image will be of the full preview image.
+	Loop videos with motion externally triggered (a motion trigger command was
+	sent into the FIFO) and no motion vector detects will end with
+	<span style='font-weight:700'>_e-ID.mp4</span> and will have a "ID" label
+	on the web page thumb where "ID" is "FIFO" or the user defined ID
+	string in the motion trigger command.
+	The thumb image will be of the full preview image.
 	</li>
 	<li>
-	Loop videos with an audio trigger and no motion vector detects or external
+	Loop videos with an audio trigger and no motion vector detects or FIFO
 	triggers will end with
 	<span style='font-weight:700'>_a.mp4</span> and will have an "Audio" label
 	on the web page thumb. The thumb image will be of the full preview image.
@@ -1600,8 +1622,8 @@ tl_show_status [on|off|toggle]
 motion_enable [on|off|toggle]
 motion limits magnitude count
 motion burst count frames
-motion trigger enable
-motion trigger enable pre_capture time_limit
+motion trigger code    # code is digit N or N:ID    N is 0 or 1 and ID is a string (see Examples)
+motion trigger code pre_capture time_limit
 motion load_regions name
 motion save_regions name
 motion list_regions
@@ -1694,26 +1716,50 @@ echo "record on 10 6" > ~/pikrellcam/www/FIFO
 </pre>
 	</li>
 	<li>
+<a name="MOTION_TRIGGER">
 	The motion trigger command is used to trigger a motion event from a script.
 	It has two usages and the first is
-	<nobr><span style='font-weight:700'>motion trigger enable</span></nobr>
-	where <span style='font-weight:700'>enable</span> can be
-	<span style='font-weight:700'>0</span> to use the configured motion enable,
-	or it can be <span style='font-weight:700'>1</span> to force motion enable on
-	for this trigger.  If
-	<span style='font-weight:700'>enable</span> is omitted, it defaults to
-	<span style='font-weight:700'>0</span>.  This is a trigger event that
-	works in parallel with motion direction and burst detection and it uses
-	all the configured motion times and motion commands.
-	The event gap time applies, so
-	detects or triggers after an initial FIFO trigger can keep the video going:
+	<nobr><span style='font-weight:700'>motion trigger code</span></nobr>
+	where <span style='font-weight:700'>code</span> is a single digit
+	<span style='font-weight:700'>N</span> motion enable code or
+	<span style='font-weight:700'>N:ID</span>
+	which adds a colon separated string to user identify
+	the trigger type (PIR, laser interrupt, etc).
+	If N is 0, the motion trigger is subject to the currently set
+	motion enable.
+	If N is 1, and the currently set motion enable is OFF, then force
+	motion enable ON for this video record and recognize subsequent
+	motion, external and audio triggers for this video until the video ends
+	or there is a motion trigger command with N set to 0.
+	If <span style='font-weight:700'>code</span> is omitted, the currently set motion
+	enable applies and the code ID defaults to "FIFO" (for just a generic
+	FIFO trigger).  The trigger code ID string is reported in
+	the <nobr>/run/pikrellcam/motion-events</nobr> file so an on_motion_begin
+	command can monitor for different external motion trigger types.
+	See the file
+	<nobr>scripts-dist/example-motion-events.</nobr><br>
+	This is a trigger event that
+	works in parallel with motion direction, burst and audio detection and
+	it uses all the configured motion times and on_motion commands.
+	The event gap time applies, so any detects or triggers after an
+	initial FIFO trigger can keep the video going.<br>
+	Externally trigger a video with FIFO commands:
 <pre>
+# Use the motion enable currently set, if it is OFF, no video.
 echo "motion trigger" > ~/pikrellcam/www/FIFO"
-# or force motion enable on
+
+# Force motion enable on for this FIFO command, trigger video even if motion_enable is OFF.
+#   If there are no other motion direction or burst detects for this video,
+#   the web page thumb will be labeled with "FIFO".
 echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
+
+# Report code string "PIR" in motion-events file and use motion enable currently set.
+#   If there are no other motion direction or burst detects for this video,
+#   the web page thumb will be labeled with "PIR".
+echo "motion trigger 0:PIR" > ~/pikrellcam/www/FIFO"
 </pre>
 	The second usage
-	<nobr><span style='font-weight:700'>motion trigger enable pre_capture time_limit</span></nobr>
+	<nobr><span style='font-weight:700'>motion trigger code pre_capture time_limit</span></nobr>
 	is a special case motion trigger event that records a
 	one shot motion video with a custom pre capture and time limit.  This usage
 	does not use the configured motion times but does run configured motion
@@ -1729,6 +1775,11 @@ echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
 	constraints as the record FIFO command):
 <pre>
 echo "motion trigger 1 4 5" > ~/pikrellcam/www/FIFO"
+
+# Report code string "laser" in the motion-events file.
+#   If there are no other motion direction or burst detects for this video,
+#   the web page thumb will be labeled with "laser".
+echo "motion trigger 1:laser 4 5" > ~/pikrellcam/www/FIFO"
 </pre>
 	</li>
 	<li>The <span style='font-weight:700'>fix_thumbs</span> command provides

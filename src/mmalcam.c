@@ -748,10 +748,10 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			vcb->last_pts = cur_pts;
 			audio_buffer_set_record_head_tail(acb, audio_head, kf->audio_position);
 
-			if (mf->external_trigger_time_limit > 0)
+			if (mf->fifo_trigger_time_limit > 0)
 				{
-				vcb->motion_sync_time = vcb->t_cur + mf->external_trigger_time_limit;
-				vcb->max_record_time = mf->external_trigger_time_limit;
+				vcb->motion_sync_time = vcb->t_cur + mf->fifo_trigger_time_limit;
+				vcb->max_record_time = mf->fifo_trigger_time_limit;
 				}
 			else
 				{
@@ -821,8 +821,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			{
 			t_elapsed = vcb->record_elapsed_time;
 			if (vcb->state == VCB_STATE_MOTION_RECORD)
-				t_elapsed -= (mf->external_trigger_pre_capture > 0) ?
-							  mf->external_trigger_pre_capture
+				t_elapsed -= (mf->fifo_trigger_pre_capture > 0) ?
+							  mf->fifo_trigger_pre_capture
 							: pikrellcam.motion_times.pre_capture;
 			else if (vcb->state == VCB_STATE_MANUAL_RECORD)
 				t_elapsed -= vcb->manual_pre_capture;
@@ -914,7 +914,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 				vcb->record_hold = TRUE;
 
 			if (   force_stop
-		        || (   mf->external_trigger_time_limit == 0
+		        || (   mf->fifo_trigger_time_limit == 0
 			        && vcb->t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
 			       )
 		       )

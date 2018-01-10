@@ -716,7 +716,7 @@ motion_draw(uint8_t *i420)
 				{
 				if (mf->motion_status & MOTION_BURST)
 					msg = "burst motion";
-				else if (mf->motion_status & MOTION_EXTERNAL)
+				else if (mf->motion_status & MOTION_FIFO)
 					msg = "ext motion";
 				else
 					msg = "motion";
@@ -757,18 +757,18 @@ motion_draw(uint8_t *i420)
 		msg = "";
 		if (vcb->state & VCB_STATE_MOTION_RECORD)
 			msg = pikrellcam.external_motion ?
-				(mf->external_detects ? "-extern" : "-audio") : "-motion";
+				(mf->fifo_detects ? mf->fifo_trigger_code : "Audio") : "Motion";
 		t_record = vcb->max_record_time - t_record;
 		if (t_record < 0)
 			t_record = 0;
-		snprintf(info, sizeof(info), "REC (Loop%s) %d:%02d",
+		snprintf(info, sizeof(info), "REC (Loop %s) %d:%02d",
 					msg, t_record / 60, t_record % 60);
 		}
 	else if (vcb->state & VCB_STATE_MOTION_RECORD)
 		{
 		if (pikrellcam.t_now > vcb->motion_sync_time)
 			t_record -= pikrellcam.t_now - vcb->motion_sync_time;
-		if (mf->external_trigger_time_limit > 0)
+		if (mf->fifo_trigger_time_limit > 0)
 			{
 			t_hold = vcb->max_record_time -
 					(pikrellcam.t_now - vcb->record_start_time);
@@ -782,7 +782,8 @@ motion_draw(uint8_t *i420)
 					(pikrellcam.t_now - vcb->motion_last_detect_time);
 			snprintf(info, sizeof(info), "REC (%s) %d:%02d  hold %d:%02d",
 					pikrellcam.external_motion ?
-						(mf->external_detects ? "Extern" : "Audio") : "Motion",
+						(mf->fifo_detects ? mf->fifo_trigger_code : "Audio")
+									: "Motion",
 					t_record / 60, t_record % 60,
 					t_hold / 60, t_hold % 60);
 			}

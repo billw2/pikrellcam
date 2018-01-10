@@ -779,7 +779,13 @@ function restart_page($selected)
 
 	echo "<div style='color: $default_text_color; margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
 	if ("$media_mode" == "archive")
-		$media_label = "Archive: $year $label";
+		{
+		$fs = exec("stat -f -L -c %T $archive_root");
+		if ("$fs" == "nfs")
+			$media_label = "NFS Archive: $year $label";
+		else
+			$media_label = "Archive: $year $label";
+		}
 	else
 		$media_label = "";
 
@@ -800,16 +806,18 @@ function restart_page($selected)
 			echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Videos $media_label</span> &nbsp;&nbsp;";
 			echo "<a href=\"media-archive.php?newtype=stills&$env\"
 					class='btn-control' style='margin-left:8px;'>Stills</a>";
-			echo "<a href=\"media-archive.php?mode=loop&type=videos\"
-					class='btn-control' style='margin-left:4px;'>Loop</a>";
+			if ("$media_mode" != "archive")
+				echo "<a href=\"media-archive.php?mode=loop&type=videos\"
+						class='btn-control' style='margin-left:4px;'>Loop</a>";
 			}
 		else if ("$media_type" == "stills")
 			{
 			echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Stills $media_label</span> &nbsp; &nbsp;";
 			echo "<a href=\"media-archive.php?newtype=videos&$env\"
 					class='btn-control' style='margin-left:8px;'>Videos</a>";
-			echo "<a href=\"media-archive.php?mode=loop&newtype=videos\"
-					class='btn-control' style='margin-left:4px;'>Loop</a>";
+			if ("$media_mode" != "archive")
+				echo "<a href=\"media-archive.php?mode=loop&newtype=videos\"
+						class='btn-control' style='margin-left:4px;'>Loop</a>";
 			}
 		}
 
@@ -829,8 +837,17 @@ function restart_page($selected)
 	$total = eng_filesize($disk_total);
 	$free = eng_filesize($disk_free);
 
-	echo "<span style=\"float: top; margin-left:30px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
-		Disk:&thinsp;${total}B &nbsp Free:&thinsp;${free}B&thinsp;($free_percent %)</span>";
+	if ("$media_mode" == "archive")
+		$dir = exec("readlink -f $archive_root");
+	else
+		$dir = exec("readlink -f $media_dir"). "/$media_type";
+	$e_user = "pi";
+	if (file_exists('user.php'))
+		include 'user.php';
+	$dir = str_replace("/home/$e_user/", "~/", $dir);
+
+	echo "<span style=\"float: top; margin-left:20px; font-size: 0.96em; font-weight:550; color: $default_text_color\">
+		$dir &nbsp;&nbsp;${total}B &nbsp Free:&thinsp;${free}B&thinsp;($free_percent %)</span>";
 
 	echo "<span style='float:right;'>";
 	if ("$media_mode" == "loop")
@@ -951,13 +968,18 @@ function restart_page($selected)
 					$out .= "<span style='float:right'><input type='checkbox' name='file_list[]' value=\"$ymd/$fname\"/></span>";
 					if ("$media_mode" == "loop")
 						{
-						$type = substr($fname, -5, 1);
-						if ("$type" == "m" || "$type" == "1")
+						$type = substr(strrchr($fname, "_"), 1);
+						if ("$type[0]" == "m" || "$type[0]" == "1")
 							$fsize = "Motion";
-						else if ("$type" == "a")
+						else if ("$type[0]" == "a")
 							$fsize = "Audio";
-						else if ("$type" == "e")
-							$fsize = "Extern";
+						else if ("$type[0]" == "e")
+							{
+							if ("$type[1]" == "-")
+								$fsize = strtok(substr($type, 2), ".");
+							else
+								$fsize = "FIFO";
+							}
 						else
 							$fsize = "";
 						}
@@ -982,12 +1004,19 @@ function restart_page($selected)
 						{
 						if ("$media_mode" == "archive")
 							{
-							if (substr($fname, -5, 1) == "1")
+							$type = substr(strrchr($fname, "_"), 1);
+							if ("$type[0]" == "m" || "$type[0]" == "1")
 								$out .= "<span style=\"color: $color;\">Loop Motion</span><br>";
-							if (substr($fname, -5, 1) == "a")
+							else if ("$type[0]" == "a")
 								$out .= "<span style=\"color: $color;\">Loop Audio</span><br>";
-							else if (substr($fname, -5, 1) == "e")
-								$out .= "<span style=\"color: $color;\">Loop Extern</span><br>";
+							else if ("$type[0]" == "e")
+								{
+								if ("$type[1]" == "-")
+									$code = strtok(substr($type, 2), ".");
+								else
+									$code = "FIFO";
+								$out .= "<span style=\"color: $color;\">Loop $code</span><br>";
+								}
 							else
 								$out .= "<span style=\"color: $color;\">Loop</span><br>";
 							}
@@ -998,7 +1027,12 @@ function restart_page($selected)
 						}
 					else if (substr($fname, 0, 3) == "ext")
 						{
-						$out .= "<span style=\"color: $color;\">Extern</span><br>";
+						$type = "FIFO";
+						$tok = strtok($fname, "_");
+						$code = explode("-", $tok);
+						if (count($code) == 2)
+							$type = $code[1];
+						$out .= "<span style=\"color: $color;\">$type</span><br>";
 						}
 					else if (   "$media_type" == "stills"
 					         && substr($fname, 0, 6) != "image_")

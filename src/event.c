@@ -72,6 +72,7 @@ expand_command(char *command, char *arg)
 	struct tm			*tm_now;
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	PresetPosition		*pos;
+	MotionFrame			*mf = &motion_frame;
 	CompositeVector		*frame_vec = &motion_frame.final_preview_vector;
 	int					t;
 	char				specifier, *fmt, *fmt_arg, *copy, *cmd_line,
@@ -200,7 +201,8 @@ expand_command(char *command, char *arg)
 			case 'e':
 				if (pikrellcam.external_motion)
 					snprintf(buf, sizeof(buf), "%s",
-						motion_frame.external_detects ? "external" : "audio");
+						motion_frame.fifo_detects
+							? mf->fifo_trigger_code : "audio");
 				else
 					snprintf(buf, sizeof(buf), "%s", "motion");
 				fmt_arg = buf;
@@ -1338,6 +1340,9 @@ at_commands_config_save(char *config_file)
 	"#                $n - timelapse series\n"
 	"#                $T - timelapse video full path filename in video sub directory\n"
 	"#                $o - motion enable state\n"
+	"#                $e - current motion video type: motion, audio, FIFO\n"
+	"#                     (or FIFO code).  Video can start as audio or FIFO\n"
+	"#                     type and change to motion if motion is detected.\n"
 	"#                $p - current preset number pair: position setting\n"
 	"#                $D - current_minute dawn sunrise sunset dusk\n"
 	"#                $X - motion video sequence number\n"

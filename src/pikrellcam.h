@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.1.3"
+#define	PIKRELLCAM_VERSION	"4.1.4"
 
 
 //TCP Stream Server
@@ -262,7 +262,7 @@ typedef struct
 #define	MOTION_DETECTED      1
 #define	MOTION_DIRECTION     2
 #define	MOTION_BURST         4
-#define	MOTION_EXTERNAL      8
+#define	MOTION_FIFO      8
 #define	MOTION_PENDING_DIR   0x10
 #define	MOTION_PENDING_BURST 0x20
 #define	MOTION_AUDIO         0x40
@@ -273,9 +273,9 @@ typedef struct
 #define MOTION_TYPE_DIR_NORMAL     2
 #define MOTION_TYPE_BURST_DENSITY  4
 
-#define EXT_TRIG_MODE_DEFAULT   0
-#define EXT_TRIG_MODE_ENABLE    1
-#define EXT_TRIG_MODE_TIMES     2
+#define FIFO_TRIG_MODE_DEFAULT   0
+#define FIFO_TRIG_MODE_ENABLE    1
+#define FIFO_TRIG_MODE_TIMES     2
 
 typedef struct
 	{
@@ -311,12 +311,13 @@ typedef struct
 			burst_detects,
 			max_burst_count,
 			audio_detects,
-			external_detects;
+			fifo_detects;
 
-	boolean	external_trigger;
-	int		external_trigger_mode,
-			external_trigger_pre_capture,
-			external_trigger_time_limit;
+	boolean	fifo_trigger;
+	int		fifo_trigger_mode,
+			fifo_trigger_pre_capture,
+			fifo_trigger_time_limit;
+	char	*fifo_trigger_code;
 
 	Area	motion_area,	/* Geometric area convering passing vectors */
 			preview_motion_area;	/* Copy to preserve values for preview */

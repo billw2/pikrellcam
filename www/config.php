@@ -25,7 +25,5 @@
 
 	define("SERVOS_ENABLE", "servos_off");
 
-	define("E_USER", "pi");
-
 	define("VERSION", "3.0.2");
 ?>

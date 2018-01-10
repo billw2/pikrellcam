@@ -396,17 +396,21 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 		}
 	if (f && ((vcb->state & VCB_STATE_MOTION_RECORD) || start))
 		{
-		burst = frame_vec->mag2_count + mf->reject_count;
 		fprintf(f, "<motion %6.3f>\n",
 			(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps);
-		fprintf(f, "b %3d\n", (mf->motion_status & MOTION_BURST) ? burst : 0);
 		fprintf(f, "f %3d %3d %3d %3d %3.0f %4d\n",
 				frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
 				sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
+
+		if (mf->motion_status & MOTION_BURST)
+			{
+			burst = frame_vec->mag2_count + mf->reject_count;
+			fprintf(f, "b %3d\n", burst);
+			}
 		if (mf->motion_status & MOTION_AUDIO)
 			fprintf(f, "a %3d\n", pikrellcam.audio_level_event);
-		if (mf->motion_status & MOTION_EXTERNAL)
-			fprintf(f, "e %3d\n", 1);
+		if (mf->motion_status & MOTION_FIFO)
+			fprintf(f, "e %s\n", mf->fifo_trigger_code);
 
 		if (mf->motion_status & MOTION_DIRECTION)
 			{
@@ -607,11 +611,11 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		mf->motion_status |= (MOTION_DETECTED | MOTION_BURST);
 		mf->frame_window = 0;
 		}
-	if (mf->external_trigger)
+	if (mf->fifo_trigger)
 		{
-		mf->external_trigger = FALSE;
+		mf->fifo_trigger = FALSE;
 		mf->motion_status &= ~(MOTION_PENDING_DIR | MOTION_PENDING_BURST);
-		mf->motion_status |= (MOTION_DETECTED | MOTION_EXTERNAL);
+		mf->motion_status |= (MOTION_DETECTED | MOTION_FIFO);
 		mf->frame_window = 0;
 		}
 
@@ -652,7 +656,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			msg = "***MOTION DIRECTION***";
 		else if (mf->motion_status & MOTION_BURST)
 			msg = "***MOTION BURST***";
-		else if (mf->motion_status & MOTION_EXTERNAL)
+		else if (mf->motion_status & MOTION_FIFO)
 			msg = "***MOTION EXTERNAL***";
 		else
 			{
@@ -675,7 +679,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		motion_burst_frame = 0;
 
 	motion_enabled = (  (  mf->motion_enable
-	                     || (mf->external_trigger_mode & EXT_TRIG_MODE_ENABLE)
+	                     || (mf->fifo_trigger_mode & FIFO_TRIG_MODE_ENABLE)
 	                    )
 	                  && !pikrellcam.servo_moving
 					  && (pikrellcam.on_preset || pikrellcam.motion_off_preset)
@@ -683,9 +687,9 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 
 	if (   (   (mf->motion_status & MOTION_DETECTED)
 	        && motion_enabled
-	        && (mf->external_trigger_mode & EXT_TRIG_MODE_TIMES) == 0
+	        && (mf->fifo_trigger_mode & FIFO_TRIG_MODE_TIMES) == 0
 	       )
-	    || ( (mf->motion_status & MOTION_EXTERNAL) && motion_enabled)
+	    || ( (mf->motion_status & MOTION_FIFO) && motion_enabled)
 	   )
 		{
 		vcb->motion_last_detect_time = pikrellcam.t_now;
@@ -722,7 +726,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			mf->preview_frame_vector = mf->frame_vector;
 			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
 				mf->preview_motion_area = mf->motion_area;
-			else	/* (MOTION_EXTERNAL | MOTION_AUDIO)*/
+			else	/* (MOTION_FIFO | MOTION_AUDIO)*/
 				pikrellcam.external_motion = TRUE;
 
 			pikrellcam.video_notify = FALSE;
@@ -733,7 +737,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			mf->direction_detects = (mf->motion_status & MOTION_DIRECTION) ? 1 : 0;
 			mf->burst_detects = (mf->motion_status & MOTION_BURST) ? 1 : 0;
 			mf->max_burst_count = 0;
-			mf->external_detects = (mf->motion_status & MOTION_EXTERNAL) ? 1 : 0;
+			mf->fifo_detects = (mf->motion_status & MOTION_FIFO) ? 1 : 0;
 			mf->audio_detects = (mf->motion_status & MOTION_AUDIO) ? 1 : 0;
 
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
@@ -772,8 +776,8 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				}
 			if (mf->motion_status & MOTION_AUDIO)
 				++mf->audio_detects;
-			if (mf->motion_status & MOTION_EXTERNAL)
-				++mf->external_detects;
+			if (mf->motion_status & MOTION_FIFO)
+				++mf->fifo_detects;
 			motion_event_write(vcb, mf, FALSE);
 
 			if (pikrellcam.verbose_motion)
@@ -1309,20 +1313,26 @@ motion_command(char *cmd_line)
 			break;
 
 		case TRIGGER:
-			mf->external_trigger = TRUE;
-			mf->external_trigger_mode = EXT_TRIG_MODE_DEFAULT;
-			mf->external_trigger_pre_capture = 0;
-			mf->external_trigger_time_limit = 0;
-			if (arg1[0] && atoi(arg1) > 0)
-				mf->external_trigger_mode = EXT_TRIG_MODE_ENABLE;
+			mf->fifo_trigger = TRUE;
+			mf->fifo_trigger_mode = FIFO_TRIG_MODE_DEFAULT;
+			mf->fifo_trigger_pre_capture = 0;
+			mf->fifo_trigger_time_limit = 0;
+			dup_string(&mf->fifo_trigger_code, "FIFO");
+			if (arg1[0])
+				{
+				if (arg1[0] == '1')
+					mf->fifo_trigger_mode = FIFO_TRIG_MODE_ENABLE;
+				if (arg1[1] == ':' && arg1[2] != '\0')
+					dup_string(&mf->fifo_trigger_code, &arg1[2]);
+				}
 			if (arg2[0])
 				{
-				mf->external_trigger_mode |= EXT_TRIG_MODE_TIMES;
-				mf->external_trigger_pre_capture = atoi(arg2);
+				mf->fifo_trigger_mode |= FIFO_TRIG_MODE_TIMES;
+				mf->fifo_trigger_pre_capture = atoi(arg2);
 				if (arg3[0])
-					mf->external_trigger_time_limit = atoi(arg3);
+					mf->fifo_trigger_time_limit = atoi(arg3);
 				else
-					mf->external_trigger_time_limit = pikrellcam.motion_times.post_capture;
+					mf->fifo_trigger_time_limit = pikrellcam.motion_times.post_capture;
 				}
 			break;
 

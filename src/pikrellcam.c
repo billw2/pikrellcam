@@ -470,12 +470,12 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 	vcb->record_hold = FALSE;
 	if (start_state == VCB_STATE_MOTION_RECORD_START)
 		{
-		if (mf->external_trigger_pre_capture > 0)
+		if (mf->fifo_trigger_pre_capture > 0)
 			{
 			n = vcb->cur_frame_index;
-			if (mf->external_trigger_pre_capture > vcb->seconds - 1)
-				mf->external_trigger_pre_capture = vcb->seconds - 1;
-			while (vcb->t_cur - vcb->key_frame[n].t_frame < mf->external_trigger_pre_capture)
+			if (mf->fifo_trigger_pre_capture > vcb->seconds - 1)
+				mf->fifo_trigger_pre_capture = vcb->seconds - 1;
+			while (vcb->t_cur - vcb->key_frame[n].t_frame < mf->fifo_trigger_pre_capture)
 				{
 				if (vcb->key_frame[n].t_frame == 0)
 					{
@@ -487,7 +487,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 				if (n == vcb->cur_frame_index)
 					break;
 				}
-			if (vcb->t_cur - vcb->key_frame[n].t_frame > mf->external_trigger_pre_capture)
+			if (vcb->t_cur - vcb->key_frame[n].t_frame > mf->fifo_trigger_pre_capture)
 				n = (n + 1) % KEYFRAME_SIZE;
 			}
 		else
@@ -686,7 +686,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	char			*cmd = NULL, *tmp_dir = "", *thumb_dir, detect[128];
 	char			buf1[1048], buf2[1048];
 	char			*add_mp3 = NULL, *add_h264 = NULL, *record_end_cmd = NULL;
-	char			*base, *s, *converting_file;
+	char			*base, *s, *converting_file, *mod_name, *fmt;
 	double			ftmp, encode_fps;
 	boolean			video_name_modified = FALSE;
 
@@ -735,7 +735,18 @@ video_record_stop(VideoCircularBuffer *vcb)
 		{
 		s = strstr(pikrellcam.video_pathname, "0.mp4");
 		if (s && pikrellcam.external_motion)
-			*s = mf->external_detects ? 'e' : 'a';	// extern or audio detect
+			{
+			if (mf->fifo_detects)
+				{
+				*s = '\0';
+				asprintf(&mod_name, "%se-%s.mp4", pikrellcam.video_pathname,
+							mf->fifo_trigger_code);
+				free(pikrellcam.video_pathname);
+				pikrellcam.video_pathname = mod_name;
+				}
+			else
+				*s = 'a';	// audio detect only
+			}
 		else if (s && (vcb->state & VCB_STATE_MOTION_RECORD))
 			*s = 'm';	/* loop video has video motion detect */
 		video_name_modified = TRUE;
@@ -744,13 +755,12 @@ video_record_stop(VideoCircularBuffer *vcb)
 	         && (s = strstr(pikrellcam.video_pathname, "motion_")) != NULL
 	        )
 		{
-		char	*aud_name, *fmt;
-
 		*s = '\0';
-		fmt = mf->external_detects ? "%sextern%s" : "%saudio%s";
-		asprintf(&aud_name, fmt, pikrellcam.video_pathname, s + 6);
+		fmt = mf->fifo_detects ? "%sext-%s%s" : "%saudio%s";
+		asprintf(&mod_name, fmt, pikrellcam.video_pathname,
+					mf->fifo_trigger_code, s + 6);
 		free(pikrellcam.video_pathname);
-		pikrellcam.video_pathname = aud_name;
+		pikrellcam.video_pathname = mod_name;
 		video_name_modified = TRUE;
 		}
 
@@ -816,7 +826,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 			    || (vcb->state & VCB_STATE_LOOP_RECORD)
 				|| !(   pikrellcam.audio_box_MP3_only
 			         && pikrellcam.external_motion
-			         && mf->external_detects == 0
+			         && mf->fifo_detects == 0
 			        )
 			   )
 				asprintf(&add_h264, "-fps %.3f -add %s",
@@ -880,12 +890,12 @@ video_record_stop(VideoCircularBuffer *vcb)
 				(mf->first_detect & MOTION_DIRECTION) ? "direction " : "",
 				(mf->first_detect & MOTION_BURST) ? "burst " : "",
 				(mf->first_detect & MOTION_AUDIO) ? "audio " : "",
-				(mf->first_detect & MOTION_EXTERNAL) ? "external " : "");
+				(mf->first_detect & MOTION_FIFO) ? "external " : "");
 		log_printf(
 "    first detect: %s  totals - direction:%d  burst:%d  max burst count:%d  audio:%d  external:%d\n",
 				detect,
 				mf->direction_detects, mf->burst_detects, mf->max_burst_count,
-				mf->audio_detects, mf->external_detects);
+				mf->audio_detects, mf->fifo_detects);
 		}
 
 	pikrellcam.video_notify = TRUE;
@@ -902,14 +912,14 @@ video_record_stop(VideoCircularBuffer *vcb)
 
 	vcb->record_start_time = 0;
 	vcb->record_elapsed_time = 0;
-	mf->external_trigger_mode = EXT_TRIG_MODE_DEFAULT;
-	mf->external_trigger_pre_capture = 0;
-	mf->external_trigger_time_limit = 0;
+	mf->fifo_trigger_mode = FIFO_TRIG_MODE_DEFAULT;
+	mf->fifo_trigger_pre_capture = 0;
+	mf->fifo_trigger_time_limit = 0;
 	mf->first_detect = 0;
 	mf->audio_detects = 0;
 	mf->direction_detects = 0;
 	mf->burst_detects = 0;
-	mf->external_detects = 0;
+	mf->fifo_detects = 0;
 	pikrellcam.external_motion = FALSE;
 
 	vcb->state = VCB_STATE_NONE;
