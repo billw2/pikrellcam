@@ -1533,20 +1533,20 @@ NFS tutorials you can refer to if you need more than these example steps.
 <span style='font-weight:700'>On gkrellm6</span>
 (Desktop running Linux - archiving to)
 <ul>
-	<li>In my home directory /home/bill, make an archive videos directory
+	<li>In my home directory /home/bill, make an archive media directory
 	to be NFS mounted by the Pi:
 <pre>
 $ cd
-$ mkdir videos
+$ mkdir media-archive
 </pre>
 	</li>
 	<li>Give permission for this directory to be exported to all
 	other machines on my LAN by adding a line to /etc/exports:
 <pre>
-/home/bill/videos 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
+/home/bill/media-archive 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
 </pre>
 After editing /etc/exports, restart nfs-kernel-server
-(/home/bill/videos must exist):
+(/home/bill/media-archive must exist):
 <pre>
 sudo systemctl restart nfs-kernel-server
 </pre>
@@ -1571,21 +1571,21 @@ sudo systemctl restart nfs-kernel-server
 		&nbsp &nbsp <span style='font-weight:700'>archive_dir archive</span><br>
 	</li>
 	<li>
-	Add a line to /etc/fstab so I can NFS mount the gkrellm6 videos
+	Add a line to /etc/fstab so I can NFS mount the gkrellm6 media-archive
 	directory onto the pikrellcam archive directory. Use the archive_dir
 	full path implied by the archive_dir value above:
 <pre>
-gkrellm6:/home/bill/videos /home/pi/pikrellcam/media/archive nfs users,noauto 0 0
+gkrellm6:/home/bill/media-archive /home/pi/pikrellcam/media/archive nfs users,noauto 0 0
 </pre>
 	</li>
-	<li> NFS mount the gkrellm6 videos directory by hand or by script.
+	<li> NFS mount the gkrellm6 media-archive directory by hand or by script.
 	The mount command will use the /etc/fstab line to mount the gkrellm6
-	<nobr>/home/bill/videos</nobr> directory on the pikrellcam
+	<nobr>/home/bill/media-archive</nobr> directory on the pikrellcam
 	<nobr>/home/pi/pikrellcam/media/archive</nobr> directory.
 	After mounting, running df will show the NFS mount and reloading
 	web pages will show "NFS Archive Calendar" buttons.
 <pre>
-$ sudo mount gkrellm6:/home/bill/videos
+$ sudo mount gkrellm6:/home/bill/media-archive
 </pre>
 	</li>
 	<li> You can use the pikrellcam ~/pikrellcam/scripts/startup script
@@ -1599,7 +1599,7 @@ $ sudo mount gkrellm6:/home/bill/videos
 	<ul>
 		<li> In ~/pikrellcam/scripts/startup, set NFS_ARCHIVE
 		to match the /etc/fstab nfs mount line:<br>
-		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=gkrellm6:/home/bill/videos</span>
+		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=gkrellm6:/home/bill/media-archive</span>
 		</li>
 		<li> In pikrellcam.conf, set the on_startup command. The $a variable
 		will be the archive_dir value configured in pikrellcam.conf and
@@ -1621,20 +1621,20 @@ My Pi3 desktop with a three partition USB SSD disk is rpi0,
 and my Pis running pikrellcam are <nobr>rpi4, rpi5, ...</nobr>
 The third partition on rpi0 is a large ext4 partition I use
 for archiving various things.  Here I will archive my videos to that
-partition into a videos subdirectory.
+partition into a media-archive subdirectory.
 <p>
 <span style='font-weight:700'>On rpi0</span> (Desktop Pi3 - archiving to)
 <ul>
-	<li> Make /mnt/archive and partition 3 /mnt/archive/videos directories:
+	<li> Make /mnt/archive and partition 3 /mnt/archive/media-archive directories:
 <pre>
 cd /mnt
 sudo mkdir archive
 sudo chown root.disk archive
 sudo chmod 775 archive
 
-# Mount partition 3 and make the videos subdirectory (my boot disk is sda).
+# Mount partition 3 and make the media-archive subdirectory (my boot disk is sda).
 sudo mount /dev/sda3 /mnt/archive
-mkdir archive/videos
+mkdir archive/media-archive
 </pre>
 	I want rpi0 partition 3 mounted at boot, so I have in /etc/fstab
 	(I use PARTUUID in my fstab instead of sda for reliable mounting):
@@ -1644,12 +1644,12 @@ PARTUUID=5d4064ac-02  /            ext4    defaults,noatime,discard  0       1
 PARTUUID=5d4064ac-03  /mnt/archive ext4    defaults,noatime,discard  0       2
 </pre>
 	</li>
-	<li> Give export permission for /mnt/archive/videos to all on the LAN.
+	<li> Give export permission for /mnt/archive/media-archive to all on the LAN.
 	Add to /etc/exports:
 <pre>
-/mnt/archive/videos 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
+/mnt/archive/media-archive 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
 </pre>
-After editing /etc/exports, restart nfs-kernel-server (/mnt/archive/videos
+After editing /etc/exports, restart nfs-kernel-server (/mnt/archive/media-archive
 must exist):
 <pre>
 sudo systemctl restart nfs-kernel-server
@@ -1669,7 +1669,7 @@ sudo systemctl restart nfs-kernel-server
 	I have all my pikrellcam media directories mounted with USB disks and
 	I would rather not NFS mount into a USB mount.
 	So, I set up similary to the structure I set up for rpi0 and
-	have each pikrellcam archive to directory /mnt/archive/videos which
+	have each pikrellcam archive to directory /mnt/archive/media-archive which
 	will be NFS mounted (but this could be a directory in /home/pi if you
 	prefer not to put it in /mnt).
 <pre>
@@ -1677,36 +1677,37 @@ cd /mnt
 sudo mkdir archive
 sudo chown root.disk archive
 sudo chmod 775 archive
-mkdir archive/videos
+mkdir archive/media-archive
 </pre>
 	Stop pikrellcam and edit archive_dir in ~/.pikrellcam/pikrellcam.conf,
 	then restart pikrellcam.
 <pre>
-archive_dir  /mnt/archive/videos
+archive_dir  /mnt/archive/media-archive
 </pre>
 	</li>
 	<li> Edit /etc/fstab with a line for NFS mounting the rpi0
-	/mnt/archive/videos directory on the local /mnt/archive/videos directory.
+	<nobr>/mnt/archive/media-archive</nobr> directory on the local
+	<nobr>/mnt/archive/media-archive</nobr> directory.
 	Add this line to /etc/fstab:
 <pre>
-rpi0:/mnt/archive/videos /mnt/archive/videos nfs users,noauto  0   0
+rpi0:/mnt/archive/media-archive /mnt/archive/media-archive nfs users,noauto  0   0
 </pre>
 	</li>
-	<li> NFS mount the rpi0 videos directory by hand or by script.
+	<li> NFS mount the rpi0 media-archive directory by hand or by script.
 	The mount command will use the /etc/fstab line to mount the rpi0
-	<nobr>/mnt/archive/videos</nobr> directory on the
-	<nobr>/mnt/archive/videos</nobr> directory of the Pis
+	<nobr>/mnt/archive/media-archive</nobr> directory on the
+	<nobr>/mnt/archive/media-archive</nobr> directory of the Pis
 	running pikrellcam:
 <pre>
-sudo mount  rpi0:/mnt/archive/videos
+sudo mount  rpi0:/mnt/archive/media-archive
 </pre>
 	</li>
 	<li> You can use the pikrellcam startup script to mount the NFS
 	directory as described in example 1.  In this case:
 	<ul>
 		<li> In ~/pikrellcam/scripts/startup, set NFS_ARCHIVE
-		to match the mount directory in the /etc/fstab line:<br>
-		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=rpi0:/mnt/archive/videos</span>
+		to match the mounting directory in the /etc/fstab line:<br>
+		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=rpi0:/mnt/archive/media-archive</span>
 		</li>
 		<li> In pikrellcam.conf, in addition to the archive_dir set as
 		above, set the on_startup command.  The $a variable

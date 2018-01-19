@@ -35,9 +35,9 @@ MOUNT_DISK=""
 # NFS_ARCHIVE should match the nfs mount line in /etc/fstab
 # For example, the examples in the web help page would set:
 #
-# NFS_ARCHIVE=gkrellm6:/home/bill/videos
+# NFS_ARCHIVE=gkrellm6:/home/bill/media-archive
 #   or
-# NFS_ARCHIVE=rpi0:/mnt/archive/videos
+# NFS_ARCHIVE=rpi0:/mnt/archive/media-archive
 #
 
 NFS_ARCHIVE=""
