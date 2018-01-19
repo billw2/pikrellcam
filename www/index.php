@@ -236,30 +236,40 @@ if (file_exists("custom-control.php"))
 	{
 	include 'custom-control.php';
 	}
-?>
-    </div>
 
-	<div id="container" class="top-margin">
-      <a href="archive.php?year=<?php echo date('Y'); ?>"
-        class="btn-control"
-        style="margin-right:20px;"
-      >Archive Calendar</a>
-	<?php
-		echo "<span style=\"color: $default_text_color\"> Media:</span>";
-		echo "<a href='media-archive.php?mode=media&type=videos'
-			class='btn-control'
-			style='margin-left:2px;'
-			>Videos</a>";
-		echo "<a href='media-archive.php?mode=media&type=stills'
-			class='btn-control'
-			style='margin-left:2px; margin-right:8px;'
-			>Stills</a>";
-		echo "<a href='media-archive.php?mode=loop&type=videos'
-			class='btn-control'
-			style='margin-left:2px; margin-right:30px;'
-			>Loop</a>";
-		echo "<span style=\"color: $default_text_color\"> Enable:</span>";
-	?>
+echo "</div>";
+
+echo "<div id='container' class='top-margin'>";
+
+$archive_root = ARCHIVE_DIR;
+$fs_type = exec("stat -f -L -c %T $archive_root");
+if ("$fs_type" == "nfs")
+	$arch_type = "NFS";
+else if (strpos($fs_type, 'Stale') !== false)
+	$arch_type = "Stale";
+else
+	$arch_type = "";
+
+echo "<a href=\"archive.php\"
+		class='btn-control'
+		style='margin-right:20px;'>
+		$arch_type Archive Calendar</a>";
+
+echo "<span style=\"color: $default_text_color\"> Media:</span>";
+echo "<a href='media-archive.php?mode=media&type=videos'
+		class='btn-control'
+		style='margin-left:2px;'
+		>Videos</a>";
+echo "<a href='media-archive.php?mode=media&type=stills'
+		class='btn-control'
+		style='margin-left:2px; margin-right:8px;'
+		>Stills</a>";
+echo "<a href='media-archive.php?mode=loop&type=videos'
+		class='btn-control'
+		style='margin-left:2px; margin-right:30px;'
+		>Loop</a>";
+echo "<span style=\"color: $default_text_color\"> Enable:</span>";
+?>
 
       <input type="button" id="motion_button" value="Motion"
          onclick="fifo_command('motion_enable toggle')"

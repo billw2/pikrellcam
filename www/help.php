@@ -68,6 +68,13 @@ And there is a Raspberry Pi
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
 
+Version 4.1.5
+<div class='indent1'>
+Archive directory <a href="help.php#ARCHIVING">NFS mount examples.</a><br>
+Archive Calendar can view by year.<br>
+Updated scripts-dist/startup script has NFS archive mounting.
+</div>
+
 Version 4.1.4
 <div class='indent1'>
 Bug fix for pikrellcam Start from web page: use installing user instead
@@ -1469,7 +1476,6 @@ example, you want a VFAT disk to be mounted on /media/mountdir.
 For this, use absolute pathnames in pikrellcam.conf:
 <pre>
 media_dir /media/mountdir
-archive_dir /media/mountdir/archive
 </pre>
 In the startup script, use a mount command like:
 <pre>
@@ -1486,52 +1492,242 @@ be needed in fstab so pikrellcam can make directories.  Look at the example
 fstab entry forum
 <a href="https://www.raspberrypi.org/forums/viewtopic.php?p=1123960#p1123960">
 raspberry pi forum</a>
-<p>
-The archive directory can be on a disk different from the media directory.  For example
-to have the media directory on a USB disk mounted on the ~/pikrellcam/media directory and
-the archive directory on a NAS mounted on /mnt/SHARE, in pikrellcam.conf:
-<pre>
-media_dir media
-archive_dir /mnt/SHARE/archive
-</pre>
-The mount of the USB disk could be handled in the startup script and the
-NAS drive mounted in the script or using fstab as described above.
-
 </div><br><br>
 
+<a name="ARCHIVING">
 <span style='font-size: 1.5em; font-weight: 500;'>Archiving</span><hr>
 <div class='indent0'>
-The main media directory can be where you always manage media files, or it
-can be considered a temporary staging directory where media
-files are reviewed for archiving or deleting.  Over time the number of files to keep can become
-large, difficult to review, and the web page may become sluggish with large numbers of files
-to load at a time.  So an archiving interface is provided in pikrellcam so that media files
-can be managed in smaller groups of days.  
+Archiving videos moves them out of the main media flat directory
+into the archive tree directory where files are stored by day.
+Archiving is useful for organizing large numbers of videos and can be a way
+to move videos into a safer central location from one or more pikrellcam
+camera installs.
+After archiving, media files may be viewed by day, week, month or year by
+clicking links on the calendar accessed through a web page "Archive Calendar"
+button. Archiving of videos is done by clicking a web page "Archive" button to
+operate on selected videos or by issuing archive commmands to the FIFO.
+The archiving process may take time for large video files to be moved to new
+directories, so videos may not immediately disappear from the
+media videos page and appear on the archive pages.
 <p>
-Archiving means to move media files out of the main media flat directory and into the archive
-tree directory where files are stored by day.
-After archiving, media files may be viewed by day, week, or month by clicking links on the
-calendar accessed through a web page "Archive Calendar" button.
+By default, the archive directory is under the pikrellcam media directory
+and so is on the same file system.  But archiving can be to either
+a separate disk mounted on the archive directory (as described above
+for mounting the media directory) or to another machine by network mounting
+on the archive directory.
+A network mount must have file system permissions set so that the pikrellcam
+installing user and www-data have read/write permissions from the Pi.
 <p>
-The archive is a hierarchical directory tree where leaf day directories
-contain media files only for a single day.  When viewing files on the web page, you will see
-a "Media" label for the flat media files view or an "Archive" label when viewing media of
-days from the archive directory tree.
-
-
-
-Pikrellcam does not provide for automatic mounting
-of the archive_dir as it does for the media_dir, but archiving could be set up to be on a separate
-disk.  You could simply mount a disk on <nobr>~/pikrellcam/media/archive</nobr> or mount a disk on
-/mnt/somedisk and edit archive_dir in pikrellcam.conf:
+<span style='font-size: 1.2em; font-weight: 650;'>NFS Archiving Example 1</span>
+<div class='indent1'>
+This is a minimal NFS setup for archiving from a Pi running pikrellcam to a
+desktop machine on a LAN.  Setup is required on both the Pi and the desktop
+and shown here is a specific example using gkrellm6 (my desktop), rpi5
+(one of my Pis running pikrellcam) and my LAN IP addresses.  The same setup
+as for rpi5 can be done for other Pis running pikrellcam and then multiple
+Pis can store videos into the same archive.
+You need your LAN working and change host names and IP addresses appropriate
+for your setup.  nfs-kernel-server must be installed and the web has many
+NFS tutorials you can refer to if you need more than these example steps.
+<p>
+<span style='font-weight:700'>On gkrellm6</span>
+(Desktop running Linux - archiving to)
+<ul>
+	<li>In my home directory /home/bill, make an archive videos directory
+	to be NFS mounted by the Pi:
 <pre>
-archive_dir /mnt/somedisk/archive
+$ cd
+$ mkdir videos
 </pre>
+	</li>
+	<li>Give permission for this directory to be exported to all
+	other machines on my LAN by adding a line to /etc/exports:
+<pre>
+/home/bill/videos 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
+</pre>
+After editing /etc/exports, restart nfs-kernel-server
+(/home/bill/videos must exist):
+<pre>
+sudo systemctl restart nfs-kernel-server
+</pre>
+	</li>
+</ul>
+
+<span style='font-weight:700'>On rpi5</span>
+(Pi running pikrellcam - archiving from)
+<ul>
+	<li> Edit /etc/hosts so from my Pi I can refer to my gkrellm6 desktop
+	by name instead of IP address.  The line I use for my network:
+<pre>
+192.168.0.10    gkrellm6
+</pre>
+	</li>
+	<li>
+	For this example I will mount onto the default pikrellcam archive location
+	so I don't have to edit archive_dir in pikrellcam.conf.  I leave it
+	at its default which assumes
+	<nobr>/home/pi/pikrellcam/media/archive</nobr>
+	since there is no leading /:<br>
+		&nbsp &nbsp <span style='font-weight:700'>archive_dir archive</span><br>
+	</li>
+	<li>
+	Add a line to /etc/fstab so I can NFS mount the gkrellm6 videos
+	directory onto the pikrellcam archive directory. Use the archive_dir
+	full path implied by the archive_dir value above:
+<pre>
+gkrellm6:/home/bill/videos /home/pi/pikrellcam/media/archive nfs users,noauto 0 0
+</pre>
+	</li>
+	<li> NFS mount the gkrellm6 videos directory by hand or by script.
+	The mount command will use the /etc/fstab line to mount the gkrellm6
+	<nobr>/home/bill/videos</nobr> directory on the pikrellcam
+	<nobr>/home/pi/pikrellcam/media/archive</nobr> directory.
+	After mounting, running df will show the NFS mount and reloading
+	web pages will show "NFS Archive Calendar" buttons.
+<pre>
+$ sudo mount gkrellm6:/home/bill/videos
+</pre>
+	</li>
+	<li> You can use the pikrellcam ~/pikrellcam/scripts/startup script
+	to mount the NFS archive directory when pikrellcam starts.
+	Pikrellcam installs prior to V 4.1.5 did not have a NFS section in that
+	startup script so you may have to copy the new
+	<nobr>~/pikrellcam/scripts-dist/startup</nobr> over your existing
+	<nobr>~/pikrellcam/scripts/startup.</nobr> and reconfigure
+	MOUNT_DISK if you had previously done that.<br>
+	Otherwise, configuration for NFS mounting must be as follows:
+	<ul>
+		<li> In ~/pikrellcam/scripts/startup, set NFS_ARCHIVE
+		to match the /etc/fstab nfs mount line:<br>
+		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=gkrellm6:/home/bill/videos</span>
+		</li>
+		<li> In pikrellcam.conf, set the on_startup command. The $a variable
+		will be the archive_dir value configured in pikrellcam.conf and
+		will become the archive_dir value in the script:<br>
+		&nbsp &nbsp <span style='font-weight:700'>on_startup $C/startup $I $m $a $G</span>
+		</li>
+	</ul>
+	</li>
+</ul>
+</div>
+
+<p>
+<span style='font-size: 1.2em; font-weight: 650;'>NFS Archiving Example 2</span>
+<div class='indent1'>
+This example is slightly more complicated and is my pikrellcam
+archiving set up.  I have a USB SSD booted Pi3 desktop where I archive
+videos from multiple Pis running pikrellcam.
+My Pi3 desktop with a three partition USB SSD disk is rpi0,
+and my Pis running pikrellcam are <nobr>rpi4, rpi5, ...</nobr>
+The third partition on rpi0 is a large ext4 partition I use
+for archiving various things.  Here I will archive my videos to that
+partition into a videos subdirectory.
+<p>
+<span style='font-weight:700'>On rpi0</span> (Desktop Pi3 - archiving to)
+<ul>
+	<li> Make /mnt/archive and partition 3 /mnt/archive/videos directories:
+<pre>
+cd /mnt
+sudo mkdir archive
+sudo chown root.disk archive
+sudo chmod 775 archive
+
+# Mount partition 3 and make the videos subdirectory (my boot disk is sda).
+sudo mount /dev/sda3 /mnt/archive
+mkdir archive/videos
+</pre>
+	I want rpi0 partition 3 mounted at boot, so I have in /etc/fstab
+	(I use PARTUUID in my fstab instead of sda for reliable mounting):
+<pre>
+PARTUUID=5d4064ac-01  /boot        vfat    defaults                  0       2
+PARTUUID=5d4064ac-02  /            ext4    defaults,noatime,discard  0       1
+PARTUUID=5d4064ac-03  /mnt/archive ext4    defaults,noatime,discard  0       2
+</pre>
+	</li>
+	<li> Give export permission for /mnt/archive/videos to all on the LAN.
+	Add to /etc/exports:
+<pre>
+/mnt/archive/videos 192.168.0.0/25(rw,nohide,no_subtree_check,no_root_squash)
+</pre>
+After editing /etc/exports, restart nfs-kernel-server (/mnt/archive/videos
+must exist):
+<pre>
+sudo systemctl restart nfs-kernel-server
+</pre>
+</ul>
+
+<span style='font-weight:700'>On rpi4, rpi5, ...</span> (Pis running pikrellcam - archiving from)
+<ul>
+	<li> Edit /etc/hosts so from each Pi I can refer to my rpi0 desktop
+	by name instead of IP address.  The line I use for my network:
+<pre>
+192.168.0.30    rpi0
+</pre>
+	</li>
+	<li> I don't want the pikrellcam archive directory left at the default
+	location as <nobr>~/pikrellcam/media/archive</nobr> because
+	I have all my pikrellcam media directories mounted with USB disks and
+	I would rather not NFS mount into a USB mount.
+	So, I set up similary to the structure I set up for rpi0 and
+	have each pikrellcam archive to directory /mnt/archive/videos which
+	will be NFS mounted (but this could be a directory in /home/pi if you
+	prefer not to put it in /mnt).
+<pre>
+cd /mnt
+sudo mkdir archive
+sudo chown root.disk archive
+sudo chmod 775 archive
+mkdir archive/videos
+</pre>
+	Stop pikrellcam and edit archive_dir in ~/.pikrellcam/pikrellcam.conf,
+	then restart pikrellcam.
+<pre>
+archive_dir  /mnt/archive/videos
+</pre>
+	</li>
+	<li> Edit /etc/fstab with a line for NFS mounting the rpi0
+	/mnt/archive/videos directory on the local /mnt/archive/videos directory.
+	Add this line to /etc/fstab:
+<pre>
+rpi0:/mnt/archive/videos /mnt/archive/videos nfs users,noauto  0   0
+</pre>
+	</li>
+	<li> NFS mount the rpi0 videos directory by hand or by script.
+	The mount command will use the /etc/fstab line to mount the rpi0
+	<nobr>/mnt/archive/videos</nobr> directory on the
+	<nobr>/mnt/archive/videos</nobr> directory of the Pis
+	running pikrellcam:
+<pre>
+sudo mount  rpi0:/mnt/archive/videos
+</pre>
+	</li>
+	<li> You can use the pikrellcam startup script to mount the NFS
+	directory as described in example 1.  In this case:
+	<ul>
+		<li> In ~/pikrellcam/scripts/startup, set NFS_ARCHIVE
+		to match the mount directory in the /etc/fstab line:<br>
+		&nbsp &nbsp <span style='font-weight:700'>NFS_ARCHIVE=rpi0:/mnt/archive/videos</span>
+		</li>
+		<li> In pikrellcam.conf, in addition to the archive_dir set as
+		above, set the on_startup command.  The $a variable
+		will be the archive_dir value configured in pikrellcam.conf and
+		will become the archive_dir value in the script:<br>
+		&nbsp &nbsp <span style='font-weight:700'>on_startup $C/startup $I $m $a $G</span>
+		</li>
+	</ul>
+	</li>
+</ul>
+</div>
+
+
+
+<span style='font-size: 1.2em; font-weight: 650;'>Archive Directories</span>
+<div class='indent1'>
 The archive directory tree is by year, month and day with each month and day two digits:
 <pre>
-.../archive/2015/11/13
+archive/2017/11/13
 or
-.../archive/2015/07/04
+archive/2017/07/04
 </pre>
 Where 13 is a media directory for November 13.  It has the media file sub directories videos,
 thumbs, and stills.  When you archive files from the web page,
@@ -1542,38 +1738,36 @@ Since the web server runs as the user www-data, pikrellcam creates directories w
 for the user www-data so files can be deleted from the web page. All directories in the archive
 path have permissions like:
 <pre>
-pi@rpi2: ~/pikrellcam/www$ ls -Rl /tmp/media/archive/
-/tmp/media/archive/:
-total 0
-drwxrwxr-x 3 pi www-data 60 Nov 12 12:16 2015/
 
-/tmp/media/archive/2015:
+pi@rpi2: ~/pikrellcam/www/archive$ ls -Rl
+.:
+total 0
+drwxrwxr-x 3 pi www-data 60 Nov 12 12:16 2017/
+
+./2017:
 total 0
 drwxrwxr-x 6 pi www-data 120 Nov 15 15:28 11/
 
-/tmp/media/archive/2015/11:
+./2017/11:
 total 0
 drwxrwxr-x 4 pi www-data 80 Nov 15 15:29 13/
 
-/tmp/media/archive/2015/11/13:
+./2017/11/13:
 total 0
 drwxrwxr-x 2 pi www-data 80 Nov 14 22:08 thumbs/
 drwxrwxr-x 2 pi www-data 80 Nov 14 22:08 videos/
 </pre>
-Keep these permissions in mind if you manage the directory structure outside of pikrellcam.  This
-example listing is from my configuration where I set media_dir to <nobr>/tmp/media</nobr> in pikrellcam.conf
-and my /tmp is a tmpfs
-so my archive file testing would not wear on my SD card or a mounted USB drive.
-<p>
-The archive directory tree in the above listing was created by clicking on a web page Archive button.  It is also
-possible to automate archiving from a script.  From a script or command line, the same archiving could
-be done with:
+Keep these permissions in mind if you manage the directory structure
+outside of pikrellcam.
+<br>
+Archiving can be done by sending commands to the FIFO.  For example, to
+archive all videos for Nov 13, 2017:
 <pre>
-echo "archive_video day 2015-11-13" > ~/pikrellcam/www/FIFO
+echo "archive_video day 2017-11-13" > ~/pikrellcam/www/FIFO
 </pre>
 or a specific video (including its thumb) can be archived with:
 <pre>
-echo "archive_video motion_2015-11-05_14.46.14_456.mp4 2015-11-05" > ~/pikrellcam/www/FIFO
+echo "archive_video motion_2017-11-05_14.46.14_456.mp4 2017-11-05" > ~/pikrellcam/www/FIFO
 </pre>
 To archive all media videos for today or yesterday:
 <pre>
@@ -1587,7 +1781,7 @@ echo "archive_video day_loop yesterday" > ~/pikrellcam/www/FIFO
 </pre>
 Stills may be script archived using the same set of arguments with the archive_still FIFO command.
 </div>
-
+</div>
 
 
 <span style='font-size: 1.5em; font-weight: 650;'>FIFO Commands</span><hr>

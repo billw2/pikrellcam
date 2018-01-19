@@ -167,10 +167,10 @@ function media_array_create()
 			$dir = archive_media_dir($year, $month0, $day);
 			$media_array = array_merge($media_array, media_dir_array_create($dir));
 			}
-		if ($month1 > $month0)
+		for ($m = $month0 + 1; $m <= $month1; $m++)
 			for ($day = 1; $day <= $day1; $day++)
 				{
-				$dir = archive_media_dir($year, $month1, $day);
+				$dir = archive_media_dir($year, $m, $day);
 				$media_array = array_merge($media_array, media_dir_array_create($dir));
 				}
 		}
@@ -438,7 +438,7 @@ function restart_page($selected)
 	$selected = "";
 	$media_dir = "";
 	$prev_index = 0;
-	$label = "??";
+	$label = "";
 	$env = "";
 	$year = "";
 	$stills_thumb_rescan = true;
@@ -778,19 +778,27 @@ function restart_page($selected)
 	echo "</div>";
 
 	echo "<div style='color: $default_text_color; margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
+
+	$fs_type = exec("stat -f -L -c %T $archive_root");
+	if ("$fs_type" == "nfs")
+		$arch_type = "NFS";
+	else if (strpos($fs_type, 'Stale') !== false)
+		$arch_type = "Stale";
+	else
+		$arch_type = "";
+
 	if ("$media_mode" == "archive")
 		{
-		$fs = exec("stat -f -L -c %T $archive_root");
-		if ("$fs" == "nfs")
+		if ("$fs_type" == "nfs")
 			$media_label = "NFS Archive: $year $label";
+		else if (strpos($fs_type, 'Stale') !== false)
+			$media_label = "Stale Archive: $year $label";
 		else
 			$media_label = "Archive: $year $label";
 		}
 	else
 		$media_label = "";
 
-//	echo "<span style=\"font-size: 1.2em; font-weight: 500;\">
-//			$media_label</span>";
 	if ("$media_mode" == "loop")
 		{
 		echo "<span style=\"margin-left: 4px; font-size: 1.4em; font-weight: 500;\">Loop</span> &nbsp;&nbsp;";
@@ -838,7 +846,15 @@ function restart_page($selected)
 	$free = eng_filesize($disk_free);
 
 	if ("$media_mode" == "archive")
+		{
 		$dir = exec("readlink -f $archive_root");
+		if ("$arch_type" != "")
+			{
+			$tmp = exec("(df | grep $dir | cut -d \" \" -f 1)");
+			if ("$tmp" != "")
+				$dir = $tmp;
+			}
+		}
 	else
 		$dir = exec("readlink -f $media_dir"). "/$media_type";
 	$e_user = "pi";
@@ -1121,9 +1137,12 @@ function restart_page($selected)
 		style='margin-left:8px;'>
 		$title</a>";
 
-	echo "<a href='archive.php' class='btn-control'
-		style=\"margin-left: 8px;\">
-		Archive Calendar</a>";
+	if ("$year" == "")
+		$year = date('Y');
+	echo "<a href=\"archive.php?year=$year\"
+				class='btn-control'
+				style=\"margin-left: 8px;\">
+				$arch_type Archive Calendar</a>";
 
 	echo "<span style=\"color: $default_text_color;\">";
 	if ("$media_view" == "thumbs")

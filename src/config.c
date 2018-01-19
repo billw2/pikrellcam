@@ -572,11 +572,13 @@ static Config  config[] =
 	  "# files are loaded but before the camera is started or directories\n"
 	  "# are checked.  If you want a start command that runs after the camera\n"
 	  "# is started, add a command to the file: ~/.pikrellcam/at-commands.conf.\n"
-	  "# The default on_startup script can mount a drive on the media directory.\n"
-	  "# Edit MOUNT_DISK in the startup script in $C (the scripts directory) to\n"
-	  "# enable mounting.\n"
+	  "# The default on_startup script can mount a disk on the media_dir\n"
+	  "# and NFS mount a directory on the archive_dir.  See the web help page.\n"
+	  "# Edit MOUNT_DISK and NFS_ARCHIVE in the script to enable mounting.\n"
+	  "# As of V 4.1.5, the default scripts-dist/startup script needs:\n"
+	  "#   on_startup  $C/startup $I $m $a $G\n"
 	  "#",
-	"on_startup", "$C/startup $I $m $G",  TRUE, {.string = &pikrellcam.on_startup_cmd}, config_string_set },
+	"on_startup", "$C/startup $I $m $a $G",  TRUE, {.string = &pikrellcam.on_startup_cmd}, config_string_set },
 
 	{ "# Set to off to disable accepting halt and reboot commands\n"
 	  "# from the FIFO and the web page.\n"
@@ -1250,7 +1252,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 43;
+	pikrellcam.config_sequence_new = 45;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{

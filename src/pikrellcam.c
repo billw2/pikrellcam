@@ -1626,6 +1626,8 @@ check_modes(char *fname, int mode)
 	struct passwd	*pwd;
 	char			ch_cmd[200];
 	char			*skip_fs = NULL;
+	SList			*list;
+	static SList	*fs_warned_list;
 
 	if (!fname || pikrellcam.verbose)
 		{
@@ -1646,8 +1648,16 @@ check_modes(char *fname, int mode)
 
 			if (skip_fs)
 				{
-				log_printf_no_timestamp("%s filesystem: %s.\n", skip_fs, fname);
-				log_printf_no_timestamp("  Cannot set modes - modes must be set when mounted.\n");
+				for (list = fs_warned_list; list; list = list->next)
+					if (!strcmp(list->data, fname))
+						skip_fs = NULL;
+				if (skip_fs)
+					{
+					log_printf_no_timestamp(
+							"%s filesystem %s: modes assumed set when mounted.\n",
+							skip_fs, fname);
+					fs_warned_list = slist_append(fs_warned_list, strdup(fname));
+					}
 				return;
 				}
 			}

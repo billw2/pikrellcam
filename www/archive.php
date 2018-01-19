@@ -186,8 +186,12 @@ function build_month_html($year, $month, $type)
 	echo "<input type='image' src='images/arrow-left.png'
 			style='margin-left:3px; vertical-align: bottom; padding-bottom: 2px'
 			onclick='window.location=\"archive.php?year=$year&prev=prev\";'>";
-	echo "<span style=\"font-size: 1.5em; font-weight: 500; color: $default_text_color;\">
-			$year</span>";
+//	echo "<span style=\"font-size: 1.5em; font-weight: 500; color: $default_text_color;\">
+//			$year</span>";
+	echo "<a style=\"font-size: 1.5em; font-weight: 500; color: $link_color;\"
+			href=\"media-archive.php?type=$archive_initial_view&year=$year&m0=1&d0=1&m1=12&d1=31\">
+			$year</a>";
+
 	echo "<input type='image' src='images/arrow-right.png'
 			style='margin-left:10px; vertical-align: bottom; padding-bottom: 2px'
 			onclick='window.location=\"archive.php?year=$year&next=next\";'>";
@@ -214,6 +218,26 @@ function build_month_html($year, $month, $type)
 		style='margin-left:8px;'>
 		$title</a></div>";
 
+	$archive_root = ARCHIVE_DIR;
+	$fs_type = exec("stat -f -L -c %T $archive_root");
+
+	if ("$fs_type" == "nfs")
+		$arch_type = "NFS";
+	else if (strpos($fs_type, 'Stale') !== false)
+		$arch_type = "Stale";
+	else
+		$arch_type = "";
+
+	$dir = exec("readlink -f $archive_root");
+
+	if ("$arch_type" != "")
+		{
+		$nfs_dir = exec("(df | grep $dir | cut -d \" \" -f 1)");
+		$arch_label = "$nfs_dir &nbsp $arch_type mounted-> &nbsp $dir";
+		}
+	else
+		$arch_label = $dir;
+
 	if ("$archive_initial_view" == "videos")
 		$next_view = "thumbs";
 	else if ("$archive_initial_view" == "thumbs")
@@ -226,6 +250,12 @@ function build_month_html($year, $month, $type)
 	echo "<span style='float:right; margin-right: 30px'>
 			<a href='archive.php?view=$next_view'>Initial view:</a>
 			$archive_initial_view</span>";
+
+	echo "<span style=\"float: right; margin-right:50px;
+					font-size: 0.96em; font-weight:550;
+					color: $default_text_color\">
+					$arch_label</span>";
+
 
 	echo "</div>";
 	echo "</body></html>";

@@ -1,71 +1,135 @@
 #!/bin/bash
 
-# Startup cript to mount a flash/usb drive on media_dir.
+# Startup script to mount usb drives on media_dir or NFS mount on archive_dir
 #
-# This script should be configured in ~/.pikrellcam/pikrellcam.conf and not
-#   in the at-command.conf file.  Eg in pikrellcam.conf:
-#   on_startup $C/startup $I $m $G
+# This script should be configured in ~/.pikrellcam/pikrellcam.conf:
+#
+#   on_startup $C/startup $I $m $a $G
+#
+# NOTE: the above on_startup command is not compatible with the default
+#	~/pikrellcam/scripts/startup script in pikrellcam versions prior to
+#	V 4.1.5.  If you have copied this script over an existing startup script,
+#   be sure to check how on_startup is configured in pikrellcam.conf.
 #
 # Argument substitution done by PiKrellCam before running this script:
 #   $C - scripts directory so this script is found.
-#   $I - install directory full path
-#   $m - the media directory full path
-#   $G - log file configured in ~/.pikrellcam/pikrellcam.conf.
+#   $I - install directory path
+# Variables configured in ~/.pikrellcam/pikrellcam.conf
+#   $m - the media_dir directory path
+#   $a - the archive_dir directory path
+#   $G - the log_file path
 #
 
-# Uncomment and change the MOUNT_DISK name to the name of the disk
-# you want to mount on media_dir.
+
+# Set MOUNT_DISK to a disk name to mount a disk on media_dir
 # If the media_dir directory is on a tmpfs, it will not be mounted.
+# For example, to mount /dev/sda1 on media_dir:
 #
-#MOUNT_DISK=sda1
+# MOUNT_DISK=sda1
+#
 
-INSTALL_DIR=$1
-MEDIA_DIR=$2
-LOG_FILE=$3
+MOUNT_DISK=""
 
 
-if [ "$LOG_FILE" == "" ]
+# Set NFS_ARCHIVE to nfs mount a disk on archive_dir.  See the help page.
+# NFS_ARCHIVE should match the nfs mount line in /etc/fstab
+# For example, the examples in the web help page would set:
+#
+# NFS_ARCHIVE=gkrellm6:/home/bill/videos
+#   or
+# NFS_ARCHIVE=rpi0:/mnt/archive/videos
+#
+
+NFS_ARCHIVE=""
+
+
+
+install_dir=$1
+media_dir=$2
+archive_dir=$3
+log_file=$4
+
+if [ "$log_file" == "" ]
 then
-	LOG_FILE=/dev/null
+	log_file=/dev/null
 fi
 
 if [ "$MOUNT_DISK" == "" ]
 then
-	echo "  MOUNT_DISK is not set." >> $LOG_FILE
-	exit 0
-fi
-
-if ! grep -q $MOUNT_DISK /proc/partitions
-then
-	echo "  Cannot find $MOUNT_DISK to mount on $MEDIA_DIR" >> $LOG_FILE
-	exit 1
-fi
-
-DISK_DEVICE=/dev/$MOUNT_DISK
-cd $INSTALL_DIR
-
-CURMOUNT_DIR=`fgrep "$DISK_DEVICE " /etc/mtab | cut -f 2 -d ' ' `
-if [ "$CURMOUNT_DIR" != "" ]
-then
-	if [ "$CURMOUNT_DIR" != "$MEDIA_DIR" ]
-	then
-		echo "  umount $DISK_DEVICE from $CURMOUNT_DIR" >> $LOG_FILE
-		sudo umount $DISK_DEVICE
-	fi
-fi
-
-if ! mountpoint -q $MEDIA_DIR
-then
-	FS_TYPE=`stat -f -c '%T' $MEDIA_DIR`
-	if [ "$FS_TYPE" != "tmpfs" ]
-	then
-		echo "  mount $DISK_DEVICE $MEDIA_DIR" >> $LOG_FILE
-		sudo mount $DISK_DEVICE $MEDIA_DIR
-		#
-		# PiKrellCam will make subdirectories and fixup permissions.
-	else
-		echo "  not mounting $DISK_DEVICE because $MEDIA_DIR is a tmpfs" >> $LOG_FILE
-	fi
+	echo "  MOUNT_DISK is not set." >> $log_file
 else
-	echo "  $MEDIA_DIR is already mounted." >> $LOG_FILE
+	if ! grep -q $MOUNT_DISK /proc/partitions
+	then
+		echo "  Cannot find $MOUNT_DISK to mount on $media_dir" >> $log_file
+		MOUNT_DISK=""
+	fi
+fi
+
+if [ "$MOUNT_DISK" != "" ]
+then
+	disk_device=/dev/$MOUNT_DISK
+	cd $install_dir
+
+	curmount_dir=`fgrep "$disk_device " /etc/mtab | cut -f 2 -d ' ' `
+	if [ "$curmount_dir" != "" ]
+	then
+		if [ "$curmount_dir" != "$media_dir" ]
+		then
+			echo "  umount $disk_device from $curmount_dir" >> $log_file
+			sudo umount $disk_device
+		fi
+	fi
+
+	if ! mountpoint -q $media_dir
+	then
+		FS_TYPE=`stat -f -c '%T' $media_dir`
+		if [ "$FS_TYPE" != "tmpfs" ]
+		then
+			if sudo mount $disk_device $media_dir
+			then
+				echo "  mounted $disk_device on $media_dir" >> $log_file
+			else
+				echo "  mount of $disk_device on $media_dir failed" >> $log_file
+			fi
+			#
+			# PiKrellCam will make subdirectories and fixup permissions.
+		else
+			echo "  not mounting $disk_device because $media_dir is a tmpfs" >> $log_file
+		fi
+	else
+		echo "  $media_dir is already mounted." >> $log_file
+	fi
+fi
+
+
+
+if [ "$NFS_ARCHIVE" == "" ]
+then
+	echo "  NFS_ARCHIVE is not set." >> $log_file
+fi
+
+if [ "$NFS_ARCHIVE" != "" ]
+then
+	fs_type=$(stat -f -L -c %T $archive_dir)
+
+	stale=$(echo "$fs_type" | grep "Stale")
+
+	if [ "$stale" != "" ]
+	then
+		echo "  NFS archive directory $archive_dir is stale." >> $log_file
+		echo "    Remote NFS server may be down?" >> log_file
+		echo "    To force unmount, run:  sudo umount -f $archive_dir" >> log_file
+	elif [ "$fs_type" == "nfs" ]
+	then
+		echo "  $archive_dir is already NFS mounted." >> $log_file
+	else
+		sudo mount $NFS_ARCHIVE
+		fs_type=$(stat -f -L -c %T $archive_dir)
+		if [ "$fs_type" == "nfs" ]
+		then
+			echo "  NFS mounted $NFS_ARCHIVE" >> $log_file
+		else
+			echo "  NFS mount of $NFS_ARCHIVE failed" >> $log_file
+		fi
+	fi
 fi
