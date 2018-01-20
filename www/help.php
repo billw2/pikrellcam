@@ -1548,7 +1548,7 @@ $ mkdir media-archive
 After editing /etc/exports, restart nfs-kernel-server
 (/home/bill/media-archive must exist):
 <pre>
-sudo systemctl restart nfs-kernel-server
+$ sudo systemctl restart nfs-kernel-server
 </pre>
 	</li>
 </ul>
@@ -1627,14 +1627,14 @@ partition into a media-archive subdirectory.
 <ul>
 	<li> Make /mnt/archive and partition 3 /mnt/archive/media-archive directories:
 <pre>
-cd /mnt
-sudo mkdir archive
-sudo chown root.disk archive
-sudo chmod 775 archive
+$ cd /mnt
+$ sudo mkdir archive
+$ sudo chown root.disk archive
+$ sudo chmod 775 archive
 
 # Mount partition 3 and make the media-archive subdirectory (my boot disk is sda).
-sudo mount /dev/sda3 /mnt/archive
-mkdir archive/media-archive
+$ sudo mount /dev/sda3 /mnt/archive
+$ mkdir archive/media-archive
 </pre>
 	I want rpi0 partition 3 mounted at boot, so I have in /etc/fstab
 	(I use PARTUUID in my fstab instead of sda for reliable mounting):
@@ -1652,7 +1652,7 @@ PARTUUID=5d4064ac-03  /mnt/archive ext4    defaults,noatime,discard  0       2
 After editing /etc/exports, restart nfs-kernel-server (/mnt/archive/media-archive
 must exist):
 <pre>
-sudo systemctl restart nfs-kernel-server
+$ sudo systemctl restart nfs-kernel-server
 </pre>
 </ul>
 
@@ -1673,11 +1673,11 @@ sudo systemctl restart nfs-kernel-server
 	will be NFS mounted (but this could be a directory in /home/pi if you
 	prefer not to put it in /mnt).
 <pre>
-cd /mnt
-sudo mkdir archive
-sudo chown root.disk archive
-sudo chmod 775 archive
-mkdir archive/media-archive
+$ cd /mnt
+$ sudo mkdir archive
+$ sudo chown root.disk archive
+$ sudo chmod 775 archive
+$ mkdir archive/media-archive
 </pre>
 	Stop pikrellcam and edit archive_dir in ~/.pikrellcam/pikrellcam.conf,
 	then restart pikrellcam.
@@ -1699,7 +1699,7 @@ rpi0:/mnt/archive/media-archive /mnt/archive/media-archive nfs users,noauto  0  
 	<nobr>/mnt/archive/media-archive</nobr> directory of the Pis
 	running pikrellcam:
 <pre>
-sudo mount  rpi0:/mnt/archive/media-archive
+$ sudo mount  rpi0:/mnt/archive/media-archive
 </pre>
 	</li>
 	<li> You can use the pikrellcam startup script to mount the NFS
@@ -1720,7 +1720,21 @@ sudo mount  rpi0:/mnt/archive/media-archive
 </ul>
 </div>
 
-
+<p>
+<span style='font-size: 1.2em; font-weight: 650;'>NFS Archiving Notes</span>
+<div class='indent1'>
+<ul>
+	<li> If the remote NFS server is slow to respond or down, a NFS mount
+	command can appear to hang while the mount is retried.
+	</li>
+	<li> A non responding NFS server can cause the web pages to be slow
+	to load until either the server responds or the local kernel
+	temporarily gives up and lists the mount as "Stale".  A stale or
+	non responding NFS mount can be force unmounted with umnount -f or
+	just wait until the remote file system comes back up.
+	</li>
+</ul>
+</div>
 
 <span style='font-size: 1.2em; font-weight: 650;'>Archive Directories</span>
 <div class='indent1'>

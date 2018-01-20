@@ -389,8 +389,8 @@ function wait_files_gone($key, $pat)
 			break;
 		}
 	usleep(400000);
-	if ($i == 16)
-		echo "<script type='text/javascript'>alert('Archive may have failed. Is pikrellcam running?');</script>";
+//	if ($i == 16)
+//		echo "<script type='text/javascript'>alert('Archive may have failed. Is pikrellcam running?');</script>";
 	}
 
 function restart_page($selected)
@@ -678,6 +678,14 @@ function restart_page($selected)
 		restart_page("");
 		}
 
+	$fs_type = exec("stat -f -L -c %T $archive_root");
+	if ("$fs_type" == "nfs")
+		$arch_type = "NFS";
+	else if (strpos($fs_type, 'Stale') !== false)
+		$arch_type = "Stale";
+	else
+		$arch_type = "";
+
 	media_array_create();
 	$index = media_array_index("$selected");
 
@@ -753,11 +761,18 @@ function restart_page($selected)
 			if ("$media_mode" != "archive")
 				{
 				$ymd = $media_array[$index]['date'];
-				echo "<input type='button' value='Archive'
+				if ("$arch_type" != "Stale")
+					echo "<input type='button' value='$arch_type Archive'
 						class='btn-control'
 						style='margin-left: 100px;'
 						onclick='window.location=\"media-archive.php?$env&date=$ymd&dir=$media_dir&archive=$file_name$next_file\";'
 				  	>";
+				else
+					echo "<input type='button' value='$arch_type Archive'
+						class='btn-control'
+						style='margin-left: 100px;'
+				  	>";
+
 				$left_margin = 10;
 				}
 			echo "<input type='button' value='Delete'
@@ -778,14 +793,6 @@ function restart_page($selected)
 	echo "</div>";
 
 	echo "<div style='color: $default_text_color; margin-left:8px; margin-top:8px; margin-bottom:6px;'>";
-
-	$fs_type = exec("stat -f -L -c %T $archive_root");
-	if ("$fs_type" == "nfs")
-		$arch_type = "NFS";
-	else if (strpos($fs_type, 'Stale') !== false)
-		$arch_type = "Stale";
-	else
-		$arch_type = "";
 
 	if ("$media_mode" == "archive")
 		{
@@ -940,11 +947,17 @@ function restart_page($selected)
 					{
 					if ("$media_mode" != "archive")
 						{
-						echo "<input type='button' value='Archive Day'
-							class='btn-control'
-							style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
-							onclick='if (confirm(\"Archive day $ymd?\"))
-							  {window.location=\"media-archive.php?$env&dir=$dir&archive_date=$ymd$next_file\";}'>";
+						if ("$arch_type" != "Stale")
+							echo "<input type='button' value='$arch_type Archive Day'
+								class='btn-control'
+								style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'
+								onclick='if (confirm(\"$arch_type Archive day $ymd?\"))
+								  {window.location=\"media-archive.php?$env&dir=$dir&archive_date=$ymd$next_file\";}'>";
+						else
+							echo "<input type='button' value='$arch_type Archive'
+								class='btn-control'
+								style='margin-left: 32px; margin-bottom:4px; margin-top:24px; font-size: 0.82em; text-align: left;'>";
+
 						if ($n_columns > 2 && "$media_view" != "thumbs")
 							echo "</td><td>";
 						}
@@ -1149,10 +1162,16 @@ function restart_page($selected)
 		{
 		echo "<span style='margin-left: 50px;'>Selections:</span>";
 		if ("$media_mode" != "archive")
-			echo "<button type='submit' class='btn-control' style='margin-left: 8px';
-				value='archive_selected' name='action'
-				onclick=\"return confirm('Archive selected media?');\">
-				Archive</button>";
+			{
+			if ("$arch_type" != "Stale")
+				echo "<button type='submit' class='btn-control' style='margin-left: 8px';
+					value='archive_selected' name='action'
+					onclick=\"return confirm('$arch_type Archive selected media?');\">
+					$arch_type Archive</button>";
+			else
+				echo "<button class='btn-control' style='margin-left: 8px';>
+					$arch_type Archive</button>";
+			}
 		echo "<button type='submit' class='btn-control alert-control' style='margin-left: 8px'
 			value='delete_selected' name='action'
 				onclick=\"return confirm('Delete selected media?');\">
