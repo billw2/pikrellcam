@@ -20,6 +20,12 @@ function check_thumb
 	BASE=`basename $1`
 	PREFIX=${BASE:0:3}
 	DIR=`dirname $1`
+	if [[ $1 == *"/stills/"* ]]
+	then
+		STILLS=yes
+	else
+		STILLS=no
+	fi
 
 	if [[ $BASE == *"mp4" ]]
 	then
@@ -47,7 +53,7 @@ function check_thumb
 					rm $TMP_DIR/${THUMB_JPEG}.tmp
 				fi
 			else
-				echo "  Generated timelapse or manual thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+				echo "  Generated thumb type $PREFIX: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
 				if [ "$TEST" != "test" ]
 				then
 					convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMBS_DIR/$THUMB_JPEG
@@ -58,7 +64,7 @@ function check_thumb
 				rm $TMP_DIR/$THUMB_JPEG
 			fi
 		fi
-	elif [[ $BASE == *"th.jpg" ]]
+	elif [[ $BASE == *"th.jpg" ]] && [ "$STILLS" == "no" ]
 	then
 		# Delete longest match of substring /thumbs from back of $DIR.
 		MEDIA_DIR=${DIR%%/thumbs}
@@ -67,6 +73,19 @@ function check_thumb
 		if [ ! -f $VIDEOS_DIR/$VIDEO ]
 		then
 			echo "  Deleted thumb with no video: $1" >> $LOG
+			if [ "$TEST" != "test" ]
+			then
+				rm $1
+			fi
+		fi
+	elif [[ $BASE == *"th.jpg" ]] && [ "$STILLS" == "yes" ]
+	then
+		# Delete longest match of substring /.thumbs from back of $DIR.
+		STILLS_DIR=${DIR%%/.thumbs}
+		IMAGE=${BASE%.th.jpg}.jpg
+		if [ ! -f $STILLS_DIR/$IMAGE ]
+		then
+			echo "  Deleted stills thumb with no image: $1" >> $LOG
 			if [ "$TEST" != "test" ]
 			then
 				rm $1
