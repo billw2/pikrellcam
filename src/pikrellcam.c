@@ -686,7 +686,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	char			*cmd = NULL, *tmp_dir = "", *thumb_dir, detect[128];
 	char			buf1[1048], buf2[1048];
 	char			*add_mp3 = NULL, *add_h264 = NULL, *record_end_cmd = NULL;
-	char			*base, *s, *converting_file, *mod_name, *fmt;
+	char			*base, *s, *converting_file, *mod_name;
 	double			ftmp, encode_fps;
 	boolean			video_name_modified = FALSE;
 
@@ -756,9 +756,13 @@ video_record_stop(VideoCircularBuffer *vcb)
 	        )
 		{
 		*s = '\0';
-		fmt = mf->fifo_detects ? "%sext-%s%s" : "%saudio%s";
-		asprintf(&mod_name, fmt, pikrellcam.video_pathname,
-					mf->fifo_trigger_code, s + 6);
+		if (mf->fifo_detects)
+			asprintf(&mod_name, "%sext-%s%s", pikrellcam.video_pathname,
+					mf->fifo_trigger_code ? mf->fifo_trigger_code : "FIFO",
+					s + 6);
+		else
+			asprintf(&mod_name, "%saudio%s", pikrellcam.video_pathname, s + 6);
+
 		free(pikrellcam.video_pathname);
 		pikrellcam.video_pathname = mod_name;
 		video_name_modified = TRUE;
