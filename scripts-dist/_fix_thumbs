@@ -36,32 +36,41 @@ function check_thumb
 
 		if [ ! -f $THUMBS_DIR/$THUMB_JPEG ]
 		then
+			THUMB_FAIL=false
 #			echo "  avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG" >>$LOG
 			if [ "$TEST" != "test" ]
 			then
-				avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG
-			fi
-			if [ "$PREFIX" == "mot" ]
-			then
-				echo "  Recovered motion thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
-				if [ "$TEST" != "test" ]
+				if ! avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG
 				then
-					convert -crop 500x500+100+100 -resize 150x150 \
-						$TMP_DIR/$THUMB_JPEG $TMP_DIR/${THUMB_JPEG}.tmp
-					convert -annotate +8+26 "Recovered" -pointsize 18 \
-						$TMP_DIR/${THUMB_JPEG}.tmp $THUMBS_DIR/$THUMB_JPEG
-					rm $TMP_DIR/${THUMB_JPEG}.tmp
-				fi
-			else
-				echo "  Generated thumb type $PREFIX: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
-				if [ "$TEST" != "test" ]
-				then
-					convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMBS_DIR/$THUMB_JPEG
+					echo "  Failed to extract thumb from video: $1" >> $LOG
+					THUMB_FAIL=true
 				fi
 			fi
-			if [ "$TEST" != "test" ]
+			if [ "$THUMB_FAIL" == "false" ]
 			then
-				rm $TMP_DIR/$THUMB_JPEG
+				if [ "$PREFIX" == "mot" ]
+				then
+					echo "  Recovering motion thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+					if [ "$TEST" != "test" ]
+					then
+						convert -crop 500x500+100+100 -resize 150x150 \
+							$TMP_DIR/$THUMB_JPEG $TMP_DIR/${THUMB_JPEG}.tmp
+						convert -annotate +8+26 "Recovered" -pointsize 18 \
+							$TMP_DIR/${THUMB_JPEG}.tmp $THUMBS_DIR/$THUMB_JPEG
+						rm $TMP_DIR/${THUMB_JPEG}.tmp
+					fi
+				else
+					echo "  Generating thumb type $PREFIX: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+					if [ "$TEST" != "test" ]
+					then
+						convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMBS_DIR/$THUMB_JPEG
+					fi
+				fi
+
+				if [ "$TEST" != "test" ]
+				then
+					rm $TMP_DIR/$THUMB_JPEG
+				fi
 			fi
 		fi
 	elif [[ $BASE == *"th.jpg" ]] && [ "$STILLS" == "no" ]
@@ -91,17 +100,30 @@ function check_thumb
 				rm $1
 			fi
 		fi
-	elif [[ $BASE == *".mp4.h264" ]]
+	elif [[ $BASE == *".h264" ]]
 	then
-		echo "  Deleted stray .h264 left from failed MP4Box: $1" >> $LOG
+		if [[ $BASE == *".mp4.h264" ]]
+		then
+			VIDEO=${BASE%.mp4.h264}.mp4
+		else
+			VIDEO=${BASE%.h264}.mp4
+		fi
+		echo "  Stray h264: $1  Will retry MP4Box and delete the h264." >> $LOG
 		if [ "$TEST" != "test" ]
 		then
+			MEDIA_DIR=${DIR%%/videos}
+			if MP4Box -add $1 $DIR/$VIDEO
+			then
+ 				echo "    MP4Box run success.  Rerun fix_thumbs to generate thumbnails." >> $LOG
+			else
+				echo "    MP4Box failed, video is not recovered." >> $LOG
+			fi
 			rm $1
 		fi
 	fi
 	}
 
-echo "fix_thumbs ($TEST): checking $MEDIA_DIRECTORY ...(working)..." >> $LOG
+echo "fix_thumbs $TEST: checking $MEDIA_DIRECTORY ...(working)..." >> $LOG
 cd $MEDIA_DIRECTORY
 find . | while read file; do check_thumb "$file"; done
 
@@ -110,11 +132,11 @@ MATCH_LEN=`expr match "$ARCHIVE_DIR" "$MEDIA_DIRECTORY"`
 
 if [ $MATCH_LEN -ne $MEDIA_DIR_LEN ]
 then
-	echo "fix_thumbs ($TEST): checking $ARCHIVE_DIR" >> $LOG
+	echo "fix_thumbs $TEST: checking $ARCHIVE_DIR" >> $LOG
 	cd $ARCHIVE_DIR
 	find . | while read file; do check_thumb "$file"; done
 else
-	echo "fix_thumbs ($TEST): Archive directory is under media directory so archive is already checked." >> $LOG
+	echo "fix_thumbs $TEST: Archive directory is under media directory so archive is already checked." >> $LOG
 fi
 
-echo "fix_thumbs ($TEST): DONE!" >> $LOG
+echo "fix_thumbs $TEST: DONE!" >> $LOG
