@@ -20,21 +20,28 @@ function check_thumb
 	BASE=`basename $1`
 	PREFIX=${BASE:0:3}
 	DIR=`dirname $1`
-	if [[ $1 == *"/stills/"* ]]
+	if [[ $1 == *"stills/"* ]]
 	then
 		STILLS=yes
 	else
 		STILLS=no
 	fi
 
+	if [[ $1 == *"loop/"* ]]
+	then
+		VIDEO_DIR=loop/videos
+		THUMB_DIR=loop/thumbs
+	else
+		VIDEO_DIR=videos
+		THUMB_DIR=thumbs
+	fi
+
 	if [[ $BASE == *"mp4" ]]
 	then
 		# Delete longest match of substring /videos from back of $DIR.
-		MEDIA_DIR=${DIR%%/videos}
-		THUMBS_DIR=$MEDIA_DIR/thumbs
 		THUMB_JPEG=${BASE%.mp4}.th.jpg
 
-		if [ ! -f $THUMBS_DIR/$THUMB_JPEG ]
+		if [ ! -f $THUMB_DIR/$THUMB_JPEG ]
 		then
 			THUMB_FAIL=false
 #			echo "  avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG" >>$LOG
@@ -50,20 +57,20 @@ function check_thumb
 			then
 				if [ "$PREFIX" == "mot" ]
 				then
-					echo "  Recovering motion thumb: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+					echo "  Recovering motion thumb: $THUMB_DIR/$THUMB_JPEG" >> $LOG
 					if [ "$TEST" != "test" ]
 					then
 						convert -crop 500x500+100+100 -resize 150x150 \
 							$TMP_DIR/$THUMB_JPEG $TMP_DIR/${THUMB_JPEG}.tmp
 						convert -annotate +8+26 "Recovered" -pointsize 18 \
-							$TMP_DIR/${THUMB_JPEG}.tmp $THUMBS_DIR/$THUMB_JPEG
+							$TMP_DIR/${THUMB_JPEG}.tmp $THUMB_DIR/$THUMB_JPEG
 						rm $TMP_DIR/${THUMB_JPEG}.tmp
 					fi
 				else
-					echo "  Generating thumb type $PREFIX: $THUMBS_DIR/$THUMB_JPEG" >> $LOG
+					echo "  Generating thumb type $PREFIX: $THUMB_DIR/$THUMB_JPEG" >> $LOG
 					if [ "$TEST" != "test" ]
 					then
-						convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMBS_DIR/$THUMB_JPEG
+						convert -resize 150 $TMP_DIR/$THUMB_JPEG $THUMB_DIR/$THUMB_JPEG
 					fi
 				fi
 
@@ -76,10 +83,8 @@ function check_thumb
 	elif [[ $BASE == *"th.jpg" ]] && [ "$STILLS" == "no" ]
 	then
 		# Delete longest match of substring /thumbs from back of $DIR.
-		MEDIA_DIR=${DIR%%/thumbs}
-		VIDEOS_DIR=$MEDIA_DIR/videos
 		VIDEO=${BASE%.th.jpg}.mp4
-		if [ ! -f $VIDEOS_DIR/$VIDEO ]
+		if [ ! -f $VIDEO_DIR/$VIDEO ]
 		then
 			echo "  Deleted thumb with no video: $1" >> $LOG
 			if [ "$TEST" != "test" ]
@@ -90,9 +95,8 @@ function check_thumb
 	elif [[ $BASE == *"th.jpg" ]] && [ "$STILLS" == "yes" ]
 	then
 		# Delete longest match of substring /.thumbs from back of $DIR.
-		STILLS_DIR=${DIR%%/.thumbs}
 		IMAGE=${BASE%.th.jpg}.jpg
-		if [ ! -f $STILLS_DIR/$IMAGE ]
+		if [ ! -f stills/$IMAGE ]
 		then
 			echo "  Deleted stills thumb with no image: $1" >> $LOG
 			if [ "$TEST" != "test" ]
@@ -111,8 +115,7 @@ function check_thumb
 		echo "  Stray h264: $1  Will retry MP4Box and delete the h264." >> $LOG
 		if [ "$TEST" != "test" ]
 		then
-			MEDIA_DIR=${DIR%%/videos}
-			if MP4Box -add $1 $DIR/$VIDEO
+			if MP4Box -add $1 $VIDEO_DIR/$VIDEO
 			then
  				echo "    MP4Box run success.  Rerun fix_thumbs to generate thumbnails." >> $LOG
 			else
