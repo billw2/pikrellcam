@@ -177,8 +177,8 @@ function media_array_create()
 	else
 		$media_array = media_dir_array_create($media_dir);
 
-	usort($media_array, create_function('$a, $b',
-				'return strcmp($a["mtime"], $b["mtime"]);'));
+	usort($media_array, function($a, $b) { return strcmp($a["mtime"], $b["mtime"]); });
+	
 	krsort($media_array);
 	$media_array = array_values($media_array);
 	$media_array_size = count($media_array);
