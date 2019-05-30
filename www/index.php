@@ -421,9 +421,13 @@ echo "<span style=\"color: $default_text_color\"> Enable:</span>";
                   <td>
                     <?php echo "<span style=\"font-weight:600; color: $default_text_color\">Config</span>"; ?>
                     <div>
-                      <input type="button" value="Video Res"
+                      <input type="button" value="Motion"
                         class="btn-menu"
                         style="margin-left:40px"
+                        onclick="fifo_command('display motion_settings');"
+                      >
+                      <input type="button" value="Video Res"
+                        class="btn-menu"
                         onclick="fifo_command('display video_presets');"
                       >
                       <input type="button" value="Still Res"
@@ -433,10 +437,6 @@ echo "<span style=\"color: $default_text_color\"> Enable:</span>";
                       <input type="button" value="Settings"
                         class="btn-menu"
                         onclick="fifo_command('display settings');"
-                      >
-                      <input type="button" value="Times"
-                        class="btn-menu"
-                        onclick="fifo_command('display motion_time');"
                       >
                       <input type="button" value="Loop"
                         class="btn-menu"

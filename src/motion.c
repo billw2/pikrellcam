@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -354,7 +354,7 @@ motion_stats_write(VideoCircularBuffer *vcb, MotionFrame *mf)
 	}
 
 void
-motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
+motion_events_write(MotionFrame *mf, int type, float detect_time)
 	{
 	static FILE		*f;
 	CompositeVector *cvec, *frame_vec = &mf->frame_vector;
@@ -365,7 +365,7 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 	int				burst, i, pan, tilt;
 	boolean			dir_motion;
 
-	if (start)
+	if (type & MOTION_EVENTS_HEADER)
 		{
 		f = fopen(pikrellcam.motion_events_filename, "w");
 		fprintf(f, "<header>\n");
@@ -394,10 +394,11 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 			}
 		fprintf(f, "</header>\n");
 		}
-	if (f && ((vcb->state & VCB_STATE_MOTION_RECORD) || start))
+//	if (f && ((vcb->state & VCB_STATE_MOTION_RECORD) || start))
+	if (f && (type & MOTION_EVENTS_DETECT))
 		{
-		fprintf(f, "<motion %6.3f>\n",
-			(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps);
+		fprintf(f, "<motion %6.3f >\n", detect_time);
+//	(float) vcb->frame_count / (float) pikrellcam.camera_adjust.video_fps);
 		fprintf(f, "f %3d %3d %3d %3d %3.0f %4d\n",
 				frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
 				sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
@@ -431,13 +432,141 @@ motion_event_write(VideoCircularBuffer *vcb, MotionFrame *mf, boolean start)
 		fprintf(f, "</motion>\n");
 		fflush(f);
 		}
-	else if (f && (vcb->state == VCB_STATE_NONE))
+	else if (f && (type & MOTION_EVENTS_STILL))
+		fprintf(f, "<still %s>\n", pikrellcam.still_last);
+	else if (f && (type & MOTION_EVENTS_END))
 		{
 		fprintf(f, "<end>\n");
 		fclose(f);
 		f = NULL;
 		}
 	/* else a MANUAL record state */
+	}
+
+void
+motion_detects_fifo_write(MotionFrame *mf)
+	{
+	CompositeVector *cvec, *frame_vec = &mf->frame_vector;
+	MotionRegion	*mreg;
+	SList			*mrlist;
+	char			buf[256];
+	int				burst, i;
+	boolean			dir_motion;
+	static int 		fd = -1;
+	static boolean	warned = FALSE;
+
+	if (!mf)
+		{
+		if (!pikrellcam.motion_detects_fifo_enable && fd >= 0)
+			{
+			write(fd, "<off>\n", 6);
+			close(fd);
+			fd = -1;
+			}
+		else if (pikrellcam.motion_detects_fifo_enable && fd < 0)
+			fd = open(pikrellcam.motion_detects_fifo, O_WRONLY | O_NONBLOCK);
+
+		return;
+		}
+
+	if (!pikrellcam.motion_detects_fifo_enable)
+		return;
+
+	if (fd < 0)
+		fd = open(pikrellcam.motion_detects_fifo, O_WRONLY | O_NONBLOCK);
+	if (fd < 0)
+		{
+		if (!warned)
+			log_printf("Open failed: %s. %m\n", pikrellcam.motion_detects_fifo);
+		warned = TRUE;
+		return;
+		}
+	else
+		warned = FALSE;
+
+	i = snprintf(buf, sizeof(buf), "<motion %d.%d >\n",
+			(int) pikrellcam.tv_now.tv_sec,
+			(int) pikrellcam.tv_now.tv_usec / 100000);
+	write(fd, buf, i);
+
+	/* Write same data as motion_events_write() but to fd for the nonblocking
+	|  fifo instead of a buffered FILE.
+	*/
+	snprintf(buf, sizeof(buf), "f %3d %3d %3d %3d %3.0f %4d\n",
+	        frame_vec->x, frame_vec->y, -frame_vec->vx, -frame_vec->vy,
+	        sqrt((float)frame_vec->mag2), frame_vec->mag2_count);
+	write(fd, buf, strlen(buf));
+
+	if (mf->motion_status & MOTION_BURST)
+		{
+		burst = frame_vec->mag2_count + mf->reject_count;
+		snprintf(buf, sizeof(buf), "b %3d\n", burst);
+		write(fd, buf, strlen(buf));
+		}
+	if (mf->motion_status & MOTION_AUDIO)
+		{
+		snprintf(buf, sizeof(buf), "a %3d\n", pikrellcam.audio_level_event);
+		write(fd, buf, strlen(buf));
+		}
+	if (mf->motion_status & MOTION_FIFO)
+		{
+		snprintf(buf, sizeof(buf), "e %s\n", mf->fifo_trigger_code);
+		write(fd, buf, strlen(buf));
+		}
+
+	if (mf->motion_status & MOTION_DIRECTION)
+		{
+		for (i = 0, mrlist = mf->motion_region_list; mrlist;
+		     mrlist = mrlist->next, ++i)
+			{
+			mreg = (MotionRegion *)mrlist->data;
+			dir_motion = mreg->motion
+			             & (MOTION_TYPE_DIR_SMALL | MOTION_TYPE_DIR_NORMAL);
+			if (!dir_motion)
+				continue;
+			cvec = &mreg->vector;
+			snprintf(buf, sizeof(buf), "%d %3d %3d %3d %3d %3.0f %4d\n",
+			        i, cvec->x, cvec->y, -cvec->vx, -cvec->vy,
+			        sqrt((float)cvec->mag2), cvec->mag2_count);
+			write(fd, buf, strlen(buf));
+			}
+		}
+	write(fd, "</motion>\n", 10);
+	}
+
+void
+motion_stills_record(MotionFrame *mf)
+	{
+	PiKrellCam				*pkc = &pikrellcam;
+	float					period_usec, capture_diff_usec;
+	struct timeval			tv_diff;
+	static struct timeval	tv_motion_still;
+
+	if (!pkc->motion_stills_record)		/* stills record start */
+		{
+		motion_events_write(mf, MOTION_EVENTS_HEADER, 0);
+		pkc->motion_stills_start_time = pkc->t_now;
+		tv_motion_still = pkc->tv_now;
+		if (mf->fifo_trigger_time_limit > 0)
+			pkc->motion_stills_max_time = mf->fifo_trigger_time_limit;
+		else
+			pkc->motion_stills_max_time = pkc->motion_record_time_limit;
+		pkc->motion_stills_sequence = 1;
+		}
+	timersub(&pkc->tv_now, &tv_motion_still, &tv_diff);
+	capture_diff_usec = (float)(tv_diff.tv_sec * 1e6) + (float)tv_diff.tv_usec;
+	period_usec = 60.0 / (float) pkc->motion_stills_per_minute * 1e6;
+
+	if (   !pkc->motion_stills_record		/* First capture */
+	    || capture_diff_usec > period_usec
+	   )
+		{
+		pkc->motion_stills_record = TRUE;
+		tv_motion_still = pkc->tv_now;
+
+		event_add("event_motion_still_capture", pkc->t_now, 0,
+			event_motion_still_capture, (void *) pkc->t_now);
+		}
 	}
 
 void
@@ -450,6 +579,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	boolean         burst_density_pass, motion_enabled;
 	char            tbuf[50], *msg;
 	int             x0, y0, x1, y1, t;
+	float			detect_time;
 	static int      mfp_number, motion_burst_frame;
 
 	/* Allow some startup camera settle time before motion detecting.
@@ -593,6 +723,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	   )
 		{
 		if (   !(vcb->state & VCB_STATE_MOTION_RECORD)
+			&& !pikrellcam.motion_stills_record
 		    && mf->frame_window == 0
 		    && pikrellcam.motion_times.confirm_gap > 0
 		   )
@@ -692,11 +823,15 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	    || ( (mf->motion_status & MOTION_FIFO) && motion_enabled)
 	   )
 		{
-		vcb->motion_last_detect_time = pikrellcam.t_now;
+		pikrellcam.motion_last_detect_time = pikrellcam.t_now;
 
-		/* Motion detection will be ignored if a manual record is in progress.
+		/* Motion recording ignored if a manual record is in progress.
+		|  If loop recording, no motion stills recording and turn the
+		|  loop video into a motion video.
 		*/
-		if (   vcb->state == VCB_STATE_NONE
+		if (   (   vcb->state == VCB_STATE_NONE
+		        && !pikrellcam.motion_stills_record
+		       )
 		    || (   (vcb->state & VCB_STATE_LOOP_RECORD)
 		        && !(vcb->state & VCB_STATE_MOTION_RECORD)
 		       )
@@ -707,17 +842,34 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			|  callback can immediately schedule the on_preview_save command
 			|  so there is no wait to execute it.
 			*/
-			if (!(vcb->state & VCB_STATE_LOOP_RECORD))
+			if (   !(vcb->state & VCB_STATE_LOOP_RECORD)
+			    && !pikrellcam.motion_stills_enable
+			   )
 				video_record_start(vcb, VCB_STATE_MOTION_RECORD_START);
 			else
 				{
+				/* Either a current loop video to be turned into a motion
+				|  video or start motion stills recording.
+				*/
 				pikrellcam.do_preview_save = TRUE;
-				motion_event_write(vcb, &motion_frame, TRUE);
-				vcb->state |= VCB_STATE_MOTION_RECORD;
+				if (vcb->state & VCB_STATE_LOOP_RECORD)
+					{
+					vcb->state |= VCB_STATE_MOTION_RECORD;
+					motion_events_write(&motion_frame, MOTION_EVENTS_START,
+							(float) vcb->frame_count
+							/ (float) pikrellcam.camera_adjust.video_fps);
+					}
+				else if (pikrellcam.motion_stills_enable)
+					motion_stills_record(mf);
+
 				if (*pikrellcam.on_motion_begin_cmd)
+					{
+					pikrellcam.motion_record_mode = pikrellcam.motion_stills_enable
+							? "stills" : "videos";
 					event_add("motion begin", pikrellcam.t_now, 0,
 							event_motion_begin_cmd,
 							pikrellcam.on_motion_begin_cmd);
+					}
 				}
 
 			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
@@ -743,13 +895,16 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			if (pikrellcam.verbose_motion && !pikrellcam.verbose)
 				printf("***Motion record start: %s\n\n", pikrellcam.video_pathname);
 			}
-		else if (vcb->state & VCB_STATE_MOTION_RECORD)
+		else if (   vcb->state & VCB_STATE_MOTION_RECORD
+		         || pikrellcam.motion_stills_record
+		        )
 			{
 			/* Already recording, so each motion trigger bumps up the record
 			|  time to now + post capture time.
 			|  If mode "best" and better composite vector, save a new preview.
 			*/
-			vcb->motion_sync_time = pikrellcam.t_now + pikrellcam.motion_times.post_capture;
+			vcb->motion_sync_time = pikrellcam.t_now
+							+ pikrellcam.motion_times.post_capture;
 
 			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
 				pikrellcam.external_motion = FALSE;
@@ -778,15 +933,30 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				++mf->audio_detects;
 			if (mf->motion_status & MOTION_FIFO)
 				++mf->fifo_detects;
-			motion_event_write(vcb, mf, FALSE);
+			if (vcb->state & VCB_STATE_MOTION_RECORD)
+				detect_time = (float) vcb->frame_count
+								/ (float) pikrellcam.camera_adjust.video_fps;
+			else
+				detect_time = (float) (pikrellcam.motion_stills_capture_time
+									- pikrellcam.motion_stills_start_time);
+			motion_events_write(mf, MOTION_EVENTS_DETECT, detect_time);
 
 			if (pikrellcam.verbose_motion)
 				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
 			}
+
+		if (pikrellcam.motion_stills_enable)
+			motion_stills_record(mf);
+
 		if (pikrellcam.motion_stats)
 			motion_stats_write(vcb, mf);
-
 		}
+
+	if (   mf->motion_status & MOTION_DETECTED
+	    && !pikrellcam.servo_moving
+	    && (pikrellcam.on_preset || pikrellcam.motion_off_preset)
+	   )
+		motion_detects_fifo_write(mf);
 	}
 
 

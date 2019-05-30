@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -303,6 +303,7 @@ rotation_control_set(char *option, char *setting)
 	MMAL_STATUS_T	status = MMAL_EINVAL;
 
 	value = ((value % 360 ) / 90) * 90;
+	pikrellcam.rotation_value = value;
 	for (i = 0; i < MAX_CAMERA_PORTS; ++i)
 		{
 		status = mmal_port_parameter_set_int32(camera.component->output[i],
@@ -604,6 +605,18 @@ static Config  config[] =
 	  "#",
 	"loop_diskusage_percent",  "30", FALSE, {.value = &pikrellcam.loop_diskusage_percent},      config_value_int_set},
 
+#ifdef MOTION_STILLS
+	{ "\n# -------------------- Motion Still Recording -----------------------\n"
+	  "# Take still images instead of recording videos when motion is enabled.\n"
+	  "#",
+	"motion_stills_enable",	"off", FALSE, {.value = &pikrellcam.motion_stills_enable},       config_value_bool_set},
+
+	{ "# Motion still images per minute range from 1 to 60 which gives a\n"
+	  "# max rate range of 1 per minute to 1 per second.\n"
+	  "# Stills are taken at motion detects separated by at least this rate.\n"
+	  "#",
+	"motion_stills_per_minute",  "30", TRUE, {.value = &pikrellcam.motion_stills_per_minute}, config_value_int_set },
+#endif
 
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
 	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
@@ -657,7 +670,7 @@ static Config  config[] =
 	"motion_pre_capture",   "5", TRUE, {.value = &pikrellcam.motion_times.pre_capture},  config_value_int_set },
 
 	{ "# Seconds of video that will be recorded after the last motion event.\n"
-	  "# motion_post_caputure must be <= motion_event_gap.\n"
+	  "# motion_post_capture must be <= motion_event_gap.\n"
 	  "#",
 	"motion_post_capture",  "5", TRUE, {.value = &pikrellcam.motion_times.post_capture}, config_value_int_set },
 
@@ -744,6 +757,12 @@ static Config  config[] =
 	  "# For users who have a need for advanced video post processing.\n"
 	  "#",
 	"motion_stats",  "off", FALSE, {.value = &pikrellcam.motion_stats}, config_value_bool_set },
+
+	{ "# Enable writing all motion detects to ~/pikrellcam/www/motion_detects_fifo\n"
+	  "# Motion detects are written regardless of motion videos enabled state,\n"
+	  "# so this provides a front end motion detect function for another app.\n"
+	  "#",
+	"motion_detects_fifo_enable",  "off", FALSE, {.value = &pikrellcam.motion_detects_fifo_enable}, config_value_bool_set },
 
 	{ "# Command/script to run when receiving a user defined multicast\n"
 	  "# pkc-message sent by other PiKrellCams or separate scripts on your LAN.\n"
@@ -1203,6 +1222,8 @@ config_set_defaults(char *home_dir)
 
 	pikrellcam.version = strdup(PIKRELLCAM_VERSION);
 	pikrellcam.timelapse_format = strdup("tl_$n_$N.jpg");
+	pikrellcam.motion_stills_name_format = strdup("motion_%F_%H.%M.%S_$N.jpg");
+
 	pikrellcam.preview_pathname = strdup("");
 	pikrellcam.thumb_name = strdup("");
 	pikrellcam.multicast_group_IP = "225.0.0.55";
@@ -1290,6 +1311,11 @@ config_load(char *config_file)
 	   )
 		pikrellcam.motion_record_time_limit = 10;
 
+	if (pikrellcam.motion_stills_per_minute > 60)
+		pikrellcam.motion_stills_per_minute = 60;
+	else if (pikrellcam.motion_stills_per_minute < 1)
+		pikrellcam.motion_stills_per_minute = 1;
+
 	if (pikrellcam.diskfree_percent < 5)
 		pikrellcam.diskfree_percent = 5;
 	if (pikrellcam.loop_diskusage_percent < 5)
@@ -1357,6 +1383,21 @@ config_load(char *config_file)
 
 	if (pikrellcam.config_sequence_new != pikrellcam.config_sequence)
 		{
+#if 0
+		if (   pikellcam.config_sequence <= 45
+		    && (   pikrellcam.rotation_value == 90
+		        || pikrellcam.rotation_value == 270
+		       )
+		   )
+			{
+			n = pikrellcam.video_width;
+			pikrellcam.video_width = pikrellcam.video_height;
+			pikrellcam.video_height = n;			
+			n = pikrellcam.still_width;
+			pikrellcam.still_width = pikrellcam.still_height;
+			pikrellcam.still_height = n;			
+			}
+#endif
 		pikrellcam.config_sequence = pikrellcam.config_sequence_new;
 		pikrellcam.config_modified = TRUE;
 		}

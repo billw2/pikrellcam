@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -122,6 +122,9 @@ expand_command(char *command, char *arg)
 				break;
 			case 't':
 				fmt_arg = pikrellcam.thumb_dir;
+				break;
+			case 'r':
+				fmt_arg = pikrellcam.motion_record_mode;
 				break;
 
 			case 'T':
@@ -396,6 +399,20 @@ event_still_capture_cmd(char *cmd)
 		return;
 
 	exec_wait(cmd, NULL);
+	}
+
+void
+event_motion_still_capture(void *t)
+	{
+	time_t	motion_time = (time_t) t;
+	char	*path, buf[50];
+
+	snprintf(buf, sizeof(buf), "%d", pikrellcam.motion_stills_sequence++);
+	path = media_pathname(pikrellcam.still_dir,
+				pikrellcam.motion_stills_name_format, motion_time,
+				'N', buf, 'H', pikrellcam.hostname);
+	still_capture(path, motion_time);
+	free(path);
 	}
 
 static boolean
@@ -772,6 +789,12 @@ state_file_write(void)
 	f = fopen(fname_part, "w");
 
 	fprintf(f, "motion_enable %s\n", mf->motion_enable ? "on" : "off");
+
+#ifdef MOTION_STILLS
+	fprintf(f, "motion_stills_enable %s\n",
+						pikrellcam.motion_stills_enable ? "on" : "off");
+#endif
+
 	fprintf(f, "show_preset %s\n",   mf->show_preset ? "on" : "off");
 	fprintf(f, "show_vectors %s\n",  mf->show_vectors ? "on" : "off");
 
@@ -814,6 +837,15 @@ state_file_write(void)
 		state = "stop";
 	fprintf(f, "video_record_state %s\n", state);
 
+	if (vcb->state & VCB_STATE_MOTION_RECORD)
+		state = "video";
+	else if (pikrellcam.motion_stills_record)
+		state = "stills";
+	else
+		state = "none";
+	fprintf(f, "motion_record_state %s\n", state);
+
+
 	fprintf(f, "video_last %s\n",
 			pikrellcam.video_last ? pikrellcam.video_last : "none");
 	fprintf(f, "video_last_frame_count %d\n", pikrellcam.video_last_frame_count);
@@ -839,6 +871,9 @@ state_file_write(void)
 					? time_lapse.convert_name : "none");
 	fprintf(f, "timelapse_video_last %s\n",
 			pikrellcam.timelapse_video_last ? pikrellcam.timelapse_video_last : "none");
+
+	fprintf(f, "motion_detects_fifo_enable %s\n",
+			pikrellcam.motion_detects_fifo_enable ? "on" : "off");
 
 	fprintf(f, "current_minute %d\n",
 			pikrellcam.tm_local.tm_hour * 60 + pikrellcam.tm_local.tm_min);
@@ -1332,6 +1367,9 @@ at_commands_config_save(char *config_file)
 	"#                     renamed after the video ends.\n"
 	"#                $S - still files directory full path\n"
 	"#                $s - last still saved full path filename\n"
+#ifdef MOTION_STILLS
+	"#                $r - motion record mode: stills or videos\n"
+#endif
 	"#                $L - timelapse files directory full path\n"
 	"#                $l - timelapse current series filename format: tl_sssss_%%05d.jpg\n"
 	"#                     in timelapse sub directory.  If used in any script\n"

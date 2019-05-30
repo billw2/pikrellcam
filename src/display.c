@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ MotionTimes		motion_times_temp;
 #define IMAGE_EFFECT		16
 #define MOTION_LIMIT		17
 #define SETTINGS			18
-#define MOTION_TIME			19
+#define MOTION_SETTINGS		19
 #define SERVO_SETTINGS		20
 #define LOOP_SETTINGS		21
 #define AUDIO_SETTINGS		22
@@ -70,7 +70,7 @@ static DisplayCommand display_commands[] =
 	{ ">",		  RIGHT_ARROW	  },
 	{ ">>",		  REPEAT_RIGHT_ARROW },
 	{ "back",	  BACK			  },
-	{ "motion_time",    MOTION_TIME  },
+	{ "motion_settings",    MOTION_SETTINGS  },
 	{ "motion_limit",   MOTION_LIMIT  },
 	{ "video_presets",      VIDEO_PRESET		  },
 	{ "still_presets",      STILL_PRESET	  },
@@ -607,7 +607,7 @@ motion_draw(uint8_t *i420)
 	MotionRegion    *mreg;
 	CompositeVector *vec;
 	SList           *mrlist;
-	char            *msg, info[100], status[100];
+	char            *msg, *fifo_msg, info[100], status[100];
 	int16_t         color;			/* just B&W */
 	int             i, x, y, dx, dy, r, r_unit;
 	int             t_record, t_hold;
@@ -627,6 +627,7 @@ motion_draw(uint8_t *i420)
 					JUSTIFY_RIGHT(0), "Vectors: ON");
 		}
 
+	fifo_msg = "";
 	if (!inform_shown && (mf->show_preset || pikrellcam.preset_notify))
 		{
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
@@ -707,6 +708,9 @@ motion_draw(uint8_t *i420)
 
 		if (pikrellcam.on_preset && !pikrellcam.preset_notify)
 			{
+			if (pikrellcam.motion_detects_fifo_enable)
+				fifo_msg = "Motion FIFO ON   ";
+
 			if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
 				{
 				snprintf(status, sizeof(status), "confirming[%d]", mf->frame_window);
@@ -735,16 +739,19 @@ motion_draw(uint8_t *i420)
 			if (pikrellcam.motion_show_counts)
 				{
 				snprintf(info, sizeof(info),
-					"any:%-3d(%.1f) rej:%-3d spkl:%-3d(%.1f)  %s",
-					mf->any_count, mf->any_count_expma,
+					"%sany:%-3d(%.1f) rej:%-3d spkl:%-3d(%.1f)  %s",
+					fifo_msg, mf->any_count, mf->any_count_expma,
 					mf->reject_count, mf->sparkle_count, mf->sparkle_expma,
 					status);
 				i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
 					JUSTIFY_LEFT, info);
 				}
-			else 
+			else
+				{
+				snprintf(info, sizeof(info), "%s%s", fifo_msg, status);
 				i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
-					JUSTIFY_LEFT, status);
+					JUSTIFY_LEFT, info);
+				}
 			}
 		}
 	else
@@ -779,7 +786,7 @@ motion_draw(uint8_t *i420)
 		else
 			{
 			t_hold = pikrellcam.motion_times.event_gap -
-					(pikrellcam.t_now - vcb->motion_last_detect_time);
+					(pikrellcam.t_now - pikrellcam.motion_last_detect_time);
 			snprintf(info, sizeof(info), "REC (%s) %d:%02d  hold %d:%02d",
 					pikrellcam.external_motion ?
 						(mf->fifo_detects ? mf->fifo_trigger_code : "Audio")
@@ -824,6 +831,10 @@ motion_draw(uint8_t *i420)
 		}
 	i420_print(&bottom_status_area, normal_font, 0xff, 1, 1, 0,
 					JUSTIFY_LEFT, msg);
+
+	if (pikrellcam.motion_detects_fifo_enable && !*fifo_msg)
+		i420_print(&bottom_status_area, normal_font, 0xff, 0, 1, 0,
+						JUSTIFY_LEFT, "Motion FIFO ON");
 
 	if (time_lapse.show_status)
 		{
@@ -923,8 +934,8 @@ static int		menu_white_balance_index;
 static SList 	*menu_image_effect_list;
 static int		menu_image_effect_index;
 
-static SList 	*menu_motion_time_list;
-static int		menu_motion_time_index;
+static SList 	*menu_motion_settings_list;
+static int		menu_motion_settings_index;
 
 static SList 	*menu_motion_limit_list;
 static int		menu_motion_limit_index;
@@ -1092,17 +1103,24 @@ static Adjustment	picture_adjustment[] =
   /* Adjustment changes made to a temp struct to avoid thrashing malloc/free
   |  of huge circular buffer.  Final change is applied if/when SEL is clicked.
   */
-Adjustment	motion_time_adjustment[] =
+Adjustment	motion_settings_adjustment[] =
 	{
+	{ "Startup_Motion",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.startup_motion_enable },
 	{ "Confirm_Gap",  0, 30,  1, 0, 0, 0, "", NULL, &motion_times_temp.confirm_gap },
 	{ "Pre_Capture",  1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.pre_capture },
 	{ "Event_Gap",    1, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
 	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture },
-	{ "Motion_Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
+	{ "Video_Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
+
+// XXX
+#ifdef MOTION_STILLS
+	{ "Motion_Stills_(no_videos)",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_stills_enable },
+	{ "Max_Stills_per_Minute", 1, 60, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_stills_per_minute}
+#endif
 	};
 
-#define N_MOTION_TIME_ADJUSTMENTS \
-		(sizeof(motion_time_adjustment) / sizeof(Adjustment))
+#define N_MOTION_SETTINGS_ADJUSTMENTS \
+		(sizeof(motion_settings_adjustment) / sizeof(Adjustment))
 
 Adjustment	motion_limit_adjustment[] =
 	{
@@ -1121,7 +1139,6 @@ Adjustment	motion_limit_adjustment[] =
   */
 Adjustment	settings_adjustment[] =
 	{
-	{ "Startup_Motion",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.startup_motion_enable },
 //	{ "Vertical_Filter",  0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_vertical_filter },
 	{ "Check_Media_Diskfree",   0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_media_diskfree },
 	{ "Check_Archive_Diskfree", 0, 1,  1, 0, 0, 0, "", NULL, &pikrellcam.check_archive_diskfree },
@@ -1241,7 +1258,7 @@ apply_adjustment(void)
 
 	if (!adjustments || !cur_adj)
 		return FALSE;
-	if (adjustments == &motion_time_adjustment[0])
+	if (adjustments == &motion_settings_adjustment[0])
 		{
 		pikrellcam.motion_times.confirm_gap = motion_times_temp.confirm_gap;
 		pikrellcam.motion_times.post_capture = motion_times_temp.post_capture;
@@ -1549,10 +1566,14 @@ display_adjustment(uint8_t *i420)
 
 	if (boolean_flag)
 		snprintf(buf, sizeof(buf), "%s", cur_adj->value ? "ON" : "OFF");
+	else if (   adjustments == &motion_settings_adjustment[0]
+	         && cur_adj->value == 0
+	        )
+		snprintf(buf, sizeof(buf), "OFF");
 	else
 		snprintf(buf, sizeof(buf), "%d", cur_adj->value);
-	i420_print(da, font, 0xff, 0, adj_x, 0, JUSTIFY_CENTER_AT_X, buf);
 
+	i420_print(da, font, 0xff, 0, adj_x, 0, JUSTIFY_CENTER_AT_X, buf);
 	i420_print(da, font, 0xff, 2, 0, 0, JUSTIFY_CENTER, cur_adj->name);
 	}
 
@@ -1579,9 +1600,9 @@ display_draw_menu(uint8_t *i420)
 				adjustments = &motion_limit_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
-			case MOTION_TIME:
+			case MOTION_SETTINGS:
 				display_state = DISPLAY_ADJUSTMENT;
-				adjustments = &motion_time_adjustment[0];
+				adjustments = &motion_settings_adjustment[0];
 				cur_adj_start = TRUE;
 				break;
 			case SETTINGS:
@@ -1783,11 +1804,11 @@ display_command(char *cmd)
 				display_menu = DISPLAY_MENU_NONE;
 				}
 			break;
-		case MOTION_TIME:
-			display_menu_list = menu_motion_time_list;
-			display_menu_index = &menu_motion_time_index;
+		case MOTION_SETTINGS:
+			display_menu_list = menu_motion_settings_list;
+			display_menu_index = &menu_motion_settings_index;
 			display_state = DISPLAY_MENU;
-			display_menu = MOTION_TIME;
+			display_menu = MOTION_SETTINGS;
 			break;
 		case MOTION_LIMIT:
 			display_menu_list = menu_motion_limit_list;
@@ -2117,17 +2138,17 @@ display_init(void)
 			bottom_status_area.x0, bottom_status_area.y0,
 			bottom_status_area.width, bottom_status_area.height);
 		}
-	if (!menu_motion_time_list)
+	if (!menu_motion_settings_list)
 		{
-		for (i = 0, position = 0; i < N_MOTION_TIME_ADJUSTMENTS; ++i)
+		for (i = 0, position = 0; i < N_MOTION_SETTINGS_ADJUSTMENTS; ++i)
 			{
-			adj = &motion_time_adjustment[i];
+			adj = &motion_settings_adjustment[i];
 			entry = calloc(1, sizeof(MenuEntry));
 			entry->name = adj->name;
 			entry->length = strlen(entry->name);
 			entry->line_position = position;
 			position += entry->length + 1;
-			menu_motion_time_list = slist_append(menu_motion_time_list, entry);
+			menu_motion_settings_list = slist_append(menu_motion_settings_list, entry);
 			}
 		}
 	if (!menu_motion_limit_list)

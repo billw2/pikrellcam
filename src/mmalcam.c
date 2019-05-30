@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2016 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -306,6 +306,12 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
 		{
 		fclose(still_jpeg_encoder.file);
+
+#ifdef MOTION_STILLS
+		if (pikrellcam.motion_stills_capture_time > 0)
+			motion_events_write(&motion_frame, MOTION_EVENTS_STILL, 0);
+#endif
+
 		if (pikrellcam.still_capture_event)
 			{
 			event_add("still capture command", pikrellcam.t_now, 0,
@@ -330,6 +336,7 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 						PIKRELLCAM_TIMELAPSE_SUBDIR);
 			}
 
+		pikrellcam.motion_stills_capture_time = 0;
 		pikrellcam.still_capture_event = FALSE;
 		pikrellcam.timelapse_capture_event = FALSE;
 		bytes_written = 0;
@@ -750,12 +757,14 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 			if (mf->fifo_trigger_time_limit > 0)
 				{
-				vcb->motion_sync_time = vcb->t_cur + mf->fifo_trigger_time_limit;
+				vcb->motion_sync_time = vcb->t_cur
+				                              + mf->fifo_trigger_time_limit;
 				vcb->max_record_time = mf->fifo_trigger_time_limit;
 				}
 			else
 				{
-				vcb->motion_sync_time = vcb->t_cur + pikrellcam.motion_times.post_capture;
+				vcb->motion_sync_time = vcb->t_cur
+				                      + pikrellcam.motion_times.post_capture;
 				vcb->max_record_time = pikrellcam.motion_record_time_limit;
 				}
 			}
@@ -915,7 +924,8 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 			if (   force_stop
 		        || (   mf->fifo_trigger_time_limit == 0
-			        && vcb->t_cur >= vcb->motion_last_detect_time + pikrellcam.motion_times.event_gap
+			        && vcb->t_cur >=   pikrellcam.motion_last_detect_time
+			                         + pikrellcam.motion_times.event_gap
 			       )
 		       )
 				{

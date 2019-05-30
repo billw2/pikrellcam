@@ -68,6 +68,13 @@ And there is a Raspberry Pi
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
 
+Version 4.2.0
+<div class='indent1'>
+<a href="help.php#MOTION_EVENTS_FIFO">motion_detects_FIFO</a> can be read
+to get all motion detects regardless of motion videos enabled state.<br>
+Moved Setup->Config->Times/* and Setup->Settings->Startup_Motion to Setup->Config->Motion.
+</div>
+
 Version 4.1.5
 <div class='indent1'>
 Archive directory <a href="help.php#ARCHIVING">NFS mount examples.</a><br>
@@ -368,7 +375,7 @@ event will cause the video to be tagged as having a motion event and the web
 page thumb will be labeled to show that.
 <ul>
 	<li>
-	Loop videos with no motion event will end with
+	Loop videos with no motion detect will end with
 	<span style='font-weight:700'>_0.mp4</span>.
 	</li>
 	<li>
@@ -812,6 +819,67 @@ Preset group and there will be no Servo button in the Config group.
 <p>
 <span style='font-size: 1.2em; font-weight: 680;'>Config</span>
 	<ul>
+		<li><span style='font-weight:700'>Motion</span>
+			<ul>
+			<li><span style='font-weight:700'>Startup_Motion</span> - set to
+			<span style='font-weight:700'>ON</span> for motion detection to be enabled each time
+			PiKrellCam starts.  Motion detection can be
+			enabled from the web page or a script.
+			</li>
+
+			<li><span style='font-weight:700'>Confirm_Gap</span> - for motion direction detects,
+			require a second motion detect within this period of seconds before triggering a
+			motion record event.  This adds a level of noise rejection to motion direction detecting
+			but may be set to zero to disable a second detect requirement if fast detection is desired.
+			This setting does not apply to motion burst detects because the Burst_Frames setting
+			provides a confirm time for that method.
+			</li>
+
+			<li><span style='font-weight:700'>Pre_Capture</span> - seconds of video to record prior
+			to the first motion detect event.  This value should be greater than or equal to the
+			Confirm_Gap.  Pre capture does not apply when motion stills recording.
+			</li>
+
+			<li><span style='font-weight:700'>Event_Gap</span> - number of seconds that must pass
+			since the last motion detect before a motion event recording can end.
+			When an Event_Gap period does expire without a new motion detect occurring,
+			videos will end with an end time of the last motion detect time plus the
+			Post_Capture time (but see Post_Capture).
+			Set this higher for animals or walking people that may pause for
+			periods of time before resuming motion.  Set lower for active scenes where events
+			are frequent and you want to bias towards shorter videos
+			that capture more events separately.
+			</li>
+
+			<li><span style='font-weight:700'>Post_Capture</span> - seconds of video
+			that will be recorded after the last occurring motion event.  This time must be
+			less than or equal to the Event_Gap time because post capture time is accumulated
+			in the circular buffer while the video is recording.  An expiring Event_Gap time
+			ends the video immediately and no more Post_Capture time can be accumulated.
+			</li>
+
+			<li><span style='font-weight:700'>Video_Time_Limit</span> - range is 0 - 1800
+			seconds (30 minutes) and is the maximum seconds of motion video
+			that will be recorded after the first occurring motion detect.  So the total
+			video length max will be the Pre_Capture time + the Time_Limit.
+			If this is set to zero, there will be no time limit enforced.  This limit
+			does not apply to manual recordings - see FIFO examples for that.
+			</li>
+			</ul>
+			<p>
+			<div class='indent1'>
+			<span style='font-weight:700'>Note:</span>
+			Videos can be started only on key frame boundaries.  When waiting for a motion
+			event to start, PiKrellCam requests key frames from the camera once per second,
+			so a Pre_Capture time setting of T will actually record somewhere between
+			T and T+1 seconds.
+			Also, if there is a new motion event immediately following a previous motion
+			video end, there may not be the configured Pre_Capture time accumulated in the
+			circular buffer and so the actual pre capture time will be less than what
+			is configured.
+			</div>
+		</li>
+
 		<li><span style='font-weight:700'>Video Res</span> - selects the video resolution for
 		motion and manual videos.  Different resolutions may have different fields of view. So
 		one reason for selecting
@@ -819,17 +887,14 @@ Preset group and there will be no Servo button in the Config group.
 		<span style='font-weight:700'>1080p</span> would be to get a wider field of view.  Resolutions
 		will have either 16:9 or 4:3 aspect ratio.
 		</li>
+
 		<li><span style='font-weight:700'>Still Res</span> - selecting different resolutions
 		gives different fields of view and aspect ratios.
 		</li>
+
 <a name="DISKFREE">
 		<li><span style='font-weight:700'>Settings</span>
 			<ul>
-			<li><span style='font-weight:700'>Startup_Motion</span> - set to
-			<span style='font-weight:700'>ON</span> for motion detection to be enabled each time
-			PiKrellCam starts.  Motion detection can be
-			enabled from the web page or a script.
-			</li>
 
 			<li><span style='font-weight:700'>Check_Media_Diskfree</span>
 			- if set <span style='font-weight:700'>ON</span>, when new motion
@@ -850,6 +915,7 @@ Preset group and there will be no Servo button in the Config group.
 			moving media videos and except for some directory structure overhead
 			is not increasing disk usage.
 			</li>
+
 			<li><span style='font-weight:700'>Diskfree_Percent</span>
 			- maintain this minimum free percent on media and archive
 			file systems when checking is enabled for those file systems
@@ -862,31 +928,38 @@ Preset group and there will be no Servo button in the Config group.
 			and its quality.  Adjust up if it improves video quality.  Adjust down if you want
 			to reduce the size of the videos.
 			</li>
+
 			<li><span style='font-weight:700'>video_fps</span> - typically this should be no higher
 			than 24 or the motion detecting preview jpeg camera stream may start dropping frames.
 			(I have no data on the effect GPU overclocking might have on this limitation).
 			</li>
+
 			<li><span style='font-weight:700'>video_mp4box_fps</span> - keep this value set to zero
 			unless you want to create fast or slow motion videos.  When zero, mp4 boxing fps will be
 			the same as video_fps which is normally what you want.  But this value can be set to a
 			non zero value different from video_fps if you want fast or slow motion videos.
 			</li>
+
 			<li><span style='font-weight:700'>mjpeg_divider</span> - this value is divided into
 			the video_fps value to get the preview jpeg rate.  The preview is updated at this rate
 			and it is the rate that motion vector frames are checked for motion.
 			</li>
+
 			<li><span style='font-weight:700'>still_quality</span> - adjust up if it improves
 			still jpeg quality.  Adjust down if you want to reduce the size of still jpegs.
 			</li>
+
 			<li><span style='font-weight:700'>Vector_Counts</span> - enable showing of vector count
 			statistics when showing a Preset.  This information may help when setting motion detect
 			limits.
 			</li>
+
 			<li><span style='font-weight:700'>Vector_Dimming</span> - sets a percentage dimming
 			of the preview jpeg image when the
 			<span style='font-weight:700'>Vectors</span> display is enabled.  This is to improve
 			the contrast of the drawn motion vectors.
 			</li>
+
 			<li><span style='font-weight:700'>Preview_Clean</span> - if set to
 			<span style='font-weight:700'>OFF</span>, whatever text or graphics that happen to be
 			drawn on the preview jpeg at the time a motion preview save or thumb save occurs will
@@ -896,56 +969,6 @@ Preset group and there will be no Servo button in the Config group.
 			</li>
 			</ul>
 		</li>
-		<li><span style='font-weight:700'>Times</span>
-			<ul>
-			<li><span style='font-weight:700'>Confirm_Gap</span> - for motion direction detects,
-			require a second motion detect within this period of seconds before triggering a
-			motion detect event.  This adds a level of noise rejection to motion direction detecting
-			but may be set to zero to disable a second detect requirement if fast detection is desired.
-			This setting does not apply to motion burst detects because the Burst_Frames setting
-			provides a confirm time for that method.
-			</li>
-			<li><span style='font-weight:700'>Pre_Capture</span> - seconds of video to record prior
-			to the first motion detect event.  This value should be greater than or equal to the
-			Confirm_Gap.
-			</li>
-			<li><span style='font-weight:700'>Event_Gap</span> - number of seconds that must pass
-			since the last motion detect event before a motion video record can end.
-			When an Event_Gap period does expire without a new motion event occurring,
-			the video will end with an end time of the last motion detect time plus the
-			Post_Capture time (but see Post_Capture).
-			Set this higher for animals or walking people that may pause for
-			periods of time before resuming motion.  Set lower for active scenes where events
-			are frequent and you want to bias towards shorter videos
-			that capture more events separately.
-			</li>
-			<li><span style='font-weight:700'>Post_Capture</span> - seconds of video
-			that will be recorded after the last occurring motion event.  This time must be
-			less than or equal to the Event_Gap time because post capture time is accumulated
-			in the circular buffer while the video is recording.  An expiring Event_Gap time
-			ends the video immediately and no more Post_Capture time can be accumulated.
-			</li>
-			<li><span style='font-weight:700'>Time_Limit</span> - range is 10 - 1800
-			seconds (30 minutes) and is the maximum seconds of motion video
-			that will be recorded after the first occurring motion event.  So the total
-			video length max will be the Pre_Capture time + the Time_Limit.
-			If this is set to zero, there will be no time limit enforced.  This limit
-			does not apply to manual recordings - see FIFO examples for that.
-			</li>
-			</ul>
-			<p>
-			<div class='indent1'>
-			<span style='font-weight:700'>Note:</span>
-			Videos can be started only on key frame boundaries.  When waiting for a motion
-			event to start, PiKrellCam requests key frames from the camera once per second,
-			so a Pre_Capture time setting of T will actually record somewhere between
-			T and T+1 seconds.
-			Also, if there is a new motion event immediately following a previous motion
-			video end, there may not be the configured Pre_Capture time accumulated in the
-			circular buffer and so the actual pre capture time will be less than what
-			is configured.
-			</div>
-		</li>
 <a name="DISKUSAGE">
 		<li><span style='font-weight:700'>Loop</span><br>
 			<ul>
@@ -954,9 +977,11 @@ Preset group and there will be no Servo button in the Config group.
 			be enabled each time PiKrellCam starts.  Loop recording can be
 			enabled from the web page or a script or an at-command.
 			</li>
+
 			<li><span style='font-weight:700'>Time_Limit</span>
 			- loop video length in seconds.
 			</li>
+
 			<li><span style='font-weight:700'>Diskusage_Percent</span>
 			- Limit disk space used by loop videos to this percent
 			by deleting oldest loop videos as new ones are recorded.
@@ -972,7 +997,7 @@ Preset group and there will be no Servo button in the Config group.
 			<ul>
 			<li><span style='font-weight:700'>Audio_Trigger_Video</span>
 			- set to <span style='font-weight:700'>ON</span>
-			to enable audio events to be treated as motion events to trigger
+			to enable audio detects to be treated as motion detects to trigger
 			motion videos.
 			</li>
 			<li><span style='font-weight:700'>Audio_Trigger_Level</span>
@@ -1829,6 +1854,7 @@ tl_end
 tl_hold [on|off|toggle]
 tl_show_status [on|off|toggle]
 motion_enable [on|off|toggle]
+motion_detects_fifo_enable [on|off|toggle]
 motion limits magnitude count
 motion burst count frames
 motion trigger code    # code is digit N or N:ID    N is 0 or 1 and ID is a string (see Examples)
@@ -2081,7 +2107,7 @@ frequency  time   "command"
 		time period (say started during the day versus started at night) when
 		PiKrellCam is started, you need to have your own script that checks the time.
 		Such a script can parse the PiKrellCam state file
-		<span style='font-weight:700'>/var/run/pikrellcam/state</span>
+		<span style='font-weight:700'>/run/pikrellcam/state</span>
 		to get the
 		<span style='font-weight:700'>current_minute</span>
 		and compare it to todays sun times from the state file:
@@ -2229,26 +2255,27 @@ motion_state=${line#motion_enable}
 <a name="MOTION_EVENTS">
 <span style='font-size: 1.2em; font-weight: 700;'>/run/pikrellcam/motion-events</span>
 	<div class='indent1'>
-	This is new in PiKrellCam 3.1.0 and it's possible there will be small
-	changes in its format in coming versions.
+	This file is for processing motion detects during a motion video
+	or stills record event
+	in real time as they occur while recording is in progress.  It is intended
+	to be processed by an on_motion_begin command configured in
+	pikrellcam.conf.
 	<p>
-	Motion detect events are written to this file during each motion video
-	recording.  An on_motion_begin command configured to run in pikrellcam.conf
-	can read this file to get
-	a reasonably fast notification of motion
-	events as they occur while the video is recording.  Scripts can determine
-	where motion is in the video frame (by x,y position or motion region
-	number) and then take some action such as sending multicast alarms and/or
-	moving servos.
+	See the motion_detects_FIFO below if you want to process a continuous
+	stream of motion detects whether or not a motion event is recording.
 	<p>
-	This file is overwritten with new event data for each new motion video
-	recording so
-	it is intended for use by on_motion_begin commands which are run
+	This file is overwritten with new detect data for each new motion
+	recording and the on_motion_begin command is run 
 	immediately after the motion-events file writing begins.
 	The output to the file is
 	flushed after data for each motion detect is written.
 	See script-dist/example-motion-send-alarm2 for an example reading of this
 	file in an on_motion_begin script.
+	<p>
+	Scripts can determine
+	where motion is in the video frame (by x,y position or motion region
+	number) and then take some action such as sending multicast alarms and/or
+	moving servos.
 	<p>
 	The format of the file is a header block followed by one or more
 	motion blocks and a final end tag.
@@ -2262,50 +2289,144 @@ to be documented...
 &lt;/header&gt;
 ...
 &lt;motion  3.667&gt;
-b   0
 f  49  43  57  -2  57  263
 1  44  42  53  -4  53  144
 2  55  44  61   0  61  119
-a   45
-e   0
+&lt;/motion&gt;
+&lt;motion  4.100&gt;
+f  10  36  69  52  86  290
+b 949
+&lt;/motion&gt;
+&lt;motion  5.120&gt;
+f   0   0   0   0   0    0
+e PIR
+&lt;/motion&gt;
+&lt;motion  6.000&gt;
+f   0	0   0	0   0	 0
+a 45
 &lt;/motion&gt;
 ...
 &lt;end&gt;
 </pre>
-	shows data for a detect at 3.667 seconds into the video
+	shows data for a first detect at 3.667 seconds into the video
 	(including precapture).
-	Each line inside the motion block begins with a single character code:
+	Each line inside a motion block begins with a single character code:
 	<ul>
-	<li> <span style='font-weight:700'>b</span> - this line shows burst counts.
-	For this detect the burst count did not exceed the burst count limit, so zero
-	is reported.
+	<li> <span style='font-weight:700'>f x y dx dy magnitude count</span>
+	- where the first character code is 'f'.<br>
+	This line is the data for
+	the total frame vector (composite of all the motion region vectors).
+	There is always a frame vector reported but may be a zero vector for
+	audio or external only detects.  A non-zero frame vector passes
+	the configured magnitude and count limits and there can be a passing
+	frame vector without any passing region vectors.
 	</li>
-	<li> <span style='font-weight:700'>f</span> - this line is the data for
-	the total frame vector (composite of all the motion region vectors)
-	and has the format:
-<pre>
-code x y dx dy magnitude count
-</pre>
-	</li>
-	<li> <span style='font-weight:700'>n</span> - where n is a digit.  These
-	lines are for motion vectors for a motion region and have the same
-	format as the frame vector.
-	There is one
-	line for each region having motion and no line for regions not having
-	motion.  Just like the overall frame vector, for a motion region to have
-	motion, the configured magnitude and count limits must be met.
+	<li> <span style='font-weight:700'>n x y dx dy magnitude count</span>
+	- where the first character code n is a digit.<br>
+	These lines are for motion vectors for a motion region detects.
+	There will be a line for each region having motion and no line for
+	regions not having motion.  Just like the overall frame vector, for a
+	motion region to have motion, the configured magnitude and count limits
+	must be met.
 	For this detect there was motion in regions 1 and 2.
 	</li>
-	<li> <span style='font-weight:700'>a|e</span>
-	- shows audio or external triggers.  If an audio level exceeded the
-	audio_trigger_level value it is printed, otherwise 0 is shown. If there
-	was an external trigger (motion trigger command into the FIFO), then
-	the e line will show 1, otherwise 0.
+	<li> <span style='font-weight:700'>b</span> - this line shows burst counts.
+	If no regions individually passed detection magnitude and count limits,
+	the overall frame vector must pass for a burst count detect so a burst
+	detect with no region detects still always has a frame vector.
+	</li>
+	<li> <span style='font-weight:700'>a level</span>
+	- shows an audio trigger if an audio level exceeded the configured
+	audio_trigger_level value.
+	If there was only an audio trigger, then the overall
+	motion frame vector 'f' line will show a zero vector.
+	</li>
+	<li> <span style='font-weight:700'>e code</span>
+	- shows there was an external trigger (motion trigger command into the
+	FIFO).  The code will either be "FIFO" or a custom code supplied in
+	the external trigger command.
+	If there was only an external trigger, then the overall
+	motion frame vector 'f' line will show a zero vector.
 	</li>
 	</div>
 The end tag is written when the motion video ends.
-</div
-<a name="MULTICAST_INTERFACE">
+</div>
+
+<a name="MOTION_EVENTS_FIFO">
+<span style='font-size: 1.5em; font-weight: 650;'>Motion Detects FIFO</span><hr>
+<div class='indent0'>
+&nbsp;&nbsp;<span style='font-size: 1.2em; font-weight:700'>~/pikrellcam/www/motion_detects_FIFO</span>
+<p>
+This named pipe fifo is for near real time processing of all PiKrellCam
+motion detects regardless of motion recording enabled state and so
+can be a general purpose motion detect front end interface for a user
+application with its own motion detect policy.  If motion video recordings are
+enabled and there is a configured non-zero confirm gap, then this fifo will
+report motion events that do not trigger a motion video if the second
+confirming motion detect required for video recordings did not happen.
+<p>
+This fifo is not intended for use by an on_motion_begin command.
+See the
+<nobr><span style='font-weight:700'>/run/pikrellcam/motion-events</span></nobr>
+file section above for motion detect processing on a per motion record event
+basis via an on_motion_begin command.
+<p>
+To enable or disable writing all motion detects to the motion_detects_FIFO,
+send to the command FIFO:
+
+<pre>
+echo "motion_detects_fifo_enable [on|off|toggle]" > ~/pikrellcam/www/FIFO
+</pre>
+
+Motion detect data blocks are written to the motion_detects_FIFO in the same
+format as is written into the
+<nobr><span style='font-weight:700'>/run/pikrellcam/motion-events</span></nobr>
+file as described above except that the time in the motion tag will be
+the current system time in seconds (with .1 second precision) instead of
+the time elapsed into a video.
+Also this is a continuous stream of motion blocks with no header blocks
+written.
+If the motion_detects_FIFO reading app needs any information other than
+motion detects, it should read the
+<nobr><span style='font-weight:700'>/run/pikrellcam/state</span></nobr>
+file.
+<p>
+If the enable is "on" it will stay enabled across pikrellcam
+restarts until an "off" command or pikrellcam.conf is edited.  Once enabled,
+pikrellcam tries to write all motion detects into the motion_detects_FIFO
+and an external app can read the detects from the motion_detects_FIFO.
+The external app can be started by hand, by a command in the
+at-commands.conf file, or by cron.
+<br>
+When a "motion_detects_fifo_enable off" command is sent to the command FIFO,
+an &lt;off&gt; tag is written to the motion_detects_FIFO so the user app can
+know the motion_detects_fifo_enable has been turned off.
+<p>
+Read the example script
+<span style='font-weight:700'>~/pikrellcam/scripts-dist/example-motion-detects-fifo</span>
+for more information. If this script is run by hand from a terminal,
+a stream of all motion detects is printed.
+<p>
+To test the example script on a Pi running pikrellcam, open a terminal
+(SSH terminal if the Pi is headless) and run the example script:<br>
+
+<pre>
+    $ ~/pikrellcam/scripts-dist/example-motion-detects-fifo
+# The script enables motion_detects_FIFO and motion detects are printed here.
+# Terminate the script with ^C or send an off command in another termial:
+#    $ echo "motion_detects_fifo_enable off" > ~/pikrellcam/www/FIFO
+</pre>
+Commands in at-commands.conf can coordinate times when you want
+PiKrellCam to have motion recordings and times when you might want to run
+a custom motion detect app that reads from the motion_detects_FIFO.
+As is done in the example-motion-detects-fifo script, your app can enable
+the motion_detects_FIFO or it can be enabled with an at-commands.conf command
+before or after your script starts.
+And an at-command can turn the motion_detects_FIFO off at a certain time
+if you want to signal your app to self terminate.
+</pre>
+</div>
+
 <a name="MULTICAST_INTERFACE">
 <span style='font-size: 1.5em; font-weight: 650;'>Multicast Interface</span><hr>
 <div class='indent0'>

@@ -1,6 +1,7 @@
 scripts
 www/.htpasswd
 www/FIFO
+www/motion_events_FIFO
 www/audio_FIFO
 www/media
 www/config-user*

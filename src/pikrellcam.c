@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2017 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -296,7 +296,7 @@ camera_restart(void)
 	}
 
 boolean
-still_capture(char *fname)
+still_capture(char *fname, time_t motion_time)
 	{
 	Event			*event;
 	int				n;
@@ -348,6 +348,7 @@ still_capture(char *fname)
 						event_notify_expire, &pikrellcam.still_notify);
 			pikrellcam.still_capture_event = TRUE;
 			pikrellcam.still_notify = TRUE;
+			pikrellcam.motion_stills_capture_time = motion_time;
 			}
 		}
 	return result;
@@ -600,7 +601,9 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 			    && (vcb->motion_stats_file = fopen(stats_path, "w")) != NULL
 			   )
 				vcb->motion_stats_do_header = TRUE;
-			motion_event_write(vcb, &motion_frame, TRUE);
+			motion_events_write(&motion_frame, MOTION_EVENTS_START,
+					(float) vcb->frame_count
+					/ (float) pikrellcam.camera_adjust.video_fps);
 			if (*pikrellcam.on_motion_begin_cmd != '\0')
 				event_add("motion begin", pikrellcam.t_now, 0,
 					event_motion_begin_cmd, pikrellcam.on_motion_begin_cmd);
@@ -927,7 +930,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	pikrellcam.external_motion = FALSE;
 
 	vcb->state = VCB_STATE_NONE;
-	motion_event_write(vcb, mf, FALSE);
+	motion_events_write(mf, MOTION_EVENTS_END, 0);
 	pikrellcam.state_modified = TRUE;
 	vcb->pause = FALSE;
 	vcb->record_hold =FALSE;
@@ -970,6 +973,26 @@ loop_record(void)
 		pikrellcam.loop_next_keyframe = -1;
 		}
 	}
+
+#ifdef MOTION_STILLS
+void
+motion_stills_stop_check(void)
+	{
+	PiKrellCam	*pkc = &pikrellcam;
+	time_t		expire_time;
+
+	expire_time = pkc->motion_stills_max_time > 0
+			? pkc->motion_stills_start_time + pkc->motion_stills_max_time
+			: pkc->motion_last_detect_time + pkc->motion_times.event_gap;
+
+	if (pkc->motion_stills_enable && pkc->t_now < expire_time)
+		return;
+
+	pikrellcam.motion_stills_record = FALSE;
+	pikrellcam.motion_stills_sequence = 1;
+	motion_events_write(&motion_frame, MOTION_EVENTS_END, 0);
+	}
+#endif
 
 static int
 get_arg_pass1(char *opt, char *arg)
@@ -1085,6 +1108,12 @@ typedef enum
 
 	motion_cmd,
 	motion_enable,
+
+#ifdef MOTION_STILLS
+	motion_stills_enable,
+#endif
+
+	motion_detects_fifo_enable,
 	display_cmd,        /* Placement above here can affect OSD.  If menu */
 		                /* or adjustment is showing, above commands redirect */
 	                    /* to cancel the menu or adjustment. */
@@ -1137,6 +1166,12 @@ static Command commands[] =
 
 	{ "motion",        motion_cmd,     1, FALSE },
 	{ "motion_enable", motion_enable,  1, TRUE },
+
+#ifdef MOTION_STILLS
+	{ "motion_stills_enable", motion_stills_enable,  1, TRUE },
+#endif
+
+	{ "motion_detects_fifo_enable", motion_detects_fifo_enable,  1, TRUE },
 
 	/* Above commands are redirected to abort a menu or adjustment display
 	*/
@@ -1277,12 +1312,23 @@ command_process(char *command_line)
 			break;
 
 		case loop:
-			pthread_mutex_lock(&vcb->mutex);
 			n = pikrellcam.loop_enable;
-			config_set_boolean(&pikrellcam.loop_enable, args);
+			config_set_boolean(&n, args);
+			if (n && pikrellcam.motion_stills_enable)
+				{
+				display_inform("\"Cannot enable loop videos\" 3 3 1");
+				display_inform("\"while motion_stills are enabled.\" 4 3 1");
+				display_inform("timeout 2");
+				break;
+				}
 			if (n != pikrellcam.loop_enable)
+				{
+				pthread_mutex_lock(&vcb->mutex);
 				video_record_stop(vcb);		// override motion & manual
-			pthread_mutex_unlock(&vcb->mutex);
+				pthread_mutex_unlock(&vcb->mutex);
+				}
+			pikrellcam.loop_enable = n;
+			pikrellcam.state_modified = TRUE;
 			break;
 
 		case still:
@@ -1292,7 +1338,7 @@ command_process(char *command_line)
 							'N', buf,
 							'H', pikrellcam.hostname);
 			pikrellcam.still_sequence += 1;
-			still_capture(path);
+			still_capture(path, 0);
 			free(path);
 			break;
 
@@ -1439,6 +1485,37 @@ command_process(char *command_line)
 				event_add("motion enable", pikrellcam.t_now, 0,
 					event_motion_enable_cmd, pikrellcam.on_motion_enable_cmd);
 			break;
+
+		case motion_detects_fifo_enable:
+			config_set_boolean(&pikrellcam.motion_detects_fifo_enable, args);
+			motion_detects_fifo_write(NULL);	/* Open or close fifo */
+			pikrellcam.config_modified = TRUE;
+			pikrellcam.state_modified = TRUE;
+			break;
+
+#ifdef MOTION_STILLS
+		case motion_stills_enable:
+			n = pikrellcam.motion_stills_enable;
+			config_set_boolean(&n, args);
+			if (n && pikrellcam.loop_enable)
+				{
+				display_inform("\"Cannot enable motion stills\" 3 3 1");
+				display_inform("\"while loop videos are enabled.\" 4 3 1");
+				display_inform("timeout 2");
+				break;
+				}
+			if (n && !pikrellcam.motion_stills_enable)
+				{
+				pthread_mutex_lock(&vcb->mutex);
+				if (vcb->state == VCB_STATE_MOTION_RECORD)
+					video_record_stop(vcb);
+				pthread_mutex_unlock(&vcb->mutex);
+				}
+			pikrellcam.motion_stills_enable = n;
+			pikrellcam.config_modified = TRUE;
+			pikrellcam.state_modified = TRUE;
+			break;
+#endif
 
 		case video_fps:
 			if ((n = atoi(args)) < 1)
@@ -1842,7 +1919,7 @@ main(int argc, char *argv[])
 	char	*opt, *arg, *equal_arg, *user;
 	char	*line, *eol, buf[4096];
 	int		t_usleep;
-	struct timeval	tv;
+//	struct timeval	tv;
 
 	pgm_name = argv[0];
 	setlocale(LC_TIME, "");
@@ -1997,6 +2074,7 @@ main(int argc, char *argv[])
 	check_modes(buf, 0775);
 
 	asprintf(&pikrellcam.command_fifo, "%s/www/FIFO", pikrellcam.install_dir);
+	asprintf(&pikrellcam.motion_detects_fifo, "%s/www/motion_detects_FIFO", pikrellcam.install_dir);
 	asprintf(&pikrellcam.audio_fifo, "%s/www/audio_FIFO", pikrellcam.install_dir);
 	asprintf(&pikrellcam.scripts_dir, "%s/scripts", pikrellcam.install_dir);
 	asprintf(&pikrellcam.scripts_dist_dir, "%s/scripts-dist", pikrellcam.install_dir);
@@ -2007,6 +2085,7 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.loop_converting, "%s/loop_converting", pikrellcam.tmpfs_dir);
 
 	log_printf_no_timestamp("command FIFO: %s\n", pikrellcam.command_fifo);
+	log_printf_no_timestamp("motion_detects FIFO  : %s\n", pikrellcam.motion_detects_fifo);
 	log_printf_no_timestamp("audio FIFO  : %s\n", pikrellcam.audio_fifo);
 	log_printf_no_timestamp("mjpeg stream: %s\n", pikrellcam.mjpeg_filename);
 
@@ -2073,9 +2152,11 @@ main(int argc, char *argv[])
 			"Failed to create archive directory, continuing anyway.\n");
 
 
+	if (!make_fifo(pikrellcam.motion_detects_fifo))
+		log_printf_no_timestamp("Failed to create motion_detects FIFO.\n");
 	if (!make_fifo(pikrellcam.audio_fifo))
 		log_printf_no_timestamp("Failed to create audio FIFO.\n");
-		
+
 	if ((fifo = open(pikrellcam.command_fifo, O_RDONLY | O_NONBLOCK)) < 0)
 		{
 		log_printf("Failed to open FIFO: %s.  %m\n", pikrellcam.command_fifo);
@@ -2111,17 +2192,23 @@ main(int argc, char *argv[])
 
 	while (1)
 		{
-		if (gettimeofday(&tv, NULL) < 0)
+		if (gettimeofday(&pikrellcam.tv_now, NULL) < 0)
 			{
 			log_printf("    XXX gettimeofday error: %m\n");
 			usleep(100000);
 			}
 		else
 			{
-			t_usleep = (int) (100000 - (tv.tv_usec % 100000));  /* EVENT_LOOP_FREQUENCY!! */
+			/* EVENT_LOOP_FREQUENCY!! */
+			t_usleep = (int) (100000 - (pikrellcam.tv_now.tv_usec % 100000));
 			usleep(t_usleep + 1);
 			}
 		time(&pikrellcam.t_now);
+
+#ifdef MOTION_STILLS
+		if (pikrellcam.motion_stills_record)
+			motion_stills_stop_check();
+#endif
 
 		event_process();
 		multicast_recv();
