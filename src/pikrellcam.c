@@ -1887,25 +1887,18 @@ pi_model(void)
 	{
 	FILE       *f;
 	static int model;
-	char       buf[200], arm[32];
+	char       buf[200];
 
 	if (model == 0)
 		{
-		if ((f = fopen("/proc/cpuinfo", "r")) != NULL)
+		if ((f = fopen("/sys/firmware/devicetree/base/model", "r")) != NULL)
 			{
-			while (fgets(buf, sizeof(buf), f) != NULL)
-				{
-				if (sscanf(buf, "model name %*s %31s", arm) > 0)
-					{
-					if (!strncmp(arm, "ARMv6", 5))
-						model = 1;
-					else
-						model = 2;
-					break;
-					}
-				}
+        	model = 1;
+			if (fscanf(f, "Raspberry Pi %s", buf) == 1)
+        	    sscanf(buf, "%d ", &model);
 			fclose(f);
 			}
+//		printf("Pi model: %d\n", model);
 		}
 	return model;
 	}

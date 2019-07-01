@@ -68,6 +68,10 @@ And there is a Raspberry Pi
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
 
+<br>
+Version 4.2.1 - Changes for Pi 4 peripheral base and Buster installs.
+<br>
+
 Version 4.2.0
 <div class='indent1'>
 <a href="help.php#MOTION_EVENTS_FIFO">motion_detects_FIFO</a> can be read

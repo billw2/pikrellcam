@@ -38,6 +38,17 @@ LOG_FILE=$4
 COMMAND_FIFO=$5
 FILENAME_FORMAT=$6
 
+BUSTER=10
+V=`cat /etc/debian_version`
+DEB_VERSION="${V%.*}"
+
+if ((DEB_VERSION >= BUSTER))
+then
+	AV_PGM=ffmpeg
+else
+	AV_PGM=avconv
+fi
+
 #
 # Requires libav-tools
 #
@@ -52,7 +63,7 @@ cd $MEDIA_DIR/timelapse
 FIRST=$(ls tl_${SERIES}_*.jpg | head -n1)
 NUM=${FIRST:9:5}
 
-nice -2 avconv -r 6 -start_number $NUM -i $FILENAME_FORMAT \
+nice -2 $AV_PGM -r 6 -start_number $NUM -i $FILENAME_FORMAT \
 		-b:v 6M -maxrate 6M -minrate 1M -bufsize 4M \
 		-vcodec libx264 -crf 20 -g 4 -movflags faststart \
 		$SERIES.mp4

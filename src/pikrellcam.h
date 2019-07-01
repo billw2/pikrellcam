@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.2.0"
+#define	PIKRELLCAM_VERSION	"4.2.1"
 
 
 //TCP Stream Server
@@ -759,8 +759,7 @@ typedef struct
 	boolean	video_notify,
 			still_notify,
 			timelapse_notify;
-	int		notify_duration,
-			rotation_value;
+	int		notify_duration;
 
 	char	*sharpness,
 			*contrast,

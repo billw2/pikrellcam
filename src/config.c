@@ -303,7 +303,6 @@ rotation_control_set(char *option, char *setting)
 	MMAL_STATUS_T	status = MMAL_EINVAL;
 
 	value = ((value % 360 ) / 90) * 90;
-	pikrellcam.rotation_value = value;
 	for (i = 0; i < MAX_CAMERA_PORTS; ++i)
 		{
 		status = mmal_port_parameter_set_int32(camera.component->output[i],
@@ -1383,21 +1382,6 @@ config_load(char *config_file)
 
 	if (pikrellcam.config_sequence_new != pikrellcam.config_sequence)
 		{
-#if 0
-		if (   pikellcam.config_sequence <= 45
-		    && (   pikrellcam.rotation_value == 90
-		        || pikrellcam.rotation_value == 270
-		       )
-		   )
-			{
-			n = pikrellcam.video_width;
-			pikrellcam.video_width = pikrellcam.video_height;
-			pikrellcam.video_height = n;			
-			n = pikrellcam.still_width;
-			pikrellcam.still_width = pikrellcam.still_height;
-			pikrellcam.still_height = n;			
-			}
-#endif
 		pikrellcam.config_sequence = pikrellcam.config_sequence_new;
 		pikrellcam.config_modified = TRUE;
 		}

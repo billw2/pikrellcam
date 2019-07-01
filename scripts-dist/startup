@@ -124,13 +124,18 @@ then
 		echo "  $archive_dir is already NFS mounted." >> $log_file
 	else
 		cp $install_dir/www/images/nfs-mounting.jpg /run/pikrellcam/mjpeg.jpg
-		sudo mount $NFS_ARCHIVE
-		fs_type=$(stat -f -L -c %T $archive_dir)
-		if [ "$fs_type" == "nfs" ]
-		then
-			echo "  NFS mounted $NFS_ARCHIVE" >> $log_file
-		else
-			echo "  NFS mount of $NFS_ARCHIVE failed" >> $log_file
-		fi
+		sudo mount $NFS_ARCHIVE &
+		for ((p = 0; p < 10; p++))
+		do
+			sleep 1
+			fs_type=$(stat -f -L -c %T $archive_dir)
+			if [ "$fs_type" == "nfs" ]
+			then
+				echo "  NFS mounted $NFS_ARCHIVE" >> $log_file
+				break;
+			else
+				echo "  NFS mount of $NFS_ARCHIVE slow or failed ..." >> $log_file
+			fi
+		done
 	fi
 fi

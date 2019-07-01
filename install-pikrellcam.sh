@@ -112,19 +112,29 @@ echo "Starting PiKrellCam install..."
 #
 JESSIE=8
 STRETCH=9
+BUSTER=10
+
 V=`cat /etc/debian_version`
-DEB_VERSION="${V:0:1}"
+#DEB_VERSION="${V:0:1}"
+# Strip all chars after decimal point
+DEB_VERSION="${V%.*}"
 
 PACKAGE_LIST=""
 
-if ((DEB_VERSION >= STRETCH))
+if ((DEB_VERSION >= BUSTER))
 then
+	AV_PACKAGES="ffmpeg"
+	PHP_PACKAGES="php7.3 php7.3-common php7.3-fpm"
+elif ((DEB_VERSION >= STRETCH))
+then
+	AV_PACKAGES="libav-tools"
 	PHP_PACKAGES="php7.0 php7.0-common php7.0-fpm"
 else
+	AV_PACKAGES="libav-tools"
 	PHP_PACKAGES="php5 php5-common php5-fpm"
 fi
 
-for PACKAGE in $PHP_PACKAGES
+for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
 do
 	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
 	then
@@ -132,7 +142,7 @@ do
 	fi
 done
 
-for PACKAGE in gpac nginx libav-tools bc \
+for PACKAGE in gpac nginx bc \
 	sshpass mpack imagemagick apache2-utils libasound2 libasound2-dev \
 	libmp3lame0 libmp3lame-dev
 do
@@ -303,7 +313,10 @@ sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 			s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
 
-if ((DEB_VERSION >= STRETCH))
+if ((DEB_VERSION >= BUSTER))
+then
+	sudo sed -i "s/php5/php\/php7.3/" /etc/nginx/sites-available/pikrellcam
+elif ((DEB_VERSION >= STRETCH))
 then
 	sudo sed -i "s/php5/php\/php7.0/" /etc/nginx/sites-available/pikrellcam
 fi

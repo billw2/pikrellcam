@@ -13,6 +13,16 @@ TEST=$4
 #MEDIA_DIRECTORY=/home/pi/pikrellcam/www/media
 #ARCHIVE_DIR=/home/pi/pikrellcam/www/media/archive
 
+BUSTER=10
+V=`cat /etc/debian_version`
+DEB_VERSION="${V%.*}"
+
+if ((DEB_VERSION >= BUSTER))
+then
+	AV_PGM=ffmpeg
+else
+	AV_PGM=avconv
+fi
 
 function check_thumb
 	{
@@ -39,10 +49,10 @@ function check_thumb
 		if [ ! -f $THUMBS_DIR/$THUMB_JPEG ]
 		then
 			THUMB_FAIL=false
-#			echo "  avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG" >>$LOG
+#			echo "  $AV_PGM -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG" >>$LOG
 			if [ "$TEST" != "test" ]
 			then
-				if ! avconv -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG
+				if ! $AV_PGM -i $1 -ss 0 -vframes 1 $TMP_DIR/$THUMB_JPEG
 				then
 					echo "  Failed to extract thumb from video: $1" >> $LOG
 					THUMB_FAIL=true

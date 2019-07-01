@@ -29,9 +29,6 @@
 #include <stdint.h>
 #include <sys/mman.h>
 
-#define PI_1_PERIPHERAL_BASE	0x20000000
-#define PI_2_PERIPHERAL_BASE	0x3F000000
-
 #define GPIO_BASE    0x200000
 #define PWM_BASE     0x20C000
 #define CLOCK_BASE   0x101000
@@ -89,6 +86,16 @@
 #define SERVO_NEW_MOVE   1
 #define SERVO_MOVING     2
 #define SERVO_STOP       3
+
+
+#define	N_MODEL_PERIPHERAL_BASES	4
+
+static uint32_t model_peripheral_base[N_MODEL_PERIPHERAL_BASES] =
+	{
+	0x20000000, 0x3F000000, 0x3F000000, 0xfe000000
+	};
+
+
 
 typedef struct
 	{
@@ -398,12 +405,31 @@ servo_move(int pan, int tilt, int delay)
 void
 servo_init(void)
 	{
-	int      fd, peripheral_base, pan_alt, tilt_alt;
-	uint32_t divi, t1, t2;
+	int      fd, pan_alt, tilt_alt, n;
+	uint32_t divi, t1, t2, peripheral_base;
 
 	pan_cur = tilt_cur = 150.0;
 	if (!pikrellcam.have_servos)
 		return;
+
+	n = pikrellcam.pi_model - 1;
+	if (n < 0)
+		{
+		log_printf_no_timestamp("======= Servo init failed: Unknown Pi model.\n");
+		return;
+		}
+	if (n >= N_MODEL_PERIPHERAL_BASES)
+		{
+		n = N_MODEL_PERIPHERAL_BASES - 1;
+		log_printf_no_timestamp(
+			"	======= Servo assuming peripheral base is same as Pi %d.\n",
+			N_MODEL_PERIPHERAL_BASES);
+		}
+	peripheral_base = model_peripheral_base[n];
+	log_printf_no_timestamp(
+				"======= Servo Pi %d init using peripheral base: 0x%x.\n",
+				pikrellcam.pi_model, peripheral_base);
+
 	if (pikrellcam.servo_use_servoblaster)
 		{
 		pwm_width_func = pwm_width_servoblaster;
@@ -427,13 +453,12 @@ servo_init(void)
 		pan_channel = tilt_channel = -1;
 		return;
 		}
-	peripheral_base = (pikrellcam.pi_model == 2)
-				? PI_2_PERIPHERAL_BASE : PI_1_PERIPHERAL_BASE;
+
 
 	if ((fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0)
 		{
 		pan_channel = tilt_channel = -1;
-		log_printf_no_timestamp("======= Servo init failed: /dev/mem open failed.");
+		log_printf_no_timestamp("======= Servo init failed: /dev/mem open failed.\n");
 		return;
 		}
 	gpio_mmap = (uint32_t *) mmap(NULL, 0x100, PROT_READ|PROT_WRITE, MAP_SHARED,
