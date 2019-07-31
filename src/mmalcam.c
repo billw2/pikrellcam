@@ -163,43 +163,58 @@ return_buffer_to_port(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		}
 	}
 
+
   /* Save /run/pikrellcam/mjpeg.jpg into a preview jpeg for later conversion
   |  to a thumb and use in a preview_save command.  Make thumb.th.jpg name.
   */
-static void
-preview_save(void)
+void
+make_preview_pathname(char *media_pathname)
 	{
-	FILE	*f_src, *f_dst;
-	char	*s, *base, buf[BUFSIZ];
-	int		n;
+	char	*base, *s, buf[BUFSIZ];
 
-	base = fname_base(pikrellcam.video_pathname);
+	base = fname_base(media_pathname);
 	if (   (s = strstr(base, ".mp4")) != NULL
 	    || (s = strstr(base, ".h264")) != NULL
+	    || (s = strstr(base, ".jpg")) != NULL
 	   )
 		{
 		*s = '\0';
 		snprintf(buf, sizeof(buf), "%s/%s.jpg", pikrellcam.tmpfs_dir, base);
-		if (dup_string(&pikrellcam.preview_pathname, buf))
-			log_printf("  event preview save: copy %s -> %s\n",
-					pikrellcam.mjpeg_filename, pikrellcam.preview_pathname);
-
-		if ((f_src = fopen(pikrellcam.mjpeg_filename, "r")) != NULL)
-			{
-			if ((f_dst = fopen(pikrellcam.preview_pathname, "w")) != NULL)
-				{
-				while ((n = fread(buf, 1, sizeof(buf), f_src)) > 0)
-					{
-					if (fwrite(buf, 1, n, f_dst) != n)
-						break;
-					}
-				fclose(f_dst);
-				}
-			fclose(f_src);
-			}
+		dup_string(&pikrellcam.preview_pathname, buf);
 		*s = '.';
 		}
+	else
+		dup_string(&pikrellcam.preview_pathname, NULL);
 	}
+
+static void
+preview_save(void)
+	{
+	FILE	*f_src, *f_dst;
+	char	buf[BUFSIZ];
+	int		n;
+
+	if (!pikrellcam.preview_pathname)
+		return;
+
+	log_printf("  preview save: copy %s -> %s\n",
+			pikrellcam.mjpeg_filename, pikrellcam.preview_pathname);
+
+	if ((f_src = fopen(pikrellcam.mjpeg_filename, "r")) != NULL)
+		{
+		if ((f_dst = fopen(pikrellcam.preview_pathname, "w")) != NULL)
+			{
+			while ((n = fread(buf, 1, sizeof(buf), f_src)) > 0)
+				{
+				if (fwrite(buf, 1, n, f_dst) != n)
+					break;
+				}
+			fclose(f_dst);
+			}
+		fclose(f_src);
+		}
+	}
+
 
   /* If video_fps is too high and strains GPU, resized frames to this
   |  callback may be dropped.  Set debug_fps to 1 to check things... or
@@ -268,12 +283,20 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			pthread_mutex_unlock(&mjpeg_encoder_count_lock);
 
 			rename(fname_part, pikrellcam.mjpeg_filename);
+
 			if (do_preview_save)
 				{
 				preview_save();
-				if (pikrellcam.do_preview_save_cmd)
+				if (pikrellcam.do_thumb_convert)
 					thumb_convert();
-				pikrellcam.do_preview_save_cmd = FALSE;
+				pikrellcam.do_thumb_convert = FALSE;
+
+				if (pikrellcam.do_motion_still)
+					{
+					event_add("event_motion_still_capture", pikrellcam.t_now,
+							0, event_motion_still_capture, NULL);
+					pikrellcam.do_motion_still = FALSE;
+					}
 				}
 			}
 		file = fopen(fname_part, "w");
@@ -307,10 +330,8 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 		{
 		fclose(still_jpeg_encoder.file);
 
-#ifdef MOTION_STILLS
-		if (pikrellcam.motion_stills_capture_time > 0)
+		if (pikrellcam.motion_still_capture_event)
 			motion_events_write(&motion_frame, MOTION_EVENTS_STILL, 0);
-#endif
 
 		if (pikrellcam.still_capture_event)
 			{
@@ -336,7 +357,7 @@ still_jpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 						PIKRELLCAM_TIMELAPSE_SUBDIR);
 			}
 
-		pikrellcam.motion_stills_capture_time = 0;
+		pikrellcam.motion_still_capture_event = FALSE;
 		pikrellcam.still_capture_event = FALSE;
 		pikrellcam.timelapse_capture_event = FALSE;
 		bytes_written = 0;
@@ -757,13 +778,13 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 
 			if (mf->fifo_trigger_time_limit > 0)
 				{
-				vcb->motion_sync_time = vcb->t_cur
+				pikrellcam.motion_sync_time = vcb->t_cur
 				                              + mf->fifo_trigger_time_limit;
 				vcb->max_record_time = mf->fifo_trigger_time_limit;
 				}
 			else
 				{
-				vcb->motion_sync_time = vcb->t_cur
+				pikrellcam.motion_sync_time = vcb->t_cur
 				                      + pikrellcam.motion_times.post_capture;
 				vcb->max_record_time = pikrellcam.motion_record_time_limit;
 				}
@@ -910,7 +931,7 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			|  reached and we stop recording with the post_capture time
 			|  already written.
 			*/
-			if (vcb->t_cur <= vcb->motion_sync_time)
+			if (vcb->t_cur <= pikrellcam.motion_sync_time)
 				{
 				if (mmalbuf->pts > 0)
 					vcb->last_pts = mmalbuf->pts;
@@ -929,10 +950,6 @@ video_h264_encoder_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *mmalbuf)
 			       )
 		       )
 				{
-				/* For motion recording, preview_save_mode "first" has been
-				|  handled in motion_frame_process().  But if not "first",
-				|  there is a preview save waiting to be handled.
-				*/
 				video_record_stop(vcb);
 				}
 			}

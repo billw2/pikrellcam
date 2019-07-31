@@ -155,3 +155,23 @@ selected
     width: 100%;
     z-index: 100;
 	}
+
+.small-font
+	{
+	font-size: 0.88em;
+	}
+
+.small-checkbox
+	{
+	zoom: 0.75;
+	transform: scale(0.75);
+	-ms-transform: scale(0.75);
+	-webkit-transform: scale(0.75);
+	-o-transform: scale(0.75);
+	-moz-transform: scale(0.75);
+	transform-origin: 0 0;
+	-ms-transform-origin: 0 0;
+	-webkit-transform-origin: 0 0;
+	-o-transform-origin: 0 0;
+	-moz-transform-origin: 0 0;
+	}

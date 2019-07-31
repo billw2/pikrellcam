@@ -32,27 +32,6 @@ MotionFrame		motion_frame;
 static CompositeVector	zero_cvec;
 
 
-static boolean
-composite_vector_better(CompositeVector *cvec1, CompositeVector *cvec2)
-	{
-	int		d1, d2,
-			xm = motion_frame.width / 2,
-			xt = motion_frame.width / 3;
-	boolean	result = FALSE;
-
-	d1 = abs(xm - cvec1->x);
-	d2 = abs(xm - cvec2->x);
-	if (d2 < xt)
-		{
-		if (d1 < xt && cvec1->mag2_count > cvec2->mag2_count)
-			result = TRUE;
-		}
-	else if (d1 < d2)
-		result = TRUE;
-
-	return result;
-	}
-
 
 static void
 get_composite_vector(MotionFrame *mf, MotionRegion *mreg)
@@ -534,39 +513,136 @@ motion_detects_fifo_write(MotionFrame *mf)
 	write(fd, "</motion>\n", 10);
 	}
 
-void
-motion_stills_record(MotionFrame *mf)
+static char *
+motion_stills_pathname(MotionFrame *mf, time_t t)
 	{
-	PiKrellCam				*pkc = &pikrellcam;
-	float					period_usec, capture_diff_usec;
-	struct timeval			tv_diff;
-	static struct timeval	tv_motion_still;
+	char	*tag, *name_format, *path, buf[50];
 
-	if (!pkc->motion_stills_record)		/* stills record start */
+	snprintf(buf, sizeof(buf), "%d", pikrellcam.motion_stills_sequence);
+
+	if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+		asprintf(&name_format, "motion_%s",
+		         pikrellcam.motion_stills_name_format);
+	else
 		{
-		motion_events_write(mf, MOTION_EVENTS_HEADER, 0);
-		pkc->motion_stills_start_time = pkc->t_now;
-		tv_motion_still = pkc->tv_now;
-		if (mf->fifo_trigger_time_limit > 0)
-			pkc->motion_stills_max_time = mf->fifo_trigger_time_limit;
+		if (mf->motion_status & MOTION_FIFO)
+			tag = mf->fifo_trigger_code ? mf->fifo_trigger_code : "FIFO";
+		else if (mf->motion_status & MOTION_AUDIO)
+			tag = "Audio";
 		else
-			pkc->motion_stills_max_time = pkc->motion_record_time_limit;
-		pkc->motion_stills_sequence = 1;
+			tag = "Unknown";
+
+		asprintf(&name_format, "ext-%s_%s", tag,
+		         pikrellcam.motion_stills_name_format);
 		}
-	timersub(&pkc->tv_now, &tv_motion_still, &tv_diff);
+
+	path = media_pathname(pikrellcam.still_dir, name_format, t,
+				'N', buf, 'H', pikrellcam.hostname);
+	free(name_format);
+
+	return path;
+	}
+
+void
+motion_stills_start(MotionFrame *mf)
+	{
+	PiKrellCam		*pkc = &pikrellcam;
+	char			*path;
+
+	motion_events_write(mf, MOTION_EVENTS_START, 0);
+
+	pkc->motion_stills_start_tv = pkc->tv_now;
+	pkc->motion_still_tv = pkc->tv_now;
+	pkc->motion_stills_capture_time = pkc->t_now;
+
+	pkc->motion_stills_sequence += 1;
+	pkc->config_media_sequence_modified = TRUE;
+	pkc->motion_stills_count = 1;
+
+	path = motion_stills_pathname(mf, pkc->motion_stills_capture_time);
+	make_preview_pathname(path);
+
+	if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+		pikrellcam.external_motion_still = FALSE;
+	else
+		pikrellcam.external_motion_still = TRUE;
+
+	pikrellcam.do_preview_save = TRUE;
+	pikrellcam.do_thumb_convert = TRUE;
+	pikrellcam.thumb_convert_done = FALSE;
+	pikrellcam.do_motion_still = TRUE;
+	pikrellcam.motion_still_pathname = path;
+	log_printf("motion stills start: %s\n", path);
+
+	pkc->motion_stills_record = TRUE;
+	}
+
+void
+motion_stills_capture(MotionFrame *mf)
+	{
+	PiKrellCam		*pkc = &pikrellcam;
+	char			*path;
+	float			period_usec, capture_diff_usec;
+	struct timeval	tv_diff;
+
+	if (pikrellcam.motion_still_pathname)
+		return;  /* previous capture not initiated */
+
+	timersub(&pkc->tv_now, &pkc->motion_still_tv, &tv_diff);
 	capture_diff_usec = (float)(tv_diff.tv_sec * 1e6) + (float)tv_diff.tv_usec;
 	period_usec = 60.0 / (float) pkc->motion_stills_per_minute * 1e6;
 
-	if (   !pkc->motion_stills_record		/* First capture */
-	    || capture_diff_usec > period_usec
-	   )
+	if (capture_diff_usec >= period_usec)
 		{
-		pkc->motion_stills_record = TRUE;
-		tv_motion_still = pkc->tv_now;
+		pkc->motion_still_tv = pkc->tv_now;
+		pkc->motion_stills_capture_time = pkc->t_now;
+		path = motion_stills_pathname(mf, pkc->motion_stills_capture_time);
+		make_preview_pathname(path);
+		mf->preview_frame_vector = mf->frame_vector;
+		mf->preview_motion_area = mf->motion_area;
 
-		event_add("event_motion_still_capture", pkc->t_now, 0,
-			event_motion_still_capture, (void *) pkc->t_now);
+		if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+			pikrellcam.external_motion_still = FALSE;
+		else
+			pikrellcam.external_motion_still = TRUE;
+
+		/* Don't switch the camera into still capture mode until the motion
+		|  detecting I420 frame has converted to a mjpeg.jpg suitable for a
+		|  preview_save() and thumb_convert().  Set flags for mjpeg_callback()
+		|  so it uses the right frame for thumb/preview and then schedule the
+		|  still_capture(). motion_still_pathname used as holdoff so can't
+		|  start another pipeline until previous still_capture() has started.
+		*/
+		pikrellcam.do_preview_save = TRUE;
+		pikrellcam.do_thumb_convert = TRUE;
+		pikrellcam.do_motion_still = TRUE;
+		pikrellcam.motion_still_pathname = path;
+
+		log_printf("motion stills capture: %s.\n", path);
+		pikrellcam.motion_stills_count += 1;
 		}
+	}
+
+void
+motion_stills_stop(void)
+	{
+	char	*motion_end_cmd;
+
+	if (!pikrellcam.motion_stills_record)
+		return;
+
+	pikrellcam.motion_stills_record = FALSE;
+	pikrellcam.external_motion_still = FALSE;
+
+	motion_events_write(&motion_frame, MOTION_EVENTS_END, 0);
+
+	if (*pikrellcam.on_motion_end_cmd)
+		{
+		motion_end_cmd = expand_command(pikrellcam.on_motion_end_cmd, NULL);
+		exec_no_wait(motion_end_cmd, NULL, TRUE);
+		free(motion_end_cmd);
+		}
+	log_printf("motion stills end.\n");
 	}
 
 void
@@ -574,6 +650,7 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	{
 	MotionRegion    *mreg;
 	CompositeVector *cvec, *frame_vec;
+	struct timeval	tv_diff;
 	SList           *mrlist;
 	int             motion_count, fail_count, direction_motion;
 	boolean         burst_density_pass, motion_enabled;
@@ -837,11 +914,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 		       )
 		   )
 			{
-			/* Always preview save in case there is a motion preview save
-			|  command. For preview save mode "first", set flag so mjpeg
-			|  callback can immediately schedule the on_preview_save command
-			|  so there is no wait to execute it.
-			*/
+			mf->preview_frame_vector = mf->frame_vector;
+			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
+				mf->preview_motion_area = mf->motion_area;
+			else	/* (MOTION_FIFO | MOTION_AUDIO)*/
+				pikrellcam.external_motion_record_event = TRUE;
+
 			if (   !(vcb->state & VCB_STATE_LOOP_RECORD)
 			    && !pikrellcam.motion_stills_enable
 			   )
@@ -851,35 +929,23 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				/* Either a current loop video to be turned into a motion
 				|  video or start motion stills recording.
 				*/
-				pikrellcam.do_preview_save = TRUE;
 				if (vcb->state & VCB_STATE_LOOP_RECORD)
 					{
 					vcb->state |= VCB_STATE_MOTION_RECORD;
 					motion_events_write(&motion_frame, MOTION_EVENTS_START,
 							(float) vcb->frame_count
 							/ (float) pikrellcam.camera_adjust.video_fps);
+					pikrellcam.do_preview_save = TRUE;
+					pikrellcam.do_thumb_convert = TRUE;
 					}
 				else if (pikrellcam.motion_stills_enable)
-					motion_stills_record(mf);
+					motion_stills_start(mf);
 
 				if (*pikrellcam.on_motion_begin_cmd)
-					{
-					pikrellcam.motion_record_mode = pikrellcam.motion_stills_enable
-							? "stills" : "videos";
 					event_add("motion begin", pikrellcam.t_now, 0,
 							event_motion_begin_cmd,
 							pikrellcam.on_motion_begin_cmd);
-					}
 				}
-
-			if (!strcmp(pikrellcam.motion_preview_save_mode, "first"))
-				pikrellcam.do_preview_save_cmd = TRUE;
-
-			mf->preview_frame_vector = mf->frame_vector;
-			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
-				mf->preview_motion_area = mf->motion_area;
-			else	/* (MOTION_FIFO | MOTION_AUDIO)*/
-				pikrellcam.external_motion = TRUE;
 
 			pikrellcam.video_notify = FALSE;
 			pikrellcam.still_notify = FALSE;
@@ -903,24 +969,12 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 			|  time to now + post capture time.
 			|  If mode "best" and better composite vector, save a new preview.
 			*/
-			vcb->motion_sync_time = pikrellcam.t_now
+			pikrellcam.motion_sync_time = pikrellcam.t_now
 							+ pikrellcam.motion_times.post_capture;
 
 			if (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
-				pikrellcam.external_motion = FALSE;
+				pikrellcam.external_motion_record_event = FALSE;
 
-			if (   (mf->motion_status & (MOTION_DIRECTION | MOTION_BURST))
-			    && !strcmp(pikrellcam.motion_preview_save_mode, "best")
-			    && composite_vector_better(&mf->frame_vector, &mf->preview_frame_vector)
-			   )
-				{
-				mf->preview_frame_vector = mf->frame_vector;
-				mf->preview_motion_area = mf->motion_area;
-				pikrellcam.do_preview_save = TRUE;
-				/* on_preview_save_cmd for save mode "best" is handled
-				|  in video_record_stop().
-				*/
-				}
 			if (mf->motion_status & MOTION_DIRECTION)
 				++mf->direction_detects;
 			if (mf->motion_status & MOTION_BURST)
@@ -937,20 +991,30 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 				detect_time = (float) vcb->frame_count
 								/ (float) pikrellcam.camera_adjust.video_fps;
 			else
-				detect_time = (float) (pikrellcam.motion_stills_capture_time
-									- pikrellcam.motion_stills_start_time);
+				{
+				timersub(&pikrellcam.tv_now,
+							&pikrellcam.motion_stills_start_tv, &tv_diff);
+				detect_time = (float) tv_diff.tv_sec
+									+ (float) tv_diff.tv_usec / 1e6;
+				}
 			motion_events_write(mf, MOTION_EVENTS_DETECT, detect_time);
 
-			if (pikrellcam.verbose_motion)
-				printf("==>Motion record bump: %s\n\n", pikrellcam.video_pathname);
-			}
+			if (pikrellcam.motion_stills_record)
+				motion_stills_capture(mf);
 
-		if (pikrellcam.motion_stills_enable)
-			motion_stills_record(mf);
+			if (pikrellcam.verbose_motion)
+				printf("==>Motion record bump\n\n");
+			}
 
 		if (pikrellcam.motion_stats)
 			motion_stats_write(vcb, mf);
 		}
+
+	if (   pikrellcam.motion_stills_record
+	    && pikrellcam.t_now >= pikrellcam.motion_stills_capture_time
+	                           + pikrellcam.motion_times.event_gap
+	   )
+		motion_stills_stop();
 
 	if (   mf->motion_status & MOTION_DETECTED
 	    && !pikrellcam.servo_moving

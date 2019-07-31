@@ -52,7 +52,9 @@ $header .= "<div><a class='text-shadow-large'
 echo $header;
 
 //echo "<div style='color: $default_text_color; margin-left: 1cm; margin-right: 2cm'>";
-$div_style = "color: $default_text_color; overflow-y: scroll; height:${n_log_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+// Browser back button does not work in a scroll.
+//$div_style = "color: $default_text_color; overflow-y: scroll; height:${n_log_scroll_pixels}px; overflow-x: auto; border:4px groove silver";
+$div_style = "color: $default_text_color";
 echo "<div style='$div_style'>";
 echo "<div style='color: $default_text_color; margin-left: 0.5cm; margin-right: 0.5cm;'>";
 ?>
@@ -67,6 +69,15 @@ And there is a Raspberry Pi
 
 <span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
 <div class='indent0'>
+
+Version 4.3.0
+<div class='indent1'>
+Motion events can record stills instead of videos. See
+<a href="help.php#MEDIA_TYPES">Media Types</a> section and config
+options in
+<a href="help.php#CONFIG_MOTION">Config->Motion.</a><br>
+Removed motion_preview_save_mode. Preview/thumb now always saved as "first".
+</div>
 
 <br>
 Version 4.2.1 - Changes for Pi 4 peripheral base and Buster installs.
@@ -102,7 +113,7 @@ Version 4.1.3
 <div class='indent1'>
 An <a href="help.php#AUDIO_TRIGGER">audio trigger</a>
 event can start a motion video record.<br>
-This help page describes <a href="help.php#VIDEO_TYPES">Video Types</a><br>
+This help section describes <a href="help.php#MEDIA_TYPES">Media Types</a><br>
 Fix 2 channel audio recording bug.
 </div>
 
@@ -168,11 +179,13 @@ three things to configure:
 	be used in which case the PiKrellCam web page would be accessed with the URL:<br>
 	&nbsp; &nbsp; &nbsp;<span style='font-weight:700'>http://your_pi:port_number</span>
 	</li>
+	<p>
 	<li>Auto start: if enabled a line will be added to
 	<span style='font-weight:700'>/etc/rc.local</span> so that pikrellcam will be
 	auto started at boot.  If this is not enabled, pikrellcam will need to be started from
 	the web page or from a terminal after each boot.
 	</li>
+	<p>
 	<li>Password protection: if set a login will be required to access the
 	PiKrellCam web pages.
 	</li>
@@ -196,17 +209,21 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 		is using it) or if there is a problem with the ribbon cable camera connection.
 		If this happens, you should fix the issue with the camera and restart PiKrellCam.
 	</li>
+	<p>
 	<li> After the preview image appears, turn on motion detection by clicking the button
 		<span style='font-weight:700'>Enable:</span> <span class='btn-control'>Motion</span>
 	</li>
+	<p>
 	<li>The OSD then shows that motion detection is
 		<span style='font-weight:700'>ON</span>
 		and PiKrellCam is now operating with its default settings.
 	</li>
+	<p>
 	<li>Wait for motion to be detected and watch the OSD for the video record progress.<br>
 		After the video ends, view it by going to the Videos page by clicking:
 		<span style='font-weight:700'>Media:</span> <span class='btn-control'>Videos</span>
 	</li>
+	<p>
 	<li>On the button bar, click the buttons
 		<span style='font-weight:700'>Show:</span>
 		<span class='btn-control'>Preset</span>
@@ -216,6 +233,7 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 		When you show Preset, you see the currently configured motion detection vector
 		and burst values and the motion detect regions in effect.  See below.
 	</li>
+	<p>
 	<li>A basic first configuration to consider is enabling motion detection to be turned on
 		each time PiKrellCam is started.  To do this, use the OSD menu system:<br>
 		<ul>
@@ -275,6 +293,7 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	<span style='font-weight:700'>PiKrellCam</span> program which runs on the Pi Arm
 	microprocessor.<br>
 	</li>
+	<p>
 	<li>PiKrellCam runs as user pi for simplified install and other benefits
 	(but a default user other than pi is possible).
 	PHP files are run via the web server nginx and so run as the user www-data.
@@ -283,14 +302,17 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	If the option to run pikrellcam at boot was selected, a line to start pikrellcam as user pi
 	was added to <nobr><span style='font-weight:700'>/etc/rc.local</span></nobr>
 	</li>
+	<p>
 	<li>The install script creates
 	<span style='font-weight:700'>/etc/nginx/sites-available/pikrellcam</span> where listen port
 	number and password protection for the web pages are configured.
 	</li>
+	<p>
 	<li>Several PiKrellCam internal control paths are not shown in the above diagram.
 	The "command processing"
 	block can control the video record, still, time lapse and other sub systems.
 	</li>
+	<p>
 	<li>A simple feed of the preview jpeg can be viewed without control panels or button/control bars.<br>
 	Just point your browser to:
 	<br>&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>http://your_pi:port_num/live.php</span>
@@ -299,11 +321,13 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	<br>where port_num is the nginx port configured in the install.  If the port was left at
 	the default 80, you can omit the <span style='font-weight:700'>:port_num</span> from the URL.
 	</li>
+	<p>
 	<li>An alternate way to view the preview is with a tcp stream connection which additionally
 	allows viewing using vlc or Android MJPEG viewer apps such as tinycam monitor, etc.
 	Open the MJPEG network stream using the URL:
 	<br>&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>http://pi:password@your_pi:port_num/mjpeg_stream.php</span>
 	</li>
+	<p>
 	<li>To be able to view the h264 tcp video stream some extra install and
 	setup are required.  Follow the
 	<nobr><a href="https://www.raspberrypi.org/forums/viewtopic.php?p=862399#p862399">
@@ -315,86 +339,131 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 </div>
 </div>
 
-<a name="VIDEO_TYPES">
-<span style='font-size: 1.5em; font-weight: 650;'>Video Types</span><hr>
+<a name="MEDIA_TYPES">
+<span style='font-size: 1.5em; font-weight: 650;'>Media Types</span><hr>
 <div class='indent0'>
-There are two top level video types each viewed on a separate page and each
-has subtypes encoded in the video name:
 <p>
 <nobr><span style=\"color: $default_text_color\"> Media:</span>
 <span class='btn-control'>Videos</span></nobr>
 <div class='indent1'>
-These are videos of variable length with the recording triggered by some
-event.
+These are manual or motion videos of variable length with the recording triggered by some
+event.  Motion videos have a length defined by the configured
+<a href="help.php#CONFIG_MOTION">motion times</a>.
+and can have on_motion_begin, on_preview_save and on_motion_end
+commands configured in
+<span style='font-weight:700'>~/.pikrellcam/pikrellcam.conf</span>
+run for the motion event.
 <ul>
 	<li>
-		<span style='font-weight:700'>Manual</span> - videos are triggered by
-		a record on|off command sent into the FIFO and have a "manual_"
-		prefix.  The web page thumb will have a "Manual" label and will be
-		of the full preview image.
+		<span style='font-weight:700'>Manual</span> - videos are triggered by a
+		<span style='font-weight:700'>record on|off</span>
+		command sent into the command FIFO (by script or clicking the web page
+		video record button).
+		The web page thumb will have a "Manual" label.
 	</li>
 	<li>
 		<span style='font-weight:700'>Motion</span> - videos have
-		motion vector direction or burst detects and may also have
-		FIFO motion trigger commands or audio triggers.
-		These will have a "motion_" prefix.
-		The web page thumb will have no extra label and will be
-		a square aspect image of the detected motion area.
+		motion vector direction or burst detects.
+		The web page thumb will have no extra label and the thumb image will be
+		an image of the area of a motion detect.
 	</li>
 	<li>
-		<span style='font-weight:700'>FIFO</span> - videos are triggered by
-		a motion trigger command sent into the FIFO and will have no motion
-		vector detects but may have audio triggers.
-		These will have an "ext-code_" prefix where code is "FIFO" or a
-		user supplied code string (such as "PIR" or "laser", new for V 4.1.4)
-		in the motion trigger command.
-		The web page thumb will have "FIFO" or the user supplied
-		code string as a label and will be of the full preview image.<br>
-		Before V 4.1.4, these types of videos were labeled "Extern".
+		<span style='font-weight:700'>FIFO</span> - videos are motion videos triggered by a
+		<span style='font-weight:700'>motion trigger</span>
+		command sent into the command FIFO and will have no motion
+		vector or burst detects.  The web page
+		thumb will have a "FIFO" or "code" label where "code" is the optional
+		user supplied code string (for example PIR or laser) in the
+		<nobr><span style='font-weight:700'>motion trigger</span></nobr>
+		command.
 	</li>
 	<li>
-		<span style='font-weight:700'>Audio</span> - videos are triggered by
-		an audio trigger and will have no motion vector detects or FIFO
-		command triggers.
-		These will have an "audio_" prefix.
-		The web page thumb will have an "Audio" label and will be
-		of the full preview image.  Since this is an audio event only video
-		there is an option to omit boxing the h264 video.  In this case the
-		resulting .mp4 file will have only MP3 audio and no video and so will
-		be a much smaller size.
-		See the "Box_MP3_Only" option in the Config Settings->Audio.
+		<span style='font-weight:700'>Audio</span> - videos are motion videos triggered by
+		an audio trigger and will have no motion vector/burst detects or FIFO
+		command triggers.  The web page thumb will have an "Audio" label.
 	</li>
 </ul>
-A video that starts as type "FIFO" or "Audio" will change to
-type "Motion" if motion direction vectors or bursts are detected later
-during the video.  Similarly, type "Audio" can change to type "FIFO".
+</div>
+<p>
+<nobr><span style=\"color: $default_text_color\"> Media:</span>
+<span class='btn-control'>Stills</span></nobr>
+<div class='indent1'>
+Stills are single image snapshots.  Motion
+stills instead of videos are taken if
+<span style='font-weight:700'>Motion_Stills_(no_videos)</span>
+is enabled.  If recording motion stills, a record event defined by the
+configured motion times will have one or more motion stills taken.
+However, only the motion times confirm_gap and event_gap are applied for
+a motion still record event and pre_capture, post_capture and video_time_limit
+are not used.  Also any custom pre_capture or time_limit in a
+<span style='font-weight:700'>motion trigger</span>
+command will not be used.
+The motion commands on_motion_begin, on_motion_preview_save, and
+on_motion_end will be run for the record event.
+
+A motion detect area from the video stream has to clear the preview/thumb
+jpg conversion and then the camera has to switch to capture mode, so the
+capture of a motion still image will be slightly delayed from its thumb image.
+
+<ul>
+	<li>
+		<span style='font-weight:700'>Manual</span> - stills are triggered by a
+		<span style='font-weight:700'>still</span>
+		command sent into the command FIFO (by script or clicking the web page
+		still snapshot button) and have no web page thumb extra label.
+	</li>
+	<li>
+		<span style='font-weight:700'>Motion</span> - stills are triggered by a
+		motion vector or burst detect.
+		The web page thumb will have a "Motion" label and a motion record
+		event sequence number that is reset to 1 each day.
+	</li>
+	<li>
+		<span style='font-weight:700'>FIFO</span> - stills are motion stills triggered by a
+		<span style='font-weight:700'>motion trigger</span>
+		command sent into the command FIFO. The web page
+		thumb will have a "FIFO" or "code" label where "code" is the optional
+		user supplied code string (for example PIR or laser) in the
+		<nobr><span style='font-weight:700'>motion trigger</span></nobr>
+		command.
+	</li>
+	<li>
+		<span style='font-weight:700'>Audio</span> - stills are motion stills triggered by
+		an audio detect trigger and will have an "Audio" label on the web page thumb.
+	</li>
+</ul>
 </div>
 <p>
 <nobr><span style=\"color: $default_text_color\"> Media:</span>
 <span class='btn-control'>Loop</span></nobr>
 <div class='indent1'>
-These are continuously recorded videos of a fixed configurable length.  If
-motion is enabled while loop recording, any motion, FIFO or audio trigger
+These are continuously recorded videos of a fixed configurable length
+(configured motion times do not apply).
+If motion is enabled while loop recording, any motion, FIFO or audio trigger
 event will cause the video to be tagged as having a motion event and the web
-page thumb will be labeled to show that.
+page thumb will be labeled to show that.  When that happens, any user
+configured motion begin/end event commands will also be run.
 <ul>
 	<li>
 	Loop videos with no motion detect will end with
 	<span style='font-weight:700'>_0.mp4</span>.
 	</li>
 	<li>
-	Loop videos with a motion vector detect will end with
+	Loop videos with a motion vector or burst detect will end with
 	<span style='font-weight:700'>_m.mp4</span> (previous versions used
 	 _1.mp4) and will have a "Motion" label on the web page thumb.
 	The thumb image will be a motion detect area.
 	</li>
 	<li>
-	Loop videos with motion externally triggered (a motion trigger command was
-	sent into the FIFO) and no motion vector detects will end with
+	Loop videos with motion externally triggered (a
+	<span style='font-weight:700'>motion trigger</span>
+	command was sent into the FIFO) and no motion vector/burst detects
+	will end with
 	<span style='font-weight:700'>_e-ID.mp4</span> and will have a "ID" label
 	on the web page thumb where "ID" is "FIFO" or the user defined ID
-	string in the motion trigger command.
-	The thumb image will be of the full preview image.
+	string in the
+	<span style='font-weight:700'>motion trigger</span>
+	command. The thumb image will be of the full preview image.
 	</li>
 	<li>
 	Loop videos with an audio trigger and no motion vector detects or FIFO
@@ -404,6 +473,8 @@ page thumb will be labeled to show that.
 	</li>
 </ul>
 </div>
+Configuration of motion record events is in
+<a href="#CONFIG_MOTION">Config->Motion.</a>
 
 </div>
 
@@ -483,14 +554,17 @@ value so the OSD will update more slowly.
 		distribution of vectors in region 2 that caused the failure can be typical of
 		scenes with wind blown trees and grass.
 	</li>
+	<p>
 	<li>Image 4 shows a burst detect overriding a direction detect failure.
 		The point to take from this is that if the burst count limit is set
 		too low for a given camera environment, the burst detect method is likely
 		to detect more noise than the direction detect method.
 	</li>
+	<p>
 	<li>Sparkles are camera motion vectors that have no neighbors and PiKrellCam
 		considers them noise and excludes them from the composite vectors.
 	</li>
+	<p>
 	<li>The vector count status line will be shown if you set
 		Setup->Config->Settings->Vector_Counts on and Show: Preset.
 		<br>
@@ -504,17 +578,20 @@ value so the OSD will update more slowly.
 			limit count.  So the moving average measures background noise over sparkles.
 			A burst count must exceed the average by the Burst_Count limit for a burst detect.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>rej:22</span> There were 22 total frame vectors
 			that passed the magnitude limit count but failed the direction compare test to
 			their region composite vector.  They were excluded from any region final motion
 			direction detect test.
 			They were not excluded from the burst detect count test.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>spkl:52 (53.5)</span> there were 52 vectors
 			that passed the magnitude test but did not have any neighbors.  So they were
 			ecluded from any motion detect test.  The sparkle moving average (53.5) is
 			currently not used in motion detect testing.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>confirming[4]:12</span> there was a direction
 			detect but a positive confirm gap is configured so there is a count down in progress
 			waiting for a confirm motion detect.  The <span style='font-weight:700'>:12</span> shows
@@ -526,6 +603,7 @@ value so the OSD will update more slowly.
 			</li>
 		</ul>
 	</li>
+	<p>
 	<li>Most medium to large sized motion events can be detected by both the direction
 		and burst methods.
 		To help evaluate the effect of changing configuration values,
@@ -550,6 +628,7 @@ PiKrellCam has built in servo control for cameras mounted on servos.
 	Then restart pikrellcam, reload the web page and you will have new buttons to control
 	position presets and moving the servos.
 	</li>
+	<p>
 	<li><span style='font-weight:700'>ServoBlaster</span>: If your servos are connected to
 	GPIOs that are not the hardware PWM pins you can use ServoBlaster.
 	Set
@@ -723,6 +802,7 @@ Preset group and there will be no Servo button in the Config group.
 		These values are part of a preset and editing them applies to the currently
 		selected preset.  If you have servos and are off a preset, editing these values
 		can be done in anticipation of creating a new preset.
+		<p>
 			<ul>
 			<li><span style='font-weight:700'>Vector_Magnitude</span> - sets the minimum magnitude
 			of a motion vector.  Individual motion vector and region composite vector
@@ -732,6 +812,7 @@ Preset group and there will be no Servo button in the Config group.
 			faster objects like cars or closer people can detect with higher settings.
 			This value applies to composite vectors used for both direction and burst detects.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Vector_Count</span> - sets the minimum count of
 			individual motion vectors required for a region composite vector.
 			Set the value lower for increased sensitivity to direction detects of smaller
@@ -742,6 +823,7 @@ Preset group and there will be no Servo button in the Config group.
 			people at medium distances or cars, the value can be set from 10 on up.
 			Burst detects of larger objects have a separate count requirement.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Burst_Count</span> - sets the minimum count of
 			individual motion vectors required for a frame composite vector burst detect.
 			For a range of object sizes, burst detection will overlap direction detection and
@@ -752,6 +834,7 @@ Preset group and there will be no Servo button in the Config group.
 			background count exponential moving average by the Burst_Count, and at least
 			one motion region must pass a density test.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Burst_Frames</span> - sets the minimum number of
 			frames of sustained burst counts required for a burst motion detect.  Frames are
 			checked at a video_fps/mjpeg_divider rate.  The Pi camera will occasionally produce
@@ -764,11 +847,13 @@ Preset group and there will be no Servo button in the Config group.
 			</li>
 			</ul>
 		</li>
+		<p>
 		<li><span style='font-weight:700'>Move: One</span><br>
 			You will have this button only if servos are configured.<br>
 			If the servos are moved off a preset, click this if you want to move
 			the preset you were on to the current servo position.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>Move: All</span><br>
 			You will have this button only if servos are configured.<br>
 			If the servos are moved off a preset, click this if you want to move
@@ -778,6 +863,7 @@ Preset group and there will be no Servo button in the Config group.
 			may still need small adjustments if servo positioning is non linear.  All presets
 			cannot be moved if the move would move any preset past a servo position limit.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>Del</span><br>
 			If servos are not configured or if the servo position is on an existing preset, delete
 			the current Settings.  If servos are configured and the servo position is on a preset
@@ -785,6 +871,7 @@ Preset group and there will be no Servo button in the Config group.
 			unless it is the only existing position preset.  There must always be at least one
 			preset and you cannot delete down to zero presets.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>Copy</span><br>
 			You will have this button only if servos are configured.<br>
 			If the pan servo is moved off a preset, click this to create a
@@ -792,6 +879,7 @@ Preset group and there will be no Servo button in the Config group.
 			the preset settings (motion detect limits and regions) from the preset you
 			were on into the new preset.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>New</span><br>
 			Creates a new preset. If servos are not configured or if the servo position is on an
 			existing position preset, this will create a new Settings preset which can then
@@ -822,6 +910,7 @@ Preset group and there will be no Servo button in the Config group.
 
 <p>
 <span style='font-size: 1.2em; font-weight: 680;'>Config</span>
+<a name="CONFIG_MOTION">
 	<ul>
 		<li><span style='font-weight:700'>Motion</span>
 			<ul>
@@ -830,7 +919,7 @@ Preset group and there will be no Servo button in the Config group.
 			PiKrellCam starts.  Motion detection can be
 			enabled from the web page or a script.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Confirm_Gap</span> - for motion direction detects,
 			require a second motion detect within this period of seconds before triggering a
 			motion record event.  This adds a level of noise rejection to motion direction detecting
@@ -838,12 +927,12 @@ Preset group and there will be no Servo button in the Config group.
 			This setting does not apply to motion burst detects because the Burst_Frames setting
 			provides a confirm time for that method.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Pre_Capture</span> - seconds of video to record prior
 			to the first motion detect event.  This value should be greater than or equal to the
 			Confirm_Gap.  Pre capture does not apply when motion stills recording.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Event_Gap</span> - number of seconds that must pass
 			since the last motion detect before a motion event recording can end.
 			When an Event_Gap period does expire without a new motion detect occurring,
@@ -854,14 +943,17 @@ Preset group and there will be no Servo button in the Config group.
 			are frequent and you want to bias towards shorter videos
 			that capture more events separately.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Post_Capture</span> - seconds of video
 			that will be recorded after the last occurring motion event.  This time must be
 			less than or equal to the Event_Gap time because post capture time is accumulated
 			in the circular buffer while the video is recording.  An expiring Event_Gap time
 			ends the video immediately and no more Post_Capture time can be accumulated.
+			Post_Capture time does not apply when motion stills recording is enabled, so the
+			last motion still captured will be for the last motion detect that extended the
+			event gap and satisfied the Max_Motion_Stills_per_Minute constraint.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Video_Time_Limit</span> - range is 0 - 1800
 			seconds (30 minutes) and is the maximum seconds of motion video
 			that will be recorded after the first occurring motion detect.  So the total
@@ -869,6 +961,23 @@ Preset group and there will be no Servo button in the Config group.
 			If this is set to zero, there will be no time limit enforced.  This limit
 			does not apply to manual recordings - see FIFO examples for that.
 			</li>
+<p>
+			<li><span style='font-weight:700'>Motion_Stills_(no_videos)</span> - set to
+			<span style='font-weight:700'>ON</span> to capture still images
+			during a motion record event and a motion video will not be
+			recorded.
+			</li>
+<p>
+			<li><span style='font-weight:700'>Max_Motion_Stills_per_Minute</span> - can be 1 to 60
+			stills per minute which sets a max still capture rate of 1 per minute to 1 per second.
+			During motion record events, stills are taken at motion detects separated by at least
+			this rate.  So stills will not be taken at motion detects more frequently than
+			the max still capture rate. However, all motion
+			detects during the motion record event are written to the
+			<nobr><span style='font-weight: 700;'>/run/pikrellcam/motion-events</span></nobr>
+			file.
+			</li>
+
 			</ul>
 			<p>
 			<div class='indent1'>
@@ -883,7 +992,7 @@ Preset group and there will be no Servo button in the Config group.
 			is configured.
 			</div>
 		</li>
-
+<p>
 		<li><span style='font-weight:700'>Video Res</span> - selects the video resolution for
 		motion and manual videos.  Different resolutions may have different fields of view. So
 		one reason for selecting
@@ -891,11 +1000,11 @@ Preset group and there will be no Servo button in the Config group.
 		<span style='font-weight:700'>1080p</span> would be to get a wider field of view.  Resolutions
 		will have either 16:9 or 4:3 aspect ratio.
 		</li>
-
+<p>
 		<li><span style='font-weight:700'>Still Res</span> - selecting different resolutions
 		gives different fields of view and aspect ratios.
 		</li>
-
+<p>
 <a name="DISKFREE">
 		<li><span style='font-weight:700'>Settings</span>
 			<ul>
@@ -906,7 +1015,7 @@ Preset group and there will be no Servo button in the Config group.
 			oldest videos or jpegs so that the configured minimum
 			Diskfree_Percent will be maintained on the media file system.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Check_Archive_Diskfree</span>
 			- if set <span style='font-weight:700'>ON</span>, when media
 			motion or manual videos are archived, delete oldest archived videos
@@ -919,7 +1028,7 @@ Preset group and there will be no Servo button in the Config group.
 			moving media videos and except for some directory structure overhead
 			is not increasing disk usage.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>Diskfree_Percent</span>
 			- maintain this minimum free percent on media and archive
 			file systems when checking is enabled for those file systems
@@ -927,43 +1036,43 @@ Preset group and there will be no Servo button in the Config group.
 			This is always enabled for loop videos and overrides
 			Diskusage_Percent.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>video_bitrate</span> - determines the size of a video
 			and its quality.  Adjust up if it improves video quality.  Adjust down if you want
 			to reduce the size of the videos.
 			</li>
-
+<p>
 			<li><span style='font-weight:700'>video_fps</span> - typically this should be no higher
 			than 24 or the motion detecting preview jpeg camera stream may start dropping frames.
 			(I have no data on the effect GPU overclocking might have on this limitation).
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>video_mp4box_fps</span> - keep this value set to zero
 			unless you want to create fast or slow motion videos.  When zero, mp4 boxing fps will be
 			the same as video_fps which is normally what you want.  But this value can be set to a
 			non zero value different from video_fps if you want fast or slow motion videos.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>mjpeg_divider</span> - this value is divided into
 			the video_fps value to get the preview jpeg rate.  The preview is updated at this rate
 			and it is the rate that motion vector frames are checked for motion.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>still_quality</span> - adjust up if it improves
 			still jpeg quality.  Adjust down if you want to reduce the size of still jpegs.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>Vector_Counts</span> - enable showing of vector count
 			statistics when showing a Preset.  This information may help when setting motion detect
 			limits.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>Vector_Dimming</span> - sets a percentage dimming
 			of the preview jpeg image when the
 			<span style='font-weight:700'>Vectors</span> display is enabled.  This is to improve
 			the contrast of the drawn motion vectors.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>Preview_Clean</span> - if set to
 			<span style='font-weight:700'>OFF</span>, whatever text or graphics that happen to be
 			drawn on the preview jpeg at the time a motion preview save or thumb save occurs will
@@ -973,6 +1082,7 @@ Preset group and there will be no Servo button in the Config group.
 			</li>
 			</ul>
 		</li>
+		<p>
 <a name="DISKUSAGE">
 		<li><span style='font-weight:700'>Loop</span><br>
 			<ul>
@@ -981,11 +1091,11 @@ Preset group and there will be no Servo button in the Config group.
 			be enabled each time PiKrellCam starts.  Loop recording can be
 			enabled from the web page or a script or an at-command.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>Time_Limit</span>
 			- loop video length in seconds.
 			</li>
-
+			<p>
 			<li><span style='font-weight:700'>Diskusage_Percent</span>
 			- Limit disk space used by loop videos to this percent
 			by deleting oldest loop videos as new ones are recorded.
@@ -996,6 +1106,7 @@ Preset group and there will be no Servo button in the Config group.
             </li>
 			</ul>
 		</li>
+		<p>
 <a name="AUDIO_TRIGGER">
 		<li><span style='font-weight:700'>Audio</span><br>
 			<ul>
@@ -1004,10 +1115,12 @@ Preset group and there will be no Servo button in the Config group.
 			to enable audio detects to be treated as motion detects to trigger
 			motion videos.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Audio_Trigger_Level</span>
 			- sets the audio level to be met or exceeded for triggering a
 			motion video.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Box_MP3_Only</span>
 			- if set <span style='font-weight:700'>ON</span>
 			and there are only audio triggers (no motion vector detects or
@@ -1020,8 +1133,10 @@ Preset group and there will be no Servo button in the Config group.
 			</li>
 			</ul>
 		</li>
+		<p>
 		<li><span style='font-weight:700'>Servo</span><br>
-			The Servo menu is shown only if servos have been configured.
+		The Servo menu is shown only if servos have been configured.
+		<p>
 			<ul>
 			<li><span style='font-weight:700'>Motion_Off_Preset</span> - if
 			<span style='font-weight:700'>OFF</span>, do not detect motion when the servo postion
@@ -1030,30 +1145,36 @@ Preset group and there will be no Servo button in the Config group.
 			<span style='font-weight:700'>ON</span> if you do not want motion detection to be
 			put on hold when a servo is manually moved off a preset.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Move_Step_msec</span> - delay in milliseconds between
 			servo steps when a servo is moved using the
 			<span style='font-weight:700'>Servo</span> arrow buttons.  A servo step changes the
 			pulse width of the servo control line by 1/100 of a millisecond (10 usec).
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Preset_Step_msec</span> - delay
 			in milliseconds between servo steps when a servo is moved using the
 			<span style='font-weight:700'>Preset</span>
 			left/right arrow buttons.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Servo_Settle_msec</span> - delay in milliseconds before
 			motion detection is taken out of its hold state after servos stop moving.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Move_Steps</span> - number of steps to move when the
 			<span style='font-weight:700'>Servo</span> arrow buttons are cycled to the second step
 			mode.  The other step modes are single step and scan and are selected by clicking the
 			<span style='font-weight:700'>Servo</span> button.  When in scan mode, the scan can be
 			stopped by clicking the double arrow button again.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Pan_Left_Limit</span><br> 
 				<span style='font-weight:700'>Pan_Right_Limit</span><br>
 				<span style='font-weight:700'>Tilt_Up_Limit</span><br>
 				<span style='font-weight:700'>Tilt_Down_Limit</span> - Sets the servo limits.
 			</li>
+			<p>
 			<li><span style='font-weight:700'>Servo_Pan_Invert</span><br> 
 				<span style='font-weight:700'>Servo_Tilt_Invert</span> - Set these to ON or OFF
 				to change the direction servos move when the direction arrows are clicked.
@@ -1328,6 +1449,7 @@ limits and enabling disk free checking for motion videos:
             archiving is moving files within the same file system and
             not using more disk space.
             </li>
+			<p>
             <li> Media videos and loop videos are all on
             the same file system that is shared with the OS on a
             SD card where the OS uses about 1/2 of the space. If
@@ -1336,6 +1458,7 @@ limits and enabling disk free checking for motion videos:
             available for media videos.  Archiving has the same effect
             as above.
             </li>
+			<p>
             <li> Media videos, archive videos and loop videos are each
             on separate file systems (disks mounted and dedicated to each
             video type).  If Diskfree_Percent is 10%, media videos
@@ -1369,6 +1492,7 @@ Setup->Config->Loop.
 		to get a larger preview image.  Values of 800 or 896 work OK.  If this is changed,
 		the motion_area_min_side value in pikrellcam.conf should be correspondingly scaled.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>video_motion_name_format</span><br>
 			<span style='font-weight:700'>video_manual_name_format</span><br>
 			<span style='font-weight:700'>video_timelapse_name_format</span><br>
@@ -1376,12 +1500,14 @@ Setup->Config->Loop.
 		- these file name formats are configurable with restrictions which are described in
 		detail in pikrellcam.conf where they are configured.
 		</li>
+		<p>
 		<li><span style='font-weight:700'>motion_record_time_limit</span>
 		- This value limits the time in seconds of motion video recordings and can be
 		set in seconds from 10 to 1800 (30 minutes) or set to zero for no record time limit.
 		This time limit does not apply to manual recordings, but see the FIFO command
 		examples for how to have a time limited manual record.
 		</li>
+		<p>
 		<li> Todo
 		</li>
 		<li>
@@ -1414,6 +1540,7 @@ Setup->Config->Loop.
 	name you create must begin with <span style='font-weight:700'>bg_</span>
 	or else the image will be deleted by git when you do an upgrade.
 	</li>
+	<p>
 	<li> Web page text colors can be changed.  If the background is changed to a
 	darker image like <span style='font-weight:700'>images/passion.jpg</span> the text
 	colors could be set brighter.  For example, you could try these changes:
@@ -1427,9 +1554,11 @@ define("LOG_TEXT_COLOR", "#ffffff");
 define("BACKGROUND_IMAGE", "images/passion.jpg");
 </pre>
 	</li>
+	<p>
 	<li> The height of various scrolled views can be changed to match your normal browser
 	size.
 	</li>
+	<p>
 	<li> Other options such as <span style='font-weight:700'>VIDEO_URL</span>
 	are not described here but are described in the file.
 	</li>
@@ -1599,6 +1728,7 @@ $ sudo systemctl restart nfs-kernel-server
 	since there is no leading /:<br>
 		&nbsp &nbsp <span style='font-weight:700'>archive_dir archive</span><br>
 	</li>
+	<p>
 	<li>
 	Add a line to /etc/fstab so I can NFS mount the gkrellm6 media-archive
 	directory onto the pikrellcam archive directory. Use the archive_dir
@@ -1756,6 +1886,7 @@ $ sudo mount  rpi0:/mnt/archive/media-archive
 	<li> If the remote NFS server is slow to respond or down, a NFS mount
 	command can appear to hang while the mount is retried.
 	</li>
+	<p>
 	<li> A non responding NFS server can cause the web pages to be slow
 	to load until either the server responds or the local kernel
 	temporarily gives up and lists the mount as "Stale".  A stale or
@@ -1858,6 +1989,7 @@ tl_end
 tl_hold [on|off|toggle]
 tl_show_status [on|off|toggle]
 motion_enable [on|off|toggle]
+motion_stills_enable [on|off|toggle]
 motion_detects_fifo_enable [on|off|toggle]
 motion limits magnitude count
 motion burst count frames
@@ -1967,8 +2099,8 @@ echo "record on 10 6" > ~/pikrellcam/www/FIFO
 	If N is 0, the motion trigger is subject to the currently set
 	motion enable.
 	If N is 1, and the currently set motion enable is OFF, then force
-	motion enable ON for this video record and recognize subsequent
-	motion, external and audio triggers for this video until the video ends
+	motion enable ON for this record event and recognize subsequent motion,
+	external and audio triggers until the record event ends
 	or there is a motion trigger command with N set to 0.
 	If <span style='font-weight:700'>code</span> is omitted, the currently set motion
 	enable applies and the code ID defaults to "FIFO" (for just a generic
@@ -1981,30 +2113,32 @@ echo "record on 10 6" > ~/pikrellcam/www/FIFO
 	works in parallel with motion direction, burst and audio detection and
 	it uses all the configured motion times and on_motion commands.
 	The event gap time applies, so any detects or triggers after an
-	initial FIFO trigger can keep the video going.<br>
-	Externally trigger a video with FIFO commands:
+	initial FIFO trigger can keep the record event going.<br>
+	Externally trigger a video or a motion still with FIFO commands:
 <pre>
-# Use the motion enable currently set, if it is OFF, no video.
+# Use the motion enable currently set, if it is OFF, no video or still.
 echo "motion trigger" > ~/pikrellcam/www/FIFO"
 
-# Force motion enable on for this FIFO command, trigger video even if motion_enable is OFF.
-#   If there are no other motion direction or burst detects for this video,
+# Force motion enable on for this FIFO command, trigger a record even if motion_enable is OFF.
+#   If there are no other motion direction or burst detects for a motion video,
 #   the web page thumb will be labeled with "FIFO".
+#   A motion still thumb will be labled with "FIFO".
 echo "motion trigger 1" > ~/pikrellcam/www/FIFO"
 
-# Report code string "PIR" in motion-events file and use motion enable currently set.
-#   If there are no other motion direction or burst detects for this video,
+# Report code string "PIR" in motion-events file and use the motion enable currently set.
+#   If there are no other motion direction or burst detects for a motion video,
 #   the web page thumb will be labeled with "PIR".
+$   A motion still thumb will be labeled with "PIR".
 echo "motion trigger 0:PIR" > ~/pikrellcam/www/FIFO"
 </pre>
 	The second usage
 	<nobr><span style='font-weight:700'>motion trigger code pre_capture time_limit</span></nobr>
-	is a special case motion trigger event that records a
-	one shot motion video with a custom pre capture and time limit.  This usage
-	does not use the configured motion times but does run configured motion
-	commands.  If this FIFO command is given when there is already
-	a motion video in progress, the configured motion times will be in use and the
-	custom times cannot be applied.  The trigger command then reduces to its first
+	is a special case motion trigger event for motion videos (not motion stlls) that records
+	a one shot motion video with a custom pre capture and time limit that overrides the
+	configured motion times.  
+	But If this FIFO command is given when there is already
+	a motion video in progress (or if recording motion stills),
+	the custom times are not used.  The trigger command then reduces to its first
 	use case as if no custom times were given.  For this example, assume that the
 	configured motion enable is either off or, if on, that no other video is
 	in progress.  Then issue a motion trigger command that
@@ -2095,6 +2229,7 @@ frequency  time   "command"
 		&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>daily Mon-Fri Sat-Sun Mon Tue Wed Thu Fri Sat Sun
 		</span
 	</li>
+	<p>
 	<li>
 		<span style='font-weight:700'>time</span> - possible values:<br>
 		&nbsp;&nbsp;&nbsp;<span style='font-weight:700'>hh:mm start dawn sunrise sunset dusk
@@ -2125,11 +2260,13 @@ frequency  time   "command"
 		<span style='font-weight:700'>longitude</span> values to your location.  Check
 		the state file or the log file to check the calculated times.
 	</li>
+	<p>
 	<li>
 		<span style='font-weight:700'>command</span>
 		- a system command/script or an internal pikrellcam command if the command
 		is preceeded with the '@' character.  Commands must be enclosed in quotes.
 	</li>
+	<p>
 	<li> Prepend an '!' character to the command if you don't want it logged.
 		See ds18b20.py example below.
 	</li>
@@ -2325,6 +2462,7 @@ a 45
 	the configured magnitude and count limits and there can be a passing
 	frame vector without any passing region vectors.
 	</li>
+	<p>
 	<li> <span style='font-weight:700'>n x y dx dy magnitude count</span>
 	- where the first character code n is a digit.<br>
 	These lines are for motion vectors for a motion region detects.
@@ -2334,11 +2472,13 @@ a 45
 	must be met.
 	For this detect there was motion in regions 1 and 2.
 	</li>
+	<p>
 	<li> <span style='font-weight:700'>b</span> - this line shows burst counts.
 	If no regions individually passed detection magnitude and count limits,
 	the overall frame vector must pass for a burst count detect so a burst
 	detect with no region detects still always has a frame vector.
 	</li>
+	<p>
 	<li> <span style='font-weight:700'>a level</span>
 	- shows an audio trigger if an audio level exceeded the configured
 	audio_trigger_level value.
@@ -2550,6 +2690,7 @@ from_host to_hosts message_type message_body
 	and accept only one of the messages.  Multiple distinct messages that are
 	sent quickly should have different message ids.
 	</li>
+	<p>
 	<li><span style='font-weight:700'>to_hosts</span> - a single hostname
 	or a comma separated
 	list of hostnames that the message is being sent to.
@@ -2558,6 +2699,7 @@ from_host to_hosts message_type message_body
 	program is always listening for messages of certain message types
 	addressed to its hostname.
 	</li>
+	<p>
 	<li><span style='font-weight:700'>message_type</span> - a keyword that
 	indicates what is being sent in the message_body.  User applications
 	can create their own types and should ignore messages of types they are
@@ -2570,6 +2712,7 @@ from_host to_hosts message_type message_body
 	<span style='font-weight:700'>message</span> and that is the type sent
 	by the example_motion_send_alarm scripts.
 	</li>
+	<p>
 	<li><span style='font-weight:700'>message_body</span> - a text string
 	appropriate for and interpreted according to the message type.
 	The message body may contain additional space separated text fields

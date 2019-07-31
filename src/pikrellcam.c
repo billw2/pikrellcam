@@ -296,7 +296,7 @@ camera_restart(void)
 	}
 
 boolean
-still_capture(char *fname, time_t motion_time)
+still_capture(char *fname, boolean motion_still)
 	{
 	Event			*event;
 	int				n;
@@ -334,7 +334,8 @@ still_capture(char *fname, time_t motion_time)
 		else
 			{
 			result = TRUE;
-			log_printf("Still: %s\n", fname);
+			if (!motion_still)
+				log_printf("Still: %s\n", fname);
 
 			dup_string(&pikrellcam.still_last, fname);
 			n = pikrellcam.notify_duration * EVENT_LOOP_FREQUENCY;
@@ -343,12 +344,13 @@ still_capture(char *fname, time_t motion_time)
 			if ((event = event_find("still saved")) != NULL)
 				event->count = n;	/* rapid stills, extend the time */
 			event_list_unlock();
-			if (!event)
+			if (!event && !motion_still)
 				event_count_down_add("still saved", n,
 						event_notify_expire, &pikrellcam.still_notify);
 			pikrellcam.still_capture_event = TRUE;
-			pikrellcam.still_notify = TRUE;
-			pikrellcam.motion_stills_capture_time = motion_time;
+			pikrellcam.motion_still_capture_event = motion_still;
+			if (!motion_still)
+				pikrellcam.still_notify = TRUE;
 			}
 		}
 	return result;
@@ -501,6 +503,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 					vcb->key_frame[n].t_frame,
 					'N',  seq_buf, 'H', pikrellcam.hostname);
 		pikrellcam.video_motion_sequence += 1;
+		pikrellcam.config_media_sequence_modified = TRUE;
 		if (pikrellcam.motion_stats)
 			do_stats = TRUE;
 		pikrellcam.video_description = "Motion";
@@ -540,6 +543,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 						vcb->key_frame[n].t_frame,
 						'N',  seq_buf, 'H', pikrellcam.hostname);
 		pikrellcam.video_manual_sequence += 1;
+		pikrellcam.config_media_sequence_modified =  TRUE;
 		pikrellcam.video_description = "Manual";
 		}
 	vcb->record_start_time = vcb->key_frame[n].t_frame;
@@ -556,7 +560,9 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 
 	dup_string(&pikrellcam.video_pathname, path);
 	free(path);
+	make_preview_pathname(pikrellcam.video_pathname);
 	path = pikrellcam.video_pathname;
+
 	if ((s = strstr(path, ".mp4")) != NULL && *(s + 4) == '\0')
 		{
 		*s = '\0';	/* temporarily truncate .mp4 from video_pathname */
@@ -576,6 +582,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 				pikrellcam.audio_pathname = NULL;
 				}
 			}
+		
 		if (pikrellcam.video_h264)
 			free(pikrellcam.video_h264);
 		asprintf(&pikrellcam.video_h264, "%s.h264", path);
@@ -586,15 +593,15 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 	else
 		pikrellcam.video_mp4box = FALSE;
 
-	pikrellcam.do_preview_save = TRUE;
-
 	if ((vcb->file = fopen(path, "w")) == NULL)
 		log_printf("Could not create video file %s.  %m\n", path);
 	else
 		{
 		vcb->state = start_state;
 		pikrellcam.state_modified = TRUE;
-		log_printf("%s record start - %s\n", pikrellcam.video_description, path);
+		pikrellcam.do_preview_save = TRUE;
+		pikrellcam.do_thumb_convert = TRUE;
+
 		if (start_state == VCB_STATE_MOTION_RECORD_START)
 			{
 			if (   do_stats
@@ -608,6 +615,7 @@ video_record_start(VideoCircularBuffer *vcb, int start_state)
 				event_add("motion begin", pikrellcam.t_now, 0,
 					event_motion_begin_cmd, pikrellcam.on_motion_begin_cmd);
 			}
+		log_printf("%s record start - %s\n", pikrellcam.video_description, path);
 		}
 	if (stats_path)
 		free(stats_path);
@@ -621,13 +629,13 @@ thumb_convert(void)
 	VideoCircularBuffer *vcb = &video_circular_buffer;
 	char				*cmd, *fmt, *s, *base, buf[2048];
 	char				*thumb_cmd, *preview_cmd = NULL;
-	int					h = 150;
+	int					h;
 
-	pikrellcam.thumb_convert_done = TRUE;
-	base = fname_base(pikrellcam.video_pathname);
-	if (   (s = strstr(base, ".mp4")) != NULL
-	    || (s = strstr(base, ".h264")) != NULL
-	   )
+	if (!pikrellcam.preview_pathname)
+		return;
+
+	base = fname_base(pikrellcam.preview_pathname);
+	if ((s = strstr(base, ".jpg")) != NULL)
 		{
 		*s = '\0';
 		snprintf(buf, sizeof(buf), "%s.th.jpg", base);
@@ -637,13 +645,24 @@ thumb_convert(void)
 
 	if (   (vcb->state & VCB_STATE_MANUAL_RECORD)
 	    || (vcb->state & VCB_STATE_LOOP_RECORD)
-	    || pikrellcam.external_motion
+	    || (   pikrellcam.external_motion_record_event
+	        && !pikrellcam.motion_stills_record
+	       )
 	   )
 		h = 150 * pikrellcam.camera_config.video_height
-		    / pikrellcam.camera_config.video_width;
+				/ pikrellcam.camera_config.video_width;
+	else if  (pikrellcam.motion_stills_record)
+		h = 150 * pikrellcam.camera_config.still_height
+				/ pikrellcam.camera_config.still_width;
+	else	/* video triggered by motion detect */
+		h = 150;
 
-	if (   (vcb->state & VCB_STATE_MOTION_RECORD)
-	    && !pikrellcam.external_motion
+	if (   (   (vcb->state & VCB_STATE_MOTION)
+	        && !pikrellcam.external_motion_record_event
+	       )
+		|| (   pikrellcam.motion_stills_record
+	        && !pikrellcam.external_motion_still
+	       )
 	   )
 		{
 		motion_preview_area_fixup();
@@ -659,8 +678,16 @@ thumb_convert(void)
 	snprintf(buf, sizeof(buf), fmt, h);
 	thumb_cmd = expand_command(buf, pikrellcam.preview_pathname);
 
-	if (   (vcb->state & VCB_STATE_MOTION_RECORD)
-	    && *pikrellcam.on_motion_preview_save_cmd
+	/* For motion videos, thumb_convert() is called once at motion start
+	|  For motion stills, it is called for each still but
+	|  want to do on_motion_preview_save_cmd only once at first still.
+	*/
+	if (   *pikrellcam.on_motion_preview_save_cmd
+	    && (   (vcb->state & VCB_STATE_MOTION_RECORD)
+	        || (   pikrellcam.motion_stills_record
+			    && !pikrellcam.thumb_convert_done
+	           )
+	       )
 	   )
 		{
 		preview_cmd = expand_command(pikrellcam.on_motion_preview_save_cmd,
@@ -672,6 +699,8 @@ thumb_convert(void)
 	else
 		asprintf(&cmd, "%s; rm -f %s", thumb_cmd, pikrellcam.preview_pathname);
 	free(thumb_cmd);
+
+	pikrellcam.thumb_convert_done = TRUE;
 
 	exec_no_wait(cmd, NULL, TRUE);
 	free(cmd);
@@ -737,7 +766,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	if (vcb->state & VCB_STATE_LOOP_RECORD)
 		{
 		s = strstr(pikrellcam.video_pathname, "0.mp4");
-		if (s && pikrellcam.external_motion)
+		if (s && pikrellcam.external_motion_record_event)
 			{
 			if (mf->fifo_detects)
 				{
@@ -754,7 +783,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 			*s = 'm';	/* loop video has video motion detect */
 		video_name_modified = TRUE;
 		}
-	else if (   pikrellcam.external_motion
+	else if (   pikrellcam.external_motion_record_event
 	         && (s = strstr(pikrellcam.video_pathname, "motion_")) != NULL
 	        )
 		{
@@ -764,7 +793,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 					mf->fifo_trigger_code ? mf->fifo_trigger_code : "FIFO",
 					s + 6);
 		else
-			asprintf(&mod_name, "%saudio%s", pikrellcam.video_pathname, s + 6);
+			asprintf(&mod_name, "%sAudio%s", pikrellcam.video_pathname, s + 6);
 
 		free(pikrellcam.video_pathname);
 		pikrellcam.video_pathname = mod_name;
@@ -773,9 +802,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 
 	dup_string(&pikrellcam.video_last, pikrellcam.video_pathname);
 	
-	if (!pikrellcam.thumb_convert_done)
-		thumb_convert();
-	else if (video_name_modified)
+	if (video_name_modified)
 		{
 		base = fname_base(pikrellcam.video_pathname);
 		if (   (s = strstr(base, ".mp4")) != NULL
@@ -785,9 +812,12 @@ video_record_stop(VideoCircularBuffer *vcb)
 			*s = '\0';
 			thumb_dir = (vcb->state & VCB_STATE_LOOP_RECORD) ?
 					pikrellcam.loop_thumb_dir : pikrellcam.thumb_dir;
-			snprintf(buf1, sizeof(buf1), "%s/%s", thumb_dir, pikrellcam.thumb_name);
+			snprintf(buf1, sizeof(buf1), "%s/%s", thumb_dir,
+					pikrellcam.thumb_name);
 			snprintf(buf2, sizeof(buf2), "%s/%s.th.jpg", thumb_dir, base);
 			rename(buf1, buf2);
+
+			snprintf(buf2, sizeof(buf2), "%s.th.jpg", base);
 			dup_string(&pikrellcam.thumb_name, buf2);
 			*s = '.';
 			}
@@ -832,7 +862,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 			if (   (vcb->state & VCB_STATE_MANUAL_RECORD)
 			    || (vcb->state & VCB_STATE_LOOP_RECORD)
 				|| !(   pikrellcam.audio_box_MP3_only
-			         && pikrellcam.external_motion
+			         && pikrellcam.external_motion_record_event
 			         && mf->fifo_detects == 0
 			        )
 			   )
@@ -927,7 +957,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 	mf->direction_detects = 0;
 	mf->burst_detects = 0;
 	mf->fifo_detects = 0;
-	pikrellcam.external_motion = FALSE;
+	pikrellcam.external_motion_record_event = FALSE;
 
 	vcb->state = VCB_STATE_NONE;
 	motion_events_write(mf, MOTION_EVENTS_END, 0);
@@ -974,25 +1004,6 @@ loop_record(void)
 		}
 	}
 
-#ifdef MOTION_STILLS
-void
-motion_stills_stop_check(void)
-	{
-	PiKrellCam	*pkc = &pikrellcam;
-	time_t		expire_time;
-
-	expire_time = pkc->motion_stills_max_time > 0
-			? pkc->motion_stills_start_time + pkc->motion_stills_max_time
-			: pkc->motion_last_detect_time + pkc->motion_times.event_gap;
-
-	if (pkc->motion_stills_enable && pkc->t_now < expire_time)
-		return;
-
-	pikrellcam.motion_stills_record = FALSE;
-	pikrellcam.motion_stills_sequence = 1;
-	motion_events_write(&motion_frame, MOTION_EVENTS_END, 0);
-	}
-#endif
 
 static int
 get_arg_pass1(char *opt, char *arg)
@@ -1109,9 +1120,7 @@ typedef enum
 	motion_cmd,
 	motion_enable,
 
-#ifdef MOTION_STILLS
 	motion_stills_enable,
-#endif
 
 	motion_detects_fifo_enable,
 	display_cmd,        /* Placement above here can affect OSD.  If menu */
@@ -1167,9 +1176,7 @@ static Command commands[] =
 	{ "motion",        motion_cmd,     1, FALSE },
 	{ "motion_enable", motion_enable,  1, TRUE },
 
-#ifdef MOTION_STILLS
 	{ "motion_stills_enable", motion_stills_enable,  1, TRUE },
-#endif
 
 	{ "motion_detects_fifo_enable", motion_detects_fifo_enable,  1, TRUE },
 
@@ -1338,7 +1345,8 @@ command_process(char *command_line)
 							'N', buf,
 							'H', pikrellcam.hostname);
 			pikrellcam.still_sequence += 1;
-			still_capture(path, 0);
+			pikrellcam.config_media_sequence_modified =  TRUE;
+			still_capture(path, FALSE);
 			free(path);
 			break;
 
@@ -1493,7 +1501,6 @@ command_process(char *command_line)
 			pikrellcam.state_modified = TRUE;
 			break;
 
-#ifdef MOTION_STILLS
 		case motion_stills_enable:
 			n = pikrellcam.motion_stills_enable;
 			config_set_boolean(&n, args);
@@ -1501,7 +1508,7 @@ command_process(char *command_line)
 				{
 				display_inform("\"Cannot enable motion stills\" 3 3 1");
 				display_inform("\"while loop videos are enabled.\" 4 3 1");
-				display_inform("timeout 2");
+				display_inform("timeout 3");
 				break;
 				}
 			if (n && !pikrellcam.motion_stills_enable)
@@ -1511,11 +1518,13 @@ command_process(char *command_line)
 					video_record_stop(vcb);
 				pthread_mutex_unlock(&vcb->mutex);
 				}
+			if (!n && pikrellcam.motion_stills_enable)
+				motion_stills_stop();
+
 			pikrellcam.motion_stills_enable = n;
 			pikrellcam.config_modified = TRUE;
 			pikrellcam.state_modified = TRUE;
 			break;
-#endif
 
 		case video_fps:
 			if ((n = atoi(args)) < 1)
@@ -2092,6 +2101,8 @@ main(int argc, char *argv[])
 	asprintf(&pikrellcam.loop_thumb_dir, "%s/%s", pikrellcam.loop_dir, PIKRELLCAM_THUMBS_SUBDIR);
 
 	asprintf(&pikrellcam.still_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
+	asprintf(&pikrellcam.still_thumb_dir, "%s/%s/.thumbs", pikrellcam.media_dir, PIKRELLCAM_STILL_SUBDIR);
+
 	asprintf(&pikrellcam.timelapse_dir, "%s/%s", pikrellcam.media_dir, PIKRELLCAM_TIMELAPSE_SUBDIR);
 
 	/* Make directories in case startup script needs them, but dont't error
@@ -2134,6 +2145,10 @@ main(int argc, char *argv[])
 		exit(1);
 		}
 
+	if (!make_dir(pikrellcam.still_thumb_dir))
+		log_printf_no_timestamp(
+			"Failed to create still thumb directory, continuing anyway.\n");
+
 	if (   !make_dir(pikrellcam.loop_video_dir)
 	    || !make_dir(pikrellcam.loop_thumb_dir)
 	   )
@@ -2170,6 +2185,7 @@ main(int argc, char *argv[])
 		}
 	pikrellcam.loop_enable = pikrellcam.loop_startup_enable;
 	config_timelapse_load_status();
+	config_media_sequence_load();
 	preset_state_load();
 	pikrellcam.state_modified = TRUE;
 
@@ -2197,11 +2213,6 @@ main(int argc, char *argv[])
 			usleep(t_usleep + 1);
 			}
 		time(&pikrellcam.t_now);
-
-#ifdef MOTION_STILLS
-		if (pikrellcam.motion_stills_record)
-			motion_stills_stop_check();
-#endif
 
 		event_process();
 		multicast_recv();

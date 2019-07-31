@@ -12,6 +12,13 @@ function select_all(source)
 		{
 		checkboxes[c].checked = source.checked;
 		}
+
+	eventboxes = document.getElementsByName('eventbox_list[]');
+	for (var c in eventboxes)
+		{
+		eventboxes[c].checked = source.checked;
+		}
+
 	checkboxlist = document.getElementsByName('checkbox_list[]');
 	for (var c in checkboxlist)
 		{
@@ -21,15 +28,48 @@ function select_all(source)
 
 function select_day(source, ymd)
 	{
-//alert("select_day" + ymd);
+	eventboxes = document.getElementsByName('eventbox_list[]');
+	for (var c in eventboxes)
+		{
+		var val = eventboxes[c].value;
+
+		if (typeof val !== 'undefined')
+			if (val.substring(0, 10) == ymd)
+//alert("select_day " + ymd + ": :" + val + ":");
+				eventboxes[c].checked = source.checked;
+		}
 	checkboxes = document.getElementsByName('file_list[]');
 	for (var c in checkboxes)
 		{
 		var val = checkboxes[c].value;
 		if (val.substring(0, 10) == ymd)
+			{
 			checkboxes[c].checked = source.checked;
+			}
 		}
 	}
+
+function select_event(source, ymd, code)
+	{
+//alert("select_event" + ymd);
+	checkboxes = document.getElementsByName('file_list[]');
+	for (var c in checkboxes)
+		{
+		var val = checkboxes[c].value;
+		if (val.substring(0, 10) == ymd)
+			{
+			var tail = val.lastIndexOf("_");
+			var dot = val.lastIndexOf(".");
+			var seq;
+
+			seq = val.substring(tail + 1, dot);
+//alert(val + " " + tail + " " + dot + " " + seq);
+			if (seq == code)
+				checkboxes[c].checked = source.checked;
+			}
+		}
+	}
+
 </script>
 
 <style type="text/css">
@@ -972,6 +1012,7 @@ function restart_page($selected)
 				for ($last = $k; $last < $media_array_size && $media_array[$last]['date'] == $ymd; ++$last)
 					;
 				$n_rows = ceil(($last - $k) / $n_columns);
+				$event_num = 0;
 				}
 
 			if ("$media_view" == "thumbs")
@@ -986,6 +1027,7 @@ function restart_page($selected)
 					$display_name = $media_array[$idx]['short_name'];
 					$color = $media_text_color;
 					$border_color = "";
+
 					if ("$scrolled" == "yes" && $fname == $media_array[$index]['file_name'])
 						{
 						$color = $selected_text_color;
@@ -1012,9 +1054,10 @@ function restart_page($selected)
 						else
 							$fsize = "";
 						}
-					$out .= "<span style='float:right; color: $default_text_color;'>$fsize</span><br>";
+					$out .= "<span style='float:right; color: $default_text_color;' class='small-font'>
+								$fsize</span><br>";
 					if (substr($fname, 0, 3) == "man")
-						$out .= "<span style=\"color: $color;\">Manual</span><br>";
+						$out .= "<span style='color: $color;' class='small-font'>Manual</span><br>";
 					else if (substr($fname, 0, 2) == "tl")
 						{
 						$period = "---";
@@ -1027,7 +1070,7 @@ function restart_page($selected)
 							}
 						if (substr($period, 0, 1) == "0")
 							$period = "---";
-						$out .= "<span style=\"color: $color;\">Timelapse: $period</span><br>";
+						$out .= "<span style='color: $color;' class='small-font'>Timelapse: $period</span><br>";
 						}
 					else if (substr($fname, 0, 4) == "loop")
 						{
@@ -1035,24 +1078,24 @@ function restart_page($selected)
 							{
 							$type = substr(strrchr($fname, "_"), 1);
 							if ("$type[0]" == "m" || "$type[0]" == "1")
-								$out .= "<span style=\"color: $color;\">Loop Motion</span><br>";
+								$out .= "<span style='color: $color;' class='small-font'>Loop Motion</span><br>";
 							else if ("$type[0]" == "a")
-								$out .= "<span style=\"color: $color;\">Loop Audio</span><br>";
+								$out .= "<span style='color: $color; class='small-font''>Loop Audio</span><br>";
 							else if ("$type[0]" == "e")
 								{
 								if ("$type[1]" == "-")
 									$code = strtok(substr($type, 2), ".");
 								else
 									$code = "FIFO";
-								$out .= "<span style=\"color: $color;\">Loop $code</span><br>";
+								$out .= "<span style='color: $color;' class='small-font'>Loop $code</span><br>";
 								}
 							else
-								$out .= "<span style=\"color: $color;\">Loop</span><br>";
+								$out .= "<span style='color: $color;' class='small-font'>Loop</span><br>";
 							}
 						}
-					else if (substr($fname, 0, 3) == "aud")
+					else if (substr($fname, 0, 3) == "aud" || substr($fname, 0, 3) == "Aud")
 						{
-						$out .= "<span style=\"color: $color;\">Audio</span><br>";
+						$out .= "<span style='color: $color;' class='small-font'>Audio</span><br>";
 						}
 					else if (substr($fname, 0, 3) == "ext")
 						{
@@ -1061,14 +1104,43 @@ function restart_page($selected)
 						$code = explode("-", $tok);
 						if (count($code) == 2)
 							$type = $code[1];
-						$out .= "<span style=\"color: $color;\">$type</span><br>";
+						if ("$media_type" == "stills")
+							{
+							$tail = substr(strrchr($fname, "_"), 1);
+							$seq = explode(".", $tail);
+							$out .= "<span style='color: $color;' class='small-font'>$type</span>";
+
+							$out .= "<span style='color: $default_text_color; font-size: 0.85em;'>
+									&nbsp; $seq[0]</span>";
+							if ($event_num != $seq[0])
+								{
+								$out .= "<span><input type='checkbox'
+											class='small-checkbox' name='eventbox_list[]' value='$ymd/$fname'
+											onClick=\"select_event(this, '$ymd', '$seq[0]')\"/></span>";
+								$event_num = $seq[0];
+								}
+							$out .= "<br>";
+							}
+						else
+							$out .= "<span style='color: $color;' class='small-font'>$type</span><br>";
 						}
 					else if (   "$media_type" == "stills"
-					         && substr($fname, 0, 6) != "image_")
+					         && substr($fname, 0, 7) == "motion_")
 						{
-						$pos = strpos($fname, "_");
-						$prefix = substr($fname, 0, $pos);
-						$out .= "<span style=\"color: $color;\">$prefix</span><br>";
+						$tail = substr(strrchr($fname, "_"), 1);
+						$seq = explode(".", $tail);
+						$out .= "<span style='color: $color;' class='small-font'>Motion</span>";
+
+						$out .= "<span style='color: $default_text_color; font-size: 0.85em;'>
+									&nbsp; $seq[0]</span>";
+						if ($event_num != $seq[0])
+							{
+							$out .= "<span><input type='checkbox'
+										class='small-checkbox' name='eventbox_list[]' value='$ymd/$fname'
+										onClick=\"select_event(this, '$ymd', '$seq[0]')\"/></span>";
+							$event_num = $seq[0];
+							}
+						$out .= "<br>";
 						}
 					echo "$out";
 					if ("$scrolled" == "yes")

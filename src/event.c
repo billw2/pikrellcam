@@ -75,7 +75,7 @@ expand_command(char *command, char *arg)
 	MotionFrame			*mf = &motion_frame;
 	CompositeVector		*frame_vec = &motion_frame.final_preview_vector;
 	int					t;
-	char				specifier, *fmt, *fmt_arg, *copy, *cmd_line,
+	char				specifier, *fmt, *fmt_arg, *copy, *cmd_line, *dir,
 						*name, buf[BUFSIZ];
 
 	copy = strdup(command);
@@ -123,10 +123,6 @@ expand_command(char *command, char *arg)
 			case 't':
 				fmt_arg = pikrellcam.thumb_dir;
 				break;
-			case 'r':
-				fmt_arg = pikrellcam.motion_record_mode;
-				break;
-
 			case 'T':
 				snprintf(buf, sizeof(buf), "%d", time_lapse.period);
 				name = media_pathname(pikrellcam.video_dir,
@@ -195,14 +191,25 @@ expand_command(char *command, char *arg)
 				fmt_arg = buf;
 				break;
 			case 'A':
-				snprintf(buf, sizeof(buf), "%s/%s",
-						(vcb->state & VCB_STATE_LOOP_RECORD) ?
-							pikrellcam.loop_thumb_dir : pikrellcam.thumb_dir,
-						pikrellcam.thumb_name);
+				if (vcb->state & VCB_STATE_LOOP_RECORD)
+					dir = pikrellcam.loop_thumb_dir;
+				else if (vcb->state & VCB_STATE_MANUAL_RECORD)
+					dir = pikrellcam.thumb_dir;
+				else if (pikrellcam.motion_stills_enable)
+					dir = pikrellcam.still_thumb_dir;
+				else	/* VCB_STATE_MOTION_RECORD */
+					dir = pikrellcam.thumb_dir;
+				snprintf(buf, sizeof(buf), "%s/%s", dir, pikrellcam.thumb_name);
 				fmt_arg = buf;
 				break;
+			case 'r':
+				if (pikrellcam.motion_stills_enable)
+					fmt_arg = "stills";
+				else
+					fmt_arg = "video";
+				break;
 			case 'e':
-				if (pikrellcam.external_motion)
+				if (pikrellcam.external_motion_record_event)
 					snprintf(buf, sizeof(buf), "%s",
 						motion_frame.fifo_detects
 							? mf->fifo_trigger_code : "audio");
@@ -246,6 +253,10 @@ expand_command(char *command, char *arg)
 				fmt_arg = "?";
 				break;
 			}
+
+		if (!fmt_arg || *fmt_arg == '\0')
+			fmt_arg = "none";
+
 		asprintf(&cmd_line, copy, fmt_arg);
 		free(copy);
 		copy = cmd_line;
@@ -402,17 +413,13 @@ event_still_capture_cmd(char *cmd)
 	}
 
 void
-event_motion_still_capture(void *t)
+event_motion_still_capture(void *p)
 	{
-	time_t	motion_time = (time_t) t;
-	char	*path, buf[50];
-
-	snprintf(buf, sizeof(buf), "%d", pikrellcam.motion_stills_sequence++);
-	path = media_pathname(pikrellcam.still_dir,
-				pikrellcam.motion_stills_name_format, motion_time,
-				'N', buf, 'H', pikrellcam.hostname);
-	still_capture(path, motion_time);
-	free(path);
+	if (!pikrellcam.motion_still_pathname)
+		return;
+	still_capture(pikrellcam.motion_still_pathname, TRUE);
+	free(pikrellcam.motion_still_pathname);
+	pikrellcam.motion_still_pathname = NULL;
 	}
 
 static boolean
@@ -789,12 +796,8 @@ state_file_write(void)
 	f = fopen(fname_part, "w");
 
 	fprintf(f, "motion_enable %s\n", mf->motion_enable ? "on" : "off");
-
-#ifdef MOTION_STILLS
 	fprintf(f, "motion_stills_enable %s\n",
 						pikrellcam.motion_stills_enable ? "on" : "off");
-#endif
-
 	fprintf(f, "show_preset %s\n",   mf->show_preset ? "on" : "off");
 	fprintf(f, "show_vectors %s\n",  mf->show_vectors ? "on" : "off");
 
@@ -1079,6 +1082,9 @@ event_process(void)
 	pikrellcam.second_tick = (pikrellcam.t_now == t_prev) ? FALSE : TRUE;
 	t_prev = pikrellcam.t_now;
 
+	if (pikrellcam.config_media_sequence_modified)
+		config_media_sequence_save();
+
 	if (pikrellcam.second_tick)
 		{
 		tm_prev = pikrellcam.tm_local;
@@ -1194,6 +1200,15 @@ event_process(void)
 			pikrellcam.preset_state_modified = FALSE;
 			preset_state_save();
 			}
+
+		if (day_tick && !start)
+			{
+			pikrellcam.video_motion_sequence = 0;
+			pikrellcam.video_manual_sequence = 0;
+			pikrellcam.motion_stills_sequence = 0;
+			pikrellcam.still_sequence = 0;
+			}
+
 		if (day_tick || !sun.initialized)
 			{
 			if (sun.initialized)
@@ -1361,15 +1376,12 @@ at_commands_config_save(char *config_file)
 	"#                $t - thumb files directory full path\n"
 	"#                $z - loop files directory full path\n"
 	"#                $v - last video saved full path filename\n"
-	"#                $A - last thumb saved full path filename\n"
-	"#                     If motion_preview_save_mode is first and there are\n"
-	"#                     only audio or external detects, this name will be,\n"
-	"#                     renamed after the video ends.\n"
 	"#                $S - still files directory full path\n"
 	"#                $s - last still saved full path filename\n"
-#ifdef MOTION_STILLS
-	"#                $r - motion record mode: stills or videos\n"
-#endif
+	"#                $A - last motion video or still thumb saved full path\n"
+	"#                     If video with only audio or external detects,\n"
+	"#                     this thumb will be renamed after the video ends:\n"
+	"#                         the motion_ prefix will change to ext-XXX\n"
 	"#                $L - timelapse files directory full path\n"
 	"#                $l - timelapse current series filename format: tl_sssss_%%05d.jpg\n"
 	"#                     in timelapse sub directory.  If used in any script\n"
@@ -1378,7 +1390,8 @@ at_commands_config_save(char *config_file)
 	"#                $n - timelapse series\n"
 	"#                $T - timelapse video full path filename in video sub directory\n"
 	"#                $o - motion enable state\n"
-	"#                $e - current motion video type: motion, audio, FIFO\n"
+	"#                $r - current motion record mode: stills or video\n"
+	"#                $e - motion record type: motion, audio, FIFO\n"
 	"#                     (or FIFO code).  Video can start as audio or FIFO\n"
 	"#                     type and change to motion if motion is detected.\n"
 	"#                $p - current preset number pair: position setting\n"

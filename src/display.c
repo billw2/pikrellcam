@@ -763,7 +763,7 @@ motion_draw(uint8_t *i420)
 		{
 		msg = "";
 		if (vcb->state & VCB_STATE_MOTION_RECORD)
-			msg = pikrellcam.external_motion ?
+			msg = pikrellcam.external_motion_record_event ?
 				(mf->fifo_detects ? mf->fifo_trigger_code : "Audio") : "Motion";
 		t_record = vcb->max_record_time - t_record;
 		if (t_record < 0)
@@ -771,10 +771,12 @@ motion_draw(uint8_t *i420)
 		snprintf(info, sizeof(info), "REC (Loop %s) %d:%02d",
 					msg, t_record / 60, t_record % 60);
 		}
-	else if (vcb->state & VCB_STATE_MOTION_RECORD)
+	else if (   (vcb->state & VCB_STATE_MOTION_RECORD)
+	         || pikrellcam.motion_stills_record
+	        )
 		{
-		if (pikrellcam.t_now > vcb->motion_sync_time)
-			t_record -= pikrellcam.t_now - vcb->motion_sync_time;
+		if (pikrellcam.t_now > pikrellcam.motion_sync_time)
+			t_record -= pikrellcam.t_now - pikrellcam.motion_sync_time;
 		if (mf->fifo_trigger_time_limit > 0)
 			{
 			t_hold = vcb->max_record_time -
@@ -787,8 +789,16 @@ motion_draw(uint8_t *i420)
 			{
 			t_hold = pikrellcam.motion_times.event_gap -
 					(pikrellcam.t_now - pikrellcam.motion_last_detect_time);
-			snprintf(info, sizeof(info), "REC (%s) %d:%02d  hold %d:%02d",
-					pikrellcam.external_motion ?
+			if (pikrellcam.motion_stills_record)
+				snprintf(info, sizeof(info), "REC (%s) Stills: %d  hold %d:%02d",
+					pikrellcam.external_motion_record_event ?
+						(mf->fifo_detects ? mf->fifo_trigger_code : "Audio")
+									: "Motion",
+					pikrellcam.motion_stills_count,
+					t_hold / 60, t_hold % 60);
+			else
+				snprintf(info, sizeof(info), "REC (%s) %d:%02d  hold %d:%02d",
+					pikrellcam.external_motion_record_event ?
 						(mf->fifo_detects ? mf->fifo_trigger_code : "Audio")
 									: "Motion",
 					t_record / 60, t_record % 60,
@@ -819,6 +829,8 @@ motion_draw(uint8_t *i420)
 			else
 				msg = "Motion hold (off preset)";
 			}
+		else if (pikrellcam.motion_stills_enable)
+			msg = "Motion Stills  ON";
 		else
 			msg = "Motion  ON";
 		}
@@ -1110,13 +1122,9 @@ Adjustment	motion_settings_adjustment[] =
 	{ "Pre_Capture",  1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.pre_capture },
 	{ "Event_Gap",    1, 300, 1, 0, 0, 0, "", NULL, &motion_times_temp.event_gap },
 	{ "Post_Capture", 1, 180, 1, 0, 0, 0, "", NULL, &motion_times_temp.post_capture },
-	{ "Video_Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit }
-
-// XXX
-#ifdef MOTION_STILLS
+	{ "Video_Time_Limit",   0, 1800, 10, 0, 0, 0, "sec", NULL, &pikrellcam.motion_record_time_limit },
 	{ "Motion_Stills_(no_videos)",   0,  1,  1, 0, 0, 0, "", NULL, &pikrellcam.motion_stills_enable },
 	{ "Max_Stills_per_Minute", 1, 60, 1, 0, 0, 0, "", NULL, &pikrellcam.motion_stills_per_minute}
-#endif
 	};
 
 #define N_MOTION_SETTINGS_ADJUSTMENTS \
@@ -1284,6 +1292,13 @@ apply_adjustment(void)
 				display_inform("timeout 2");
 				}
 			pthread_mutex_unlock(&vcb->mutex);
+			}
+		if (pikrellcam.motion_stills_enable && pikrellcam.loop_enable)
+			{
+			pikrellcam.motion_stills_enable = FALSE;
+			display_inform("\"Cannot enable motion stills\" 3 3 1");
+			display_inform("\"while loop videos are enabled.\" 4 3 1");
+			display_inform("timeout 3");
 			}
 		}
 	else if (adjustments == &motion_limit_adjustment[0])

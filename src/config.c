@@ -604,7 +604,6 @@ static Config  config[] =
 	  "#",
 	"loop_diskusage_percent",  "30", FALSE, {.value = &pikrellcam.loop_diskusage_percent},      config_value_int_set},
 
-#ifdef MOTION_STILLS
 	{ "\n# -------------------- Motion Still Recording -----------------------\n"
 	  "# Take still images instead of recording videos when motion is enabled.\n"
 	  "#",
@@ -615,7 +614,6 @@ static Config  config[] =
 	  "# Stills are taken at motion detects separated by at least this rate.\n"
 	  "#",
 	"motion_stills_per_minute",  "30", TRUE, {.value = &pikrellcam.motion_stills_per_minute}, config_value_int_set },
-#endif
 
 	{ "\n# -------------------- Motion Detect Options -----------------------\n"
 	  "# PiKrellCam V3.0 stores some motion detect settings in preset-xxx.conf\n"
@@ -702,14 +700,6 @@ static Config  config[] =
 	{ "# Command/script to run when a manual record ends.\n"
 	  "#",
 	"on_manual_end",    "", TRUE, {.string = &pikrellcam.on_manual_end_cmd}, config_string_set },
-
-	{ "# When to save the motion preview file.\n"
-	  "#     first  - when motion is first detected.\n"
-	  "#              The on_motion_preview_save command runs immediately.\n"
-	  "#     best   - best motion based on vector count and position.\n"
-	  "#              The on_motion_preview_save command runs at motion end.\n"
-	  "#",
-	"motion_preview_save_mode", "best", FALSE, {.string = &pikrellcam.motion_preview_save_mode}, config_string_set },
 
 	{ "# Command to run on the motion preview jpeg file.\n"
 	  "# Specify the preview jpeg file name with $F.\n"
@@ -1221,7 +1211,7 @@ config_set_defaults(char *home_dir)
 
 	pikrellcam.version = strdup(PIKRELLCAM_VERSION);
 	pikrellcam.timelapse_format = strdup("tl_$n_$N.jpg");
-	pikrellcam.motion_stills_name_format = strdup("motion_%F_%H.%M.%S_$N.jpg");
+	pikrellcam.motion_stills_name_format = strdup("%F_%H.%M.%S_$N.jpg");
 
 	pikrellcam.preview_pathname = strdup("");
 	pikrellcam.thumb_name = strdup("");
@@ -1249,6 +1239,8 @@ config_set_defaults(char *home_dir)
 					pikrellcam.config_dir, PIKRELLCAM_AT_COMMANDS_CONFIG);
 		asprintf(&pikrellcam.timelapse_status_file, "%s/%s",
 					pikrellcam.config_dir, PIKRELLCAM_TIMELAPSE_STATUS);
+		asprintf(&pikrellcam.media_sequence_file, "%s/%s",
+					pikrellcam.config_dir, "media-sequence");
 		}
 
 	/* Make sure some motion regions exist.  These will be replaced if there
@@ -1492,6 +1484,63 @@ config_timelapse_load_status(void)
 		{
 		time_lapse.period = 60;
 		config_timelapse_save_status();
+		}
+	}
+
+void
+config_media_sequence_save(void)
+	{
+	FILE	*f;
+	char	buf[64];
+
+	f = fopen(pikrellcam.media_sequence_file, "w");
+	if (f)
+		{
+		strftime(buf, sizeof(buf), "%F", localtime(&pikrellcam.t_now));
+		fprintf(f, "%s\n", buf);
+		fprintf(f, "motion_videos %d\n", pikrellcam.video_motion_sequence);
+		fprintf(f, "manual_videos %d\n", pikrellcam.video_manual_sequence);
+		fprintf(f, "motion_stills %d\n", pikrellcam.motion_stills_sequence);
+		fprintf(f, "manual_stills %d\n", pikrellcam.still_sequence);
+		fclose(f);
+		}
+	pikrellcam.config_media_sequence_modified = FALSE;
+	}
+
+void
+config_media_sequence_load(void)
+	{
+	FILE	*f;
+	int		n, seq;
+	char	buf[100], tag[32], buf1[64];
+
+	pikrellcam.video_motion_sequence = 0;
+	pikrellcam.video_manual_sequence = 0;
+	pikrellcam.motion_stills_sequence = 0;
+	pikrellcam.still_sequence = 0;
+	f = fopen(pikrellcam.media_sequence_file, "r");
+	if (f)
+		{
+		fgets(buf, sizeof(buf), f);
+		strftime(buf1, sizeof(buf1), "%F\n", localtime(&pikrellcam.t_now));
+		if (!strcmp(buf, buf1))
+			{
+			while (fgets(buf, sizeof(buf), f) != NULL)
+				{
+				n = sscanf(buf, "%s %d\n", tag, &seq);
+				if (n != 2)
+					continue;
+				if (!strcmp(tag, "motion_videos"))
+					pikrellcam.video_motion_sequence = seq;
+				else if (!strcmp(tag, "manual_videos"))
+					pikrellcam.video_manual_sequence = seq;
+				else if (!strcmp(tag, "motion_stills"))
+					pikrellcam.motion_stills_sequence = seq;
+				else if (!strcmp(tag, "manual_stills"))
+					pikrellcam.still_sequence = seq;
+				}
+			}
+		fclose(f);
 		}
 	}
 
