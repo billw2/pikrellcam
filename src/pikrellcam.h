@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.3.0"
+#define	PIKRELLCAM_VERSION	"4.3.1"
 
 
 //TCP Stream Server
@@ -496,8 +496,9 @@ typedef struct
 	{
 	int		video_fps,
 			video_bitrate,
-			video_mp4box_fps,
-			still_quality;
+			still_quality,
+			video_mp4box_fps_display;
+	float	video_mp4box_fps;
 	boolean	modified;
 	}
 	CameraAdjust;
@@ -840,6 +841,7 @@ typedef struct
 typedef union
 	{
 	int		*value;
+	float	*value_float;
 	char	**string;
 	}
 	ConfigResult;

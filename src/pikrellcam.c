@@ -845,10 +845,7 @@ video_record_stop(VideoCircularBuffer *vcb)
 			tmp_dir = ((uint64_t) st_h264.st_size < tmp_space)
 						? "/tmp" : pikrellcam.video_dir;
 
-			if (   pikrellcam.camera_adjust.video_mp4box_fps == 0
-				|| pikrellcam.camera_adjust.video_mp4box_fps
-							== pikrellcam.camera_adjust.video_fps
-			   )
+			if (pikrellcam.camera_adjust.video_mp4box_fps == 0)
 				encode_fps = pikrellcam.video_last_fps;
 			else
 				encode_fps = (double) pikrellcam.camera_adjust.video_mp4box_fps;
@@ -1221,6 +1218,7 @@ command_process(char *command_line)
 	char	command[64], args[256], arg1[128], arg2[64], arg3[256], buf[128];
 	char	*fmt, *path;
 	int		i, n;
+	float	f;
 
 	if (!command_line || *command_line == '\0')
 		return;
@@ -1560,9 +1558,9 @@ command_process(char *command_line)
 			break;
 
 		case video_mp4box_fps:
-			n = atoi(args);
-			camera_adjust_temp.video_mp4box_fps = n;
-			pikrellcam.camera_adjust.video_mp4box_fps = n;
+			f = atof(args);
+			camera_adjust_temp.video_mp4box_fps = f;
+			pikrellcam.camera_adjust.video_mp4box_fps = f;
 			pikrellcam.config_modified = TRUE;
 			break;
 

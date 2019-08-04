@@ -67,8 +67,12 @@ And there is a Raspberry Pi
 <a href="https://www.raspberrypi.org/forums/viewtopic.php?f=43&t=115583">PiKrellCam forum</a>
 </div>
 
-<span style='font-size: 1.5em; font-weight: 650;'>Release Notes</span><hr>
+<span style='font-size: 1.5em; font-weight: 650;'>Recent Release Notes</span><hr>
 <div class='indent0'>
+
+Version 4.3.1 - video_mp4box_fps can be fractional. For audio/video drift
+tuning.
+<br>
 
 Version 4.3.0
 <div class='indent1'>
@@ -132,27 +136,6 @@ Version 4.0.5
 <div class='indent1'>
 <a href="help.php#DISKFREE">Disk free limit for media videos</a><br>
 Stills have a thumbs view.
-</div>
-<p>
-
-Version 4.0.4 - Fix annotation strings to allow spaces and longer length.
-<br>
-Version 4.0.2 - Bugfix for $v variable passed to on_motion_end.
-<br>
-Version 4.0.1 - Change for libmp3lame segfault. Simplify running on_motion_end_cmd.
-<br>
-Version 4.0.0
-<div class='indent1'>
-<a href="help.php#AUDIO">Audio recording</a> - For Jessie Lite & Minibian
-	users, libmp3lame0 and libasound2 need to be installed or else after
-	upgrading to PiKrellCam 4.0, a restart will fail.
-	Rerun the install script or install by apt-get.
-</div>
-<p>
-Version 3.1
-<div class='indent1'>
-<a href="help.php#MULTICAST_INTERFACE">multicast interface</a><br>
-<a href="help.php#MOTION_EVENTS">motion-events file</a><br>
 </div>
 
 </div>
@@ -1042,15 +1025,16 @@ Preset group and there will be no Servo button in the Config group.
 			to reduce the size of the videos.
 			</li>
 <p>
-			<li><span style='font-weight:700'>video_fps</span> - typically this should be no higher
-			than 24 or the motion detecting preview jpeg camera stream may start dropping frames.
-			(I have no data on the effect GPU overclocking might have on this limitation).
+			<li><span style='font-weight:700'>video_fps</span> - if set higher
+			than 24 the motion detecting preview camera stream can drop frames
+			depending on Pi model (GPU clock speed).
 			</li>
 			<p>
-			<li><span style='font-weight:700'>video_mp4box_fps</span> - keep this value set to zero
-			unless you want to create fast or slow motion videos.  When zero, mp4 boxing fps will be
-			the same as video_fps which is normally what you want.  But this value can be set to a
-			non zero value different from video_fps if you want fast or slow motion videos.
+			<li><span style='font-weight:700'>video_mp4box_fps</span> - when zero, the mp4
+			boxing fps will track video_fps which is normally what you want. Set this to
+			a non zero value different from video_fps for fast or slow motion videos.
+			Or set to fractional values slightly different from video_fps to tune possible
+			audio/video drift for longer videos.
 			</li>
 			<p>
 			<li><span style='font-weight:700'>mjpeg_divider</span> - this value is divided into

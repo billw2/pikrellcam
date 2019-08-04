@@ -522,6 +522,21 @@ config_value_int_set(char *arg, ConfigResult *result)
 	return valid;
 	}
 
+static int
+config_value_float_set(char *arg, ConfigResult *result)
+	{
+	int	valid = TRUE;
+
+	if (isdigit(*arg) || (*arg == '-' && isdigit((*(arg + 1)))))
+		*result->value_float = atof(arg);
+	else
+		{
+		printf("    Bad config_value_float_set: %s\n", arg);
+		valid = FALSE;
+		}
+	return valid;
+	}
+
 
 static Config  config[] =
 	{
@@ -866,19 +881,19 @@ static Config  config[] =
 	  "#",
 	"video_height",   "1080", TRUE, {.value = &pikrellcam.camera_config.video_height},     config_value_int_set },
 
-	{ "# Video frames per second.  The processing required to implement the\n"
-	  "# multiple video paths in PiKrellCam limits this fps to about 24.\n"
-	  "# Above that may cause web page mjpeg frames to be dropped.  But if\n"
-	  "# you are overclocking the GPU you may be able to set higher.\n"
+	{ "# Video frames per second.  If set higher than 24 the motion detecting\n"
+	  "# preview stream can drop frames depending on Pi model (GPU clock speed).\n"
 	  "#",
 	"video_fps",      "24", FALSE, {.value = &pikrellcam.camera_adjust.video_fps},        config_value_int_set },
 
 	{ "# MP4Box output frames per second if video filename is a .mp4\n"
-	  "# If this is non zero and different from video_fps, the final mp4 will\n"
+	  "# If set non zero and different from video_fps, the final mp4 will\n"
 	  "# be a slow or fast motion video.\n"
-	  "# Normally leave this set to zero so it will track video_fps.\n"
+	  "# Normally leave this set to zero so it will track video_fps or set\n"
+	  "# to fractional values slightly different from video_fps to tune for\n"
+	  "# possible audio/video drift for longer videos.\n"
 	  "#",
-	"video_mp4box_fps", "0", FALSE, {.value = &pikrellcam.camera_adjust.video_mp4box_fps},        config_value_int_set },
+	"video_mp4box_fps", "0", FALSE, {.value_float = &pikrellcam.camera_adjust.video_mp4box_fps},        config_value_float_set },
 
 	{ "# Video bitrate affects the quality and size of a video recording.\n"
 	  "# Along with pre_capture and event_gap times, it also determines the\n"
@@ -1351,6 +1366,13 @@ config_load(char *config_file)
 
 	pikrellcam.annotate_string_space_char = '_';
 
+	n = (int) ((pikrellcam.camera_adjust.video_mp4box_fps + .0005) * 100.0);
+	if (n < 0)
+		n = 0;
+	if (n > 3000)
+		n = 3000;
+	pikrellcam.camera_adjust.video_mp4box_fps_display = n;
+
 	camera_adjust_temp = pikrellcam.camera_adjust;
 	motion_times_temp = pikrellcam.motion_times;
 
@@ -1420,6 +1442,8 @@ config_save(char *config_file)
 		fprintf(f, "%s\n", cfg->description);
 		if (cfg->config_func == config_value_int_set)
 			fprintf(f, "%s %d\n\n", cfg->option, *(cfg->result.value));
+		else if (cfg->config_func == config_value_float_set)
+			fprintf(f, "%s %.3f\n\n", cfg->option, *(cfg->result.value_float));
 		else if (cfg->config_func == config_value_bool_set)
 			fprintf(f, "%s %s\n\n", cfg->option, *(cfg->result.value) ? "on" : "off");
 		else
