@@ -38,7 +38,7 @@ import time
 #   It should be greater than the holdoff in pkc-alarm.
 #
 to_hosts = "gkrellm4,rpi0,rpi1"
-motion_region = 3
+motion_region = '3'
 magnitude_limit = 12
 count_limit = 20
 holdoff = 6
@@ -75,7 +75,7 @@ while 1:
 		file.seek(where)
 		continue
 	line = line.strip('\n')
-#	print '==>' + line
+#	print('==>' + line)
 	if (line.find('<motion') == 0):
 		state = 'motion'
 	elif (line.find('</motion>') == 0):
@@ -83,16 +83,16 @@ while 1:
 	elif (line.find('<end>') == 0):
 		sys.exit(1)
 	elif (state == 'motion'):
-		if (line.startswith(str(motion_region))):
-#			print line
+		if (line.startswith(motion_region)):
+#			print(line)
 			tnow = time.time()
 			if (tnow >= tsent + holdoff):
 				r, x, y, dx, dy, mag, count = line.split()
 				if (int(mag) >= magnitude_limit and int(count) >= count_limit):
 					for x in range(0, repeat):
 						msg = "%s:%d %s message alarm" % (from_host, msg_id, to_hosts)
-#						 print msg
-						send_socket.sendto(msg, (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
+#						 print(msg)
+						send_socket.sendto(msg.encode(), (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
 						time.sleep(delay)
 					tsent = tnow
 					msg_id = msg_id + 1

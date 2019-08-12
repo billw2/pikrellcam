@@ -32,10 +32,10 @@ repeat = 4
 delay = .05
 
 def usage():
-	print "usage: pkc-reboot <host|host-list|all>"
-	print "Multicast a reboot command to PiKrellCams on a LAN."
-	print "    host, host-list or all must be given."
-	print "    host-list is a comma separated list of hosts."
+	print("usage: pkc-reboot <host|host-list|all>")
+	print("Multicast a reboot command to PiKrellCams on a LAN.")
+	print("    host, host-list or all must be given.")
+	print("    host-list is a comma separated list of hosts.")
 	sys.exit()
 
 argc = len(sys.argv)
@@ -44,7 +44,7 @@ if argc == 1:
 elif argc == 2:
 	hosts = sys.argv[1]
 else:
-	print 'Bad number of args'
+	print('Bad number of args')
 	usage()
 
 hostname = socket.gethostname()
@@ -52,8 +52,8 @@ hostname = socket.gethostname()
 msg_id = 1
 for x in range(0, repeat):
 	msg = "%s:%d %s command @reboot" % (hostname, msg_id, hosts)
-#	print msg
-	send_socket.sendto(msg, (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
+#	print(msg)
+	send_socket.sendto(msg.encode(), (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
 	time.sleep(delay)
 
 
@@ -64,6 +64,6 @@ time.sleep(1)
 msg_id = 2
 for x in range(0, repeat):
 	msg = "%s:%d %s command @reboot" % (hostname, msg_id, hosts)
-#	print msg
-	send_socket.sendto(msg, (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
+#	print(msg)
+	send_socket.sendto(msg.encode(), (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
 	time.sleep(delay)

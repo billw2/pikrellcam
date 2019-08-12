@@ -4,16 +4,16 @@ import sys
 output = "terminal"
 
 if len (sys.argv) < 2 :
-	print "Usage: " + sys.argv[0] + " [C|F] {fifo}"
-	print "    C or F must be given"
-	print "    If \"fifo\" arg is present, write to PiKrellCam FIFO"
+	print("Usage: " + sys.argv[0] + " [C|F] {fifo}")
+	print("    C or F must be given")
+	print("    If \"fifo\" arg is present, write to PiKrellCam FIFO")
 	sys.exit(1)
 
 mode = sys.argv[1]
 if (mode != "F") and (mode != "C"):
-	print "Usage: " + sys.argv[0] + " [C|F] {fifo}"
-	print "    C or F must be given"
-	print "    If \"fifo\" arg is present, write to PiKrellCam FIFO"
+	print("Usage: " + sys.argv[0] + " [C|F] {fifo}")
+	print("    C or F must be given")
+	print("    If \"fifo\" arg is present, write to PiKrellCam FIFO")
 	sys.exit(1)
 
 if len (sys.argv) == 3 :
@@ -30,9 +30,8 @@ def read_temp(device):
 	global mode
 	for count in range(0, 3):
 		path = "/sys/bus/w1/devices/" + device.rstrip() + "/w1_slave"
-		file = open(path)
-		lines = file.read()
-		file.close()
+		with open(path) as file:
+			lines = file.read()
 
 		line1 = lines.split("\n")[0]
 		line2 = lines.split("\n")[1]
@@ -69,6 +68,6 @@ try:
 		fifo.write("annotate_string append ds18b20 " + out_string + "\n")
 		fifo.close()
 	else:
-		print out_string
+		print(out_string)
 except:
-	print "no devices"
+	print("no devices")
