@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -129,7 +129,7 @@ multicast_message_id_repeat(char *hostname, int message_id)
 static void
 multicast_ack(char *to_host, int message_id)
 	{
-	char	message[64];
+	char	message[200];
 
 	snprintf(message, sizeof(message), "%s ack %d", to_host, message_id);
 	multicast_send("", message);

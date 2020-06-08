@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -125,7 +125,8 @@ ParameterTable awb_mode_table[] =
 	{ MMAL_PARAM_AWBMODE_FLUORESCENT,   "flourescent" },
 	{ MMAL_PARAM_AWBMODE_INCANDESCENT,  "incandescent" },
 	{ MMAL_PARAM_AWBMODE_FLASH,         "flash" },
-	{ MMAL_PARAM_AWBMODE_HORIZON,       "horizon" }
+	{ MMAL_PARAM_AWBMODE_HORIZON,       "horizon" },
+	{ MMAL_PARAM_AWBMODE_GREYWORLD,       "greyworld" }
 	};
 
 #define	AWB_MODE_TABLE_SIZE	\
@@ -214,6 +215,9 @@ ParameterTable parameter_table[] =
 
 	{ MMAL_PARAMETER_VIDEO_STABILISATION,	"video_stabilisation" }, /* bool */
 	{ MMAL_PARAMETER_ENABLE_RAW_CAPTURE,	"raw_capture" },		/* bool */
+#if 0
+	{ MMAL_PARAMETER_DRAW_BOX_FACES_AND_FOCUS,	"draw_focus_box" },	/* bool */
+#endif
 	};
 
 
@@ -358,6 +362,8 @@ flip_control_set(char *option, char *setting)
 	return status;
 	}
 
+static boolean force_crop;
+
 MMAL_STATUS_T
 crop_control_set(char *option, char *setting)
 	{
@@ -368,7 +374,29 @@ crop_control_set(char *option, char *setting)
 	if (sscanf(setting, "%d %d %d %d", &crop.rect.x, &crop.rect.y,
 				&crop.rect.width, &crop.rect.height) == 4)
 		status = mmal_port_parameter_set(camera.control_port, &crop.hdr);
+	if (option)
+		force_crop = TRUE;	/* crop command from FIFO, so force restoring */
+							/* zoom_percent from preset changes	*/
 	return status;
+	}
+
+void
+zoom_percent(int percent)
+	{
+	int	origin, width;
+	char	buf[128];
+
+	if (   percent < 10 || percent > 100
+	    || (percent == pikrellcam.zoom_percent_prev && !force_crop)
+	   )
+		return;
+	force_crop = FALSE;
+	width = 65536 * percent / 100;
+	origin = 65536 / 2 - width / 2;
+	snprintf(buf, sizeof(buf), "%d %d %d %d", origin, origin, width, width);
+	pikrellcam.zoom_motion_holdoff = 5;
+	crop_control_set(NULL, buf);
+	pikrellcam.zoom_percent_prev = percent;
 	}
 
 MMAL_STATUS_T
@@ -404,6 +432,7 @@ static CameraParameter  camera_parameters[] =
 
 	{ "video_stabilisation", "false",  boolean_control_set,  &pikrellcam.video_stabilisation },
 	{ "raw_capture",         "false",  boolean_control_set,  &pikrellcam.raw_capture },
+//	{ "draw_focus_box",      "false",  boolean_control_set,  &pikrellcam.draw_focus_box },
 
 	{ "rotation",      "0",    rotation_control_set, &pikrellcam.rotation },
 	{ "exposure_mode", "auto", exposure_mode_set,    &pikrellcam.exposure_mode },
@@ -749,6 +778,10 @@ static Config  config[] =
 	{ "# If on, show extra vector count data on the OSD when presets are shown.\n"
 	  "#",
 	"motion_show_counts",  "off", FALSE, {.value = &pikrellcam.motion_show_counts}, config_value_bool_set },
+
+	{ "# If on, show a warning if the preview mjpeg encoder stalls.\n"
+	  "#",
+	"preview_stall_warning",  "on", FALSE, {.value = &pikrellcam.preview_stall_warning}, config_value_bool_set },
 
 	{ "# Minimum width and height in pixels for the substitution width and height\n"
 	  "# variables for motion detect areas in the preview jpeg.\n"
@@ -1158,7 +1191,7 @@ static Config  config[] =
 	{ "# Annotate text background color.  Set to \"none\" for no background.\n"
 	  "# Otherwise, set to a hex rgb value, eg \"000000\" for black or \"808080\" for gray.\n"
 	  "#",
-	"annotate_text_background_color",    "none", FALSE, {.string = &pikrellcam.annotate_text_background_color },   config_string_set },
+	"annotate_text_background_color",    "808080", FALSE, {.string = &pikrellcam.annotate_text_background_color },   config_string_set },
 
 	{ "# Annotate text brightness. Range: integer from 0 - 255\n"
 	  "# Text cannot be set to a color, only to a brightness..\n"
@@ -1279,7 +1312,7 @@ config_load(char *config_file)
 	if ((f = fopen(config_file, "r")) == NULL)
 		return FALSE;
 
-	pikrellcam.config_sequence_new = 45;
+	pikrellcam.config_sequence_new = 47;
 
 	while (fgets(linebuf, sizeof(linebuf), f))
 		{
@@ -1316,6 +1349,9 @@ config_load(char *config_file)
 	    && pikrellcam.motion_record_time_limit < 10
 	   )
 		pikrellcam.motion_record_time_limit = 10;
+
+	pikrellcam.zoom_percent = 100;
+	pikrellcam.zoom_percent_prev = 100;
 
 	if (pikrellcam.motion_stills_per_minute > 60)
 		pikrellcam.motion_stills_per_minute = 60;

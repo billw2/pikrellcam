@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@
 
 #include "utils.h"
 
-#define	PIKRELLCAM_VERSION	"4.3.1"
+#define	PIKRELLCAM_VERSION	"4.3.2"
 
 
 //TCP Stream Server
@@ -470,6 +470,15 @@ typedef struct
   */
 typedef struct
 	{
+	double	x,
+			y,
+			width,
+			height;
+	}
+	RoiRect;
+
+typedef struct
+	{
 	int		event_gap,
 			pre_capture,
 			post_capture,
@@ -520,7 +529,8 @@ typedef struct
 	int     mag_limit,
 			mag_limit_count,
 	        burst_count,
-	        burst_frames;
+	        burst_frames,
+			zoom_percent;
 	SList	*region_list;  /* string "xf0 yf0 dxf dyf" */
 	}
 	PresetSettings;
@@ -605,7 +615,10 @@ typedef struct
 			motion_magnitude_limit_count,
 			motion_burst_count,
 			motion_burst_frames,
-			motion_record_time_limit;
+			motion_record_time_limit,
+			zoom_percent,
+			zoom_percent_prev,
+			zoom_motion_holdoff;
 
 	time_t	motion_sync_time;
 
@@ -641,10 +654,15 @@ typedef struct
 			motion_show_counts;
 	int		motion_area_min_side;
 
+	boolean	preview_stall_warning;
+
 	CameraConfig
 			camera_config;
 	CameraAdjust
 			camera_adjust;
+
+	int		camera_width_max,
+			camera_height_max;
 
 	char	*video_motion_name_format,
 			*video_manual_name_format,
@@ -686,7 +704,8 @@ typedef struct
 	int		mjpeg_width,
 			mjpeg_height,
 			mjpeg_quality,
-			mjpeg_divider;
+			mjpeg_divider,
+			mjpeg_stall_count;
 
 	char	*still_name_format,
 			*still_last,
@@ -780,6 +799,7 @@ typedef struct
 			*iso,
 			*metering_mode,
 			*video_stabilisation,
+//			*draw_focus_box,
 			*exposure_compensation,
 			*exposure_mode,
 			*white_balance,
@@ -913,6 +933,9 @@ boolean 	mmalcam_config_parameter_set(char *name, char *value, boolean set_camer
 CameraParameter
 			*mmalcam_config_parameter_get(char *name);
 
+
+void			zoom_percent(int percent);
+
 extern boolean	config_load(char *config_file);
 extern void		config_save(char *config_file);
 extern void 	config_set_defaults(char *homedir);
@@ -963,6 +986,7 @@ void	display_command(char *cmd_line);
 void	display_draw(uint8_t *i420);
 void	display_inform(char *args);
 void	display_inform_clear(void);
+void	display_motion_limit_adjustment_sync(PresetSettings *settings);
 
 void	display_quit(void);
 

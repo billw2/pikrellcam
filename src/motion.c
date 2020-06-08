@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -890,8 +890,11 @@ motion_frame_process(VideoCircularBuffer *vcb, MotionFrame *mf)
 	                     || (mf->fifo_trigger_mode & FIFO_TRIG_MODE_ENABLE)
 	                    )
 	                  && !pikrellcam.servo_moving
+					  && pikrellcam.zoom_motion_holdoff == 0
 					  && (pikrellcam.on_preset || pikrellcam.motion_off_preset)
 	                 );
+	if (pikrellcam.zoom_motion_holdoff > 0)
+		--pikrellcam.zoom_motion_holdoff;
 
 	if (   (   (mf->motion_status & MOTION_DETECTED)
 	        && motion_enabled

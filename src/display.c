@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -502,9 +502,10 @@ display_preset_settings(void)
 				JUSTIFY_LEFT, "Setup->Preset->New");
 		}
 
-	snprintf(info1, sizeof(info1), "Mag %d  Cnt %d   Burst %d,%d",
+	snprintf(info1, sizeof(info1), "Mag %d  Cnt %d   Burst %d,%d  Zoom %d%%",
 				(int) sqrt(mf->mag2_limit), mf->mag2_limit_count,
-				pikrellcam.motion_burst_count, pikrellcam.motion_burst_frames);
+				pikrellcam.motion_burst_count, pikrellcam.motion_burst_frames,
+				pikrellcam.zoom_percent);
 	i420_print(&bottom_status_area, normal_font, 0xff,
 				pikrellcam.have_servos ? 1 : 2,
 				-6 * normal_font->char_width, 0,
@@ -608,10 +609,11 @@ motion_draw(uint8_t *i420)
 	MotionRegion    *mreg;
 	CompositeVector *vec;
 	SList           *mrlist;
-	char            *msg, *fifo_msg, info[100], status[100];
+	char            *msg, *stall_msg, *fifo_msg, buf[32], info[200], status[100];
 	int16_t         color;			/* just B&W */
 	int             i, x, y, dx, dy, r, r_unit;
 	int             t_record, t_hold;
+	static int		stall_warning;
 
 	if (!glcd)
 		return;
@@ -629,6 +631,17 @@ motion_draw(uint8_t *i420)
 		}
 
 	fifo_msg = "";
+
+	if (pikrellcam.mjpeg_stall_count > 0)
+		stall_warning = 6;
+	if (stall_warning > 0)
+		{
+		--stall_warning;
+		stall_msg = " Preview stall! See Preview_Stall_Warning in Help";
+		}
+	else
+		stall_msg = "";
+
 	if (!inform_shown && (mf->show_preset || pikrellcam.preset_notify))
 		{
 		for (mrlist = mf->motion_region_list; mrlist; mrlist = mrlist->next)
@@ -714,8 +727,8 @@ motion_draw(uint8_t *i420)
 
 			if (mf->frame_window > 0 && mf->motion_status == MOTION_NONE)
 				{
-				snprintf(status, sizeof(status), "confirming[%d]", mf->frame_window);
-				msg = status;
+				snprintf(buf, sizeof(buf), "confirming[%d]", mf->frame_window);
+				msg = buf;
 				}
 			else if (mf->motion_status & MOTION_DETECTED)
 				{
@@ -732,10 +745,12 @@ motion_draw(uint8_t *i420)
 				msg = "noise";
 			else
 				msg = "quiet";
+
 			if (mf->frame_vector.mag2_count > 0)
-				snprintf(status, sizeof(status), "%s:%-3d", msg, mf->frame_vector.mag2_count);
+				snprintf(status, sizeof(status), "%s:%-3d%s",
+						msg, mf->frame_vector.mag2_count, stall_msg);
 			else
-				snprintf(status, sizeof(status), "%s", msg);
+				snprintf(status, sizeof(status), "%s%s", msg, stall_msg);
 
 			if (pikrellcam.motion_show_counts)
 				{
@@ -756,7 +771,12 @@ motion_draw(uint8_t *i420)
 			}
 		}
 	else
+		{
 		mf->selected_region = -1;
+		if (pikrellcam.preview_stall_warning)
+			i420_print(&bottom_status_area, normal_font, 0xff, 0, 0, 0,
+                    JUSTIFY_LEFT, stall_msg);
+		}
 
 	t_record = vcb->record_elapsed_time;
 
@@ -930,7 +950,8 @@ static SList 	*menu_video_presets_list;
 static int		menu_video_presets_index;
 
 static SList 	*menu_still_presets_list;
-static int		menu_still_presets_index;
+static int		menu_still_presets_index,
+				menu_still_presets_list_size;
 
 static SList 	*menu_picture_list;
 static int		menu_picture_index;
@@ -973,6 +994,7 @@ static char	*video_presets_entry[] =
 	"1640x1232",	// V2 4:3
 	"1640x922",		// V2 16:9
 	"1296x972",		// V1 4:3
+	"1012x760",		// HQ 4:3
 	"1024x768",
 	"1024x576"
 	};
@@ -984,12 +1006,15 @@ static char	*still_presets_entry[] =
 	{
 	"1920x1080",
 	"1280x720",
-	"3280x2464",	// v2
-	"2592x1944",
-	"2592x1458",
-	"1920x1440",
-	"1640x1232",	// V2 4:3
-	"1640x922",		// V2 16:9
+	"4056x3040",	// HQ  4:3
+	"4056x2280",	// HQ 16:9
+	"3280x2464",	// v2  4:3
+	"3280x1545",	// v2 16:9
+	"2592x1944",	// v1  4:3
+	"2592x1458",	// v1 16:9
+	"1920x1440",	// all  4:3
+	"1640x1232",	// all  4:3
+	"1640x922",		// all 16:9
 	"1296x972",
 	"1024x768",
 	"1024x576"
@@ -1040,7 +1065,8 @@ static char	*white_balance_entry[] =
 	"flourescent",
 	"incandescent",
 	"flash",
-	"horizon"
+	"horizon",
+	"greyworld"
 	};
 
 #define N_WHITE_BALANCE_ENTRIES \
@@ -1104,6 +1130,7 @@ static Adjustment	picture_adjustment[] =
 	{ "iso",           0, 800, 100, 0, 0, 0, 0, "", NULL, NULL },
 	{ "exposure_compensation", -25, 25, 1, 0, 0, 0, 0, "", NULL, NULL },
 	{ "video_stabilisation", 0, 1, 1, 0, 0, 0, 0, "", NULL, NULL },
+//	{ "draw_focus_box", 0, 1, 1, 0, 0, 0, 0, "", NULL, NULL },
 	{ "rotation",      0, 270, 90, 0, 0, 0, 0, "", NULL, NULL },
 	{ "hflip",      0, 1, 1, 0, 0, 0, 0, "", NULL, NULL },
 	{ "vflip",      0, 1, 1, 0, 0, 0, 0, "", NULL, NULL },
@@ -1137,11 +1164,15 @@ Adjustment	motion_limit_adjustment[] =
 	{ "Vector_Magnitude",  2, 50, 1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit },
 	{ "Vector_Count",      2, 50, 1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_magnitude_limit_count },
 	{ "Burst_Count",      50, 2000, 10, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_count },
-	{ "Burst_Frames",      2, 20, 1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_frames }
+	{ "Burst_Frames",      2, 20, 1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_burst_frames },
+	{ "Zoom_Percent", 10, 100, 2, 0, 0, 0, 0, "", NULL, &pikrellcam.zoom_percent }
 	};
+
+#define ZOOM_REGION_INDEX	4
 
 #define N_MOTION_LIMIT_ADJUSTMENTS \
 		(sizeof(motion_limit_adjustment) / sizeof(Adjustment))
+
 
 
   /* Some settings djustment changes are made to a temp struct to avoid thrashing
@@ -1161,6 +1192,7 @@ Adjustment	settings_adjustment[] =
 	{ "Vector_Counts",  0,  1,  1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_show_counts },
 	{ "Vector_Dimming", 30, 60, 1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_vectors_dimming },
 	{ "Preview_Clean",  0,  1,  1, 0, 0, 0, 0, "", NULL, &pikrellcam.motion_preview_clean },
+	{ "Preview_Stall_Warning",  0,  1,  1, 0, 0, 0, 0, "", NULL, &pikrellcam.preview_stall_warning },
 	};
 
 
@@ -1225,6 +1257,17 @@ adjustment_is_servo_limits(void)
 	    && adjustments == &servo_settings_adjustment[0]
 	    && *display_menu_index >= PAN_LEFT_LIMIT_INDEX
 	    && *display_menu_index <= TILT_DOWN_LIMIT_INDEX
+	   )
+		return TRUE;
+	return FALSE;
+	}
+
+static boolean
+adjustment_is_zoom(void)
+	{
+	if (   display_state == DISPLAY_ADJUSTMENT
+	    && adjustments == &motion_limit_adjustment[0]
+	    && *display_menu_index == ZOOM_REGION_INDEX
 	   )
 		return TRUE;
 	return FALSE;
@@ -1315,6 +1358,7 @@ apply_adjustment(void)
 			settings->mag_limit_count = pikrellcam.motion_magnitude_limit_count;
 			settings->burst_count = pikrellcam.motion_burst_count;
 			settings->burst_frames = pikrellcam.motion_burst_frames;
+			settings->zoom_percent = pikrellcam.zoom_percent;
 			pikrellcam.preset_modified = TRUE;
 			}
 		else
@@ -1368,7 +1412,9 @@ revert_adjustment(void)
 		else
 			*(cur_adj->config_value) = cur_adj->revert_value;
 		}
-	if (adjustment_is_servo_limits())
+	if (adjustment_is_zoom())
+		zoom_percent(pikrellcam.zoom_percent);
+	else if (adjustment_is_servo_limits())
 		servo_move(pan_save, tilt_save, pikrellcam.servo_move_step_msec);
 	}
 
@@ -1533,7 +1579,9 @@ display_adjustment(uint8_t *i420)
 		else
 			*(cur_adj->config_value) = cur_adj->value;
 
-		if (adjustment_is_servo_pan_limits())
+		if (adjustment_is_zoom())
+			zoom_percent(pikrellcam.zoom_percent);
+		else if (adjustment_is_servo_pan_limits())
 			{
 			preset_pan_range(&max, &min);
 			if (cur_adj->value <= min || cur_adj->value >= max)
@@ -1624,6 +1672,19 @@ display_adjustment(uint8_t *i420)
 	i420_print(da, font, 0xff, 0, adj_x, 0, JUSTIFY_CENTER_AT_X, buf);
 	i420_print(da, font, 0xff, 2, 0, 0, JUSTIFY_CENTER, cur_adj->name);
 	}
+
+void
+display_motion_limit_adjustment_sync(PresetSettings *settings)
+	{
+	if (   display_state != DISPLAY_ADJUSTMENT
+	    || adjustments != &motion_limit_adjustment[0]
+	    || !cur_adj
+	   )
+		return;
+
+	cur_adj_start = TRUE;
+	}
+
 
 static void
 display_draw_menu(uint8_t *i420)
@@ -1904,8 +1965,13 @@ display_command(char *cmd)
 				{
 				if (!strcmp(video_presets_entry[i], "720p"))
 					{
-					width = 1296;
-					height = 730;
+					width = 1280;
+					height = 720;
+					}
+				else if (!strcmp(video_presets_entry[i], "1080p"))
+					{
+					width = 1920;
+					height = 1080;
 					}
 				else
 					sscanf(video_presets_entry[i], "%dx%d", &width, &height);
@@ -1921,15 +1987,19 @@ display_command(char *cmd)
 			display_menu_index = &menu_still_presets_index;
 			display_state = DISPLAY_MENU;
 			display_menu = STILL_PRESET;
-			for (i = N_STILL_PRESET_ENTRIES - 1; i > 0 ; --i)
+			for (i = 0, list = display_menu_list; list; ++i, list = list->next)
 				{
-				sscanf(still_presets_entry[i], "%dx%d", &width, &height);
+				entry = (MenuEntry *) list->data;
+				sscanf(entry->name, "%dx%d", &width, &height);
 				if (   pikrellcam.camera_config.still_width == width
 				    && pikrellcam.camera_config.still_height == height
 				   )
 					break;
 				}
-			menu_still_presets_index = i;
+			if (i < menu_still_presets_list_size)
+				menu_still_presets_index = i;
+			else
+				menu_still_presets_index = 0;
 			break;
 
 		case METERING:
@@ -2145,7 +2215,7 @@ display_init(void)
 	DrawArea	da;
 	MenuEntry	*entry;
 	Adjustment	*adj;
-	int			i, position;
+	int			i, position, width, height;
 
 	if (!glcd)
 		glcd = glcd_i420_init();
@@ -2278,14 +2348,23 @@ display_init(void)
 		}
 	if (!menu_still_presets_list)
 		{
+		menu_still_presets_list_size = 0;
 		for (i = 0, position = 0; i < N_STILL_PRESET_ENTRIES; ++i)
 			{
-			entry = calloc(1, sizeof(MenuEntry));
-			entry->name = still_presets_entry[i];
-			entry->length = strlen(entry->name);
-			entry->line_position = position;
-			position += entry->length + 1;
-			menu_still_presets_list = slist_append(menu_still_presets_list, entry);
+			sscanf(still_presets_entry[i], "%dx%d", &width, &height);
+			if (   pikrellcam.camera_width_max >= width
+			    && pikrellcam.camera_height_max >= height
+			   )
+				{
+				entry = calloc(1, sizeof(MenuEntry));
+				entry->name = still_presets_entry[i];
+				entry->length = strlen(entry->name);
+				entry->line_position = position;
+				position += entry->length + 1;
+				++menu_still_presets_list_size;
+				menu_still_presets_list =
+							slist_append(menu_still_presets_list, entry);
+				}
 			}
 		}
 	if (!menu_picture_list)

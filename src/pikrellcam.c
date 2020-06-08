@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -1139,6 +1139,7 @@ typedef enum
 	servo_cmd,
 	preset_cmd,
 	multicast,
+	zoom,
 	verbose,
 	verbose_log,
 	upgrade,
@@ -1200,6 +1201,7 @@ static Command commands[] =
 	{ "preset", preset_cmd, 1, FALSE },
 	{ "servo", servo_cmd, 1, FALSE },
 	{ "multicast", multicast,    1, TRUE },
+	{ "zoom", zoom,    1, TRUE },
 	{ "verbose", verbose,    1, TRUE },
 	{ "verbose_log", verbose_log,    1, TRUE },
 	{ "upgrade", upgrade,    0, TRUE },
@@ -1215,7 +1217,7 @@ command_process(char *command_line)
 	{
 	VideoCircularBuffer	*vcb = &video_circular_buffer;
 	Command	*cmd;
-	char	command[64], args[256], arg1[128], arg2[64], arg3[256], buf[128];
+	char	command[64], args[256], arg1[128], arg2[64], arg3[256], buf[300];
 	char	*fmt, *path;
 	int		i, n;
 	float	f;
@@ -1655,6 +1657,14 @@ command_process(char *command_line)
 
 		case servo_cmd:
 			servo_command(args);
+			break;
+
+		case zoom:
+			sscanf(args, "%d", &n);
+			if (n >= 10 && n <= 100)
+				zoom_percent(n);
+			else
+				log_printf("Bad percent arg for command: %s\n", command);
 			break;
 
 		case verbose:

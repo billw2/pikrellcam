@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -490,7 +490,7 @@ static boolean
 video_diskfree_percent_delete(char *media_dir, boolean *empty)
 	{
 	struct dirent	**mp4_list = NULL;
-	char			*s, video_dir[256], thumb_dir[256], fname[256];
+	char			*s, video_dir[256], thumb_dir[256], fname[512];
 	int				i, n, low_space;
 	boolean			done = FALSE;
 
@@ -552,7 +552,7 @@ static boolean
 still_diskfree_percent_delete(char *media_dir, char *sub_dir, boolean *empty)
 	{
 	struct dirent	**jpg_list = NULL;
-	char			still_dir[256], fname[256];
+	char			*s, still_dir[256], fname[600], thumb_base[300];
 	int				i, n, low_space;
 	boolean			done = FALSE;
 
@@ -577,6 +577,15 @@ still_diskfree_percent_delete(char *media_dir, char *sub_dir, boolean *empty)
 			snprintf(fname, sizeof(fname), "%s/%s",
 						still_dir, jpg_list[i]->d_name);
 			unlink(fname);
+
+			snprintf(thumb_base, sizeof(thumb_base), "%s", jpg_list[i]->d_name);
+			if ((s = strstr(thumb_base, ".jpg")) != NULL)
+				{
+				*s = '\0';
+				snprintf(fname, sizeof(fname), "%s/.thumbs/%s.th.jpg",
+							still_dir, thumb_base);
+				unlink(fname);
+				}
 			log_printf("Low disk space, deleted: %s\n", fname);
 
 			if (empty && i == n - 1)
@@ -605,7 +614,7 @@ event_archive_diskfree_percent(char *type)
 					**month_list = NULL,
 					**day_list = NULL;;
 	int				y, n_yr, m, n_mon, d, n_day;
-	char			year_dir[256], mon_dir[256], day_dir[256], del_dir[256];
+	char			year_dir[300], mon_dir[600], day_dir[800], del_dir[1000];
 	boolean			done = FALSE, dir_empty;
 
 	if (!diskfree_is_low(pikrellcam.archive_dir))
@@ -645,9 +654,30 @@ event_archive_diskfree_percent(char *type)
 						rmdir(day_dir);
 						if (done && d == n_day - 1)
 							{
+							/* rmdir() here fails if there are stills */
 							rmdir(mon_dir);
 							if (done && m == n_mon - 1)
 								rmdir(year_dir);
+							}
+						}
+					if (!done)
+						{
+						done = still_diskfree_percent_delete(day_dir,
+									PIKRELLCAM_STILL_SUBDIR, &dir_empty);
+						if (dir_empty)
+							{
+							snprintf(del_dir, sizeof(del_dir),
+										"%s/stills/.thumbs", day_dir);
+							rmdir(del_dir);
+							snprintf(del_dir, sizeof(del_dir),
+										"%s/stills", day_dir);
+							rmdir(del_dir);
+							if (done && d == n_day - 1)
+								{
+								rmdir(mon_dir);
+								if (done && m == n_mon - 1)
+									rmdir(year_dir);
+								}
 							}
 						}
 					}
@@ -676,7 +706,7 @@ event_loop_diskusage_percent(void)
 	int				i, n, used_percent;
 	boolean			diskfree_low;
 	char			*loop_dir = pikrellcam.loop_dir;
-	char			fname[256], *s;
+	char			fname[500], *s;
 	uint64_t		used_blocks = 0, fs_blocks;
 
 	if (   !loop_dir

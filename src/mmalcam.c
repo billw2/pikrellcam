@@ -1,6 +1,6 @@
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -34,11 +34,13 @@ extern char*	mjpeg_server_queue_get(void);
 extern void	mjpeg_server_queue_put(char *data, int len);
 
 static boolean      motion_frame_event;
-static int          mjpeg_do_preview_save;
 
-static pthread_mutex_t mjpeg_encoder_count_lock;
-static unsigned int	   mjpeg_encoder_send_count,
-                       mjpeg_encoder_recv_count;
+#define	N_MJPEG_ENCODER_INPUT_BUFFERS	3
+
+static pthread_mutex_t	mjpeg_encoder_frame_count_lock;
+static unsigned int		mjpeg_encoder_send_frame,
+						mjpeg_encoder_recv_frame,
+						mjpeg_preview_save_frame;
 
 static pthread_t	video_write_thread_ref;
 static int			thread_ret = 1;
@@ -223,14 +225,14 @@ preview_save(void)
 void
 mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	{
-	CameraObject           *data = (CameraObject *) port->userdata;
-	static struct timeval  timer;
-	int                    n, utime;
-	static FILE            *file	= NULL;
-	static char            *fname_part;
-	boolean                do_preview_save = FALSE;
-	static char	           *tcp_buf;
-	static int	           tcp_buf_offset;
+	CameraObject			*data = (CameraObject *) port->userdata;
+	static struct timeval	timer;
+	int						n, utime;
+	boolean					do_preview_save;
+	static FILE				*file	= NULL;
+	static char				*fname_part;
+	static char				*tcp_buf;
+	static int				tcp_buf_offset;
 
 
 	if (!fname_part)
@@ -264,23 +266,22 @@ mjpeg_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 			tcp_buf_offset = 0;
 			}
 
+		pthread_mutex_lock(&mjpeg_encoder_frame_count_lock);
+		++mjpeg_encoder_recv_frame;
+		if (mjpeg_encoder_recv_frame > mjpeg_encoder_send_frame)
+			mjpeg_encoder_recv_frame = mjpeg_encoder_send_frame; /* should not happen */
+		do_preview_save = (mjpeg_preview_save_frame > 0
+			    && mjpeg_encoder_recv_frame >= mjpeg_preview_save_frame);
+		if (do_preview_save)
+			mjpeg_preview_save_frame = 0; 
+		pthread_mutex_unlock(&mjpeg_encoder_frame_count_lock);
+
 		if (pikrellcam.debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
 			printf("%s fps %d\n", data->name, 1000000 / utime);
 		if (file)
 			{
 			fclose(file);
 			file = NULL;
-
-			pthread_mutex_lock(&mjpeg_encoder_count_lock);
-			++mjpeg_encoder_recv_count;
-			if (mjpeg_do_preview_save == 1)
-				{
-				mjpeg_do_preview_save = 0;
-				do_preview_save = TRUE;
-				}
-			else if (mjpeg_do_preview_save > 1)
-				--mjpeg_do_preview_save;
-			pthread_mutex_unlock(&mjpeg_encoder_count_lock);
 
 			rename(fname_part, pikrellcam.mjpeg_filename);
 
@@ -383,76 +384,66 @@ I420_video_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 	MMAL_BUFFER_HEADER_T  *buffer_in;
 	static struct timeval timer;
 	int                   utime;
-	static int            encoder_busy_count;
 
-	if (   buffer->length > 0
-	    && motion_frame_event
-	   )
+	if (buffer->length > 0 && motion_frame_event)
 		{
 		motion_frame_event = FALSE;
 
-		/* Do not send buffer to encoder if it has not received the previous
-		|  one we sent unless this is the frame we want for a preview save.
-		|  In that case, we may be sending a buffer to preview save before
-		|  the previous buffer is handled.  This is accounted for below.
-		*/
-		if (   mjpeg_encoder_send_count == mjpeg_encoder_recv_count
-		    || pikrellcam.do_preview_save
-		   )
+		if (obj->callback_port_in && obj->callback_pool_in)
 			{
-			if (obj->callback_port_in && obj->callback_pool_in)
+			buffer_in = mmal_queue_get(obj->callback_pool_in->queue);
+			if (   buffer_in
+			    && obj->callback_port_in->buffer_size >= buffer->length
+			   )
 				{
-				buffer_in = mmal_queue_get(obj->callback_pool_in->queue);
-				if (   buffer_in
-				    && obj->callback_port_in->buffer_size >= buffer->length
-				   )
-					{
-					mmal_buffer_header_mem_lock(buffer);
-					memcpy(buffer_in->data, buffer->data, buffer->length);
-					buffer_in->length = buffer->length;
-					mmal_buffer_header_mem_unlock(buffer);
-					display_draw(buffer_in->data);
+				mmal_buffer_header_mem_lock(buffer);
+				memcpy(buffer_in->data, buffer->data, buffer->length);
+				buffer_in->length = buffer->length;
+				mmal_buffer_header_mem_unlock(buffer);
+				display_draw(buffer_in->data);
 
-					if (pikrellcam.do_preview_save)
-						{
-						/* If mjpeg encoder has not received previous buffer,
-						|  then the buffer to save will be the second buffer
-						|  it gets from now. Otherwise it's the next buffer.
-						*/
-						pthread_mutex_lock(&mjpeg_encoder_count_lock);
-						if (mjpeg_encoder_send_count == mjpeg_encoder_recv_count)
-							mjpeg_do_preview_save = 1;
-						else
-							mjpeg_do_preview_save = 2;
-						pthread_mutex_unlock(&mjpeg_encoder_count_lock);
-						if (mjpeg_do_preview_save == 2 && pikrellcam.debug)
-							printf("%s: encoder not clear -> preview save delayed\n",
-								fname_base(pikrellcam.video_pathname));
-						}
-					pikrellcam.do_preview_save = FALSE;
-					++mjpeg_encoder_send_count;
-					mmal_port_send_buffer(obj->callback_port_in, buffer_in);
+				mmal_port_send_buffer(obj->callback_port_in, buffer_in);
+
+				pthread_mutex_lock(&mjpeg_encoder_frame_count_lock);
+				++mjpeg_encoder_send_frame;
+				if (pikrellcam.do_preview_save)
+					mjpeg_preview_save_frame = mjpeg_encoder_send_frame;
+				pthread_mutex_unlock(&mjpeg_encoder_frame_count_lock);
+
+				pikrellcam.do_preview_save = FALSE;
+				if (pikrellcam.mjpeg_stall_count > 0)
+					--pikrellcam.mjpeg_stall_count;
+				if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
+					{
+					if (pikrellcam.debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
+						printf("%s fps %d\n", obj->name, 1000000 / utime);
 					}
 				}
-			}
-		else
-			{
-			++encoder_busy_count;
-			if (pikrellcam.debug)
-				printf("encoder not clear (%d) -> skipping mjpeg frame.\n",
-					   encoder_busy_count);
-			if (encoder_busy_count > 2)	/* Frame maybe dropped ??, move on */
+			else	/* buffer_in NULL means all encoder input buffers are
+					|  still in use, so mjpeg encoder is stalled.
+					*/
 				{
+				++pikrellcam.mjpeg_stall_count;
+				if (pikrellcam.do_preview_save)
+					log_printf("%s: encoder is stalled -> preview save delayed\n",
+							fname_base(pikrellcam.video_pathname));
+
+				pthread_mutex_lock(&mjpeg_encoder_frame_count_lock);
+				if (mjpeg_encoder_send_frame
+					> mjpeg_encoder_recv_frame + N_MJPEG_ENCODER_INPUT_BUFFERS)
+					{
+					/* Means a mjpeg conversion got lost in the encoder.
+					|  Probably should not happen.
+					*/
+					mjpeg_encoder_recv_frame = mjpeg_encoder_send_frame
+								- N_MJPEG_ENCODER_INPUT_BUFFERS;
+					}
+				pthread_mutex_unlock(&mjpeg_encoder_frame_count_lock);
+
 				if (pikrellcam.debug)
-					printf("  Syncing recv/send counts.\n");
-				encoder_busy_count = 0;
-				mjpeg_encoder_recv_count = mjpeg_encoder_send_count;
+					printf("mjpeg encoder stalled (%d) -> skipping preview frame.\n",
+						   pikrellcam.mjpeg_stall_count);
 				}
-			}
-		if (buffer->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END)
-			{
-			if (pikrellcam.debug_fps && (utime = micro_elapsed_time(&timer)) > 0)
-				printf("%s fps %d\n", obj->name, 1000000 / utime);
 			}
 		}
 	return_buffer_to_port(port, buffer);
@@ -1127,11 +1118,11 @@ splitter_create(char *name, CameraObject *splitter, MMAL_PORT_T *src_port)
 boolean
 camera_create(void)
 	{
-	MMAL_PORT_T		*port;
-	MMAL_STATUS_T	status;
-	char			*msg   = "mmal_component_create";
+	MMAL_PORT_T			*port;
+	MMAL_STATUS_T		status;
+	MMAL_COMPONENT_T	*camera_info;
+	char				*msg   = "mmal_component_create";
 
-	camera.name = "RPi camera";
 	if ((status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA,
 					&camera.component)) == MMAL_SUCCESS)
 		{
@@ -1148,6 +1139,32 @@ camera_create(void)
 			mmal_component_destroy(camera.component);
 		return FALSE;
 		}
+
+	camera.name = strdup("ov5647");		// default to V1
+	pikrellcam.camera_width_max  = 2592;
+	pikrellcam.camera_height_max = 1944;
+
+	if ((status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA_INFO,
+					&camera_info)) == MMAL_SUCCESS)
+		{
+		MMAL_PARAMETER_CAMERA_INFO_T	param;
+
+		param.hdr.id = MMAL_PARAMETER_CAMERA_INFO;
+		param.hdr.size = sizeof(param);
+		status = mmal_port_parameter_get(camera_info->control, &param.hdr);
+		if (status == MMAL_SUCCESS)
+			{
+			free(camera.name);
+			camera.name = strdup(param.cameras[0].camera_name);
+			pikrellcam.camera_width_max = (int) param.cameras[0].max_width;
+			pikrellcam.camera_height_max = (int) param.cameras[0].max_height;
+			}
+		mmal_component_destroy(camera_info);
+		}
+	log_printf("camera info: %s  max width: %d  max height: %d\n",
+				camera.name,
+				pikrellcam.camera_width_max, pikrellcam.camera_height_max);
+
 	video_circular_buffer.h264_header_position = 0;
 
 	MMAL_PARAMETER_CAMERA_CONFIG_T camera_config =
@@ -1244,6 +1261,8 @@ jpeg_encoder_create(char *name, CameraObject *encoder,
 			*/
 			mmal_format_copy(in_port->format, src_port->format);
 			in_port->buffer_size = src_port->buffer_size;
+			if (!strcmp(name, "mjpeg_encoder"))
+				in_port->buffer_num = N_MJPEG_ENCODER_INPUT_BUFFERS;
 			msg = "mmal_port_format_commit(in_port)";
 			status = mmal_port_format_commit(in_port);
 			}

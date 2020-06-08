@@ -1,7 +1,7 @@
 
 /* PiKrellCam
 |
-|  Copyright (C) 2015-2019 Bill Wilson    billw@gkrellm.net
+|  Copyright (C) 2015-2020 Bill Wilson    billw@gkrellm.net
 |
 |  PiKrellCam is free software: you can redistribute it and/or modify it
 |  under the terms of the GNU General Public License as published by
@@ -258,6 +258,9 @@ preset_load_values(boolean do_pan)
 		pikrellcam.motion_magnitude_limit_count = settings->mag_limit_count;
 		pikrellcam.motion_burst_count = settings->burst_count;
 		pikrellcam.motion_burst_frames = settings->burst_frames;
+		pikrellcam.zoom_percent = settings->zoom_percent;
+		zoom_percent(pikrellcam.zoom_percent);
+		display_motion_limit_adjustment_sync(settings);
 		}
 	save_show = mf->show_preset;
 	motion_command("delete_regions all");
@@ -311,6 +314,7 @@ preset_settings_set_modified(void)
 			settings->mag_limit_count = pikrellcam.motion_magnitude_limit_count;
 			settings->burst_count  = pikrellcam.motion_burst_count;
 			settings->burst_frames = pikrellcam.motion_burst_frames;
+			settings->zoom_percent = pikrellcam.zoom_percent;
 			pikrellcam.preset_modified = TRUE;
 			}
 		}
@@ -387,6 +391,7 @@ preset_new(PresetPosition *pos_src)
 			settings->mag_limit_count = settings_src->mag_limit_count;
 			settings->burst_count = settings_src->burst_count;
 			settings->burst_frames = settings_src->burst_frames;
+			settings->zoom_percent = settings_src->zoom_percent;
 			for (rlist = settings_src->region_list; rlist; rlist = rlist->next)
 				{
 				region = strdup((char *) rlist->data);
@@ -408,6 +413,7 @@ preset_new(PresetPosition *pos_src)
 		settings->mag_limit_count = pikrellcam.motion_magnitude_limit_count;
 		settings->burst_count = pikrellcam.motion_burst_count;
 		settings->burst_frames = pikrellcam.motion_burst_frames;
+		settings->zoom_percent = pikrellcam.zoom_percent;
 		preset_settings_regions_set(settings);
 		preset_notify(18);
 		}
@@ -539,7 +545,10 @@ preset_command(char *cmd_line)
 						preset_notify(18);
 						}
 					else
+						{
 						preset_notify(10);
+						zoom_percent(pikrellcam.zoom_percent);
+						}
 					}
 				else
 					preset_load_values(TRUE);
@@ -560,7 +569,10 @@ preset_command(char *cmd_line)
 						preset_notify(18);
 						}
 					else
+						{
 						preset_notify(10);
+						zoom_percent(pikrellcam.zoom_percent);
+						}
 					}
 				else
 					preset_load_values(TRUE);
@@ -742,6 +754,7 @@ preset_config_load(void)
 			settings = calloc(1, sizeof(PresetSettings));
 			pos->settings_list = slist_append(pos->settings_list, settings);
 			pos->n_settings += 1;
+			settings->zoom_percent = 100;
 			continue;
 			}
 		if (!settings)
@@ -760,6 +773,8 @@ preset_config_load(void)
 			sscanf(buf + 12, "%d", &settings->burst_count);
 		else if (!strncmp(buf, "burst_frames", 12))
 			sscanf(buf + 13, "%d", &settings->burst_frames);
+		else if (!strncmp(buf, "zoom_percent", 12))
+			sscanf(buf + 13, "%d", &settings->zoom_percent);
 		else if (!strncmp(buf, "add_region", 10))
 			{
 			region = strdup(buf);	/* string "add_region xf0 yf0 dxf dyf" */
@@ -797,6 +812,7 @@ preset_config_save(void)
 			fprintf(f, "magnitude_count %d\n", settings->mag_limit_count);
 			fprintf(f, "burst_count %d\n", settings->burst_count);
 			fprintf(f, "burst_frames %d\n", settings->burst_frames);
+			fprintf(f, "zoom_percent %d\n", settings->zoom_percent);
 			for (rlist = settings->region_list; rlist; rlist = rlist->next)
 				{
 				region = (char *) rlist->data;	/* string "add_region xf0 yf0 dxf dyf" */

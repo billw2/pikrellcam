@@ -70,6 +70,14 @@ And there is a Raspberry Pi
 <span style='font-size: 1.5em; font-weight: 650;'>Recent Release Notes</span><hr>
 <div class='indent0'>
 
+Version 4.3.2
+<div class='indent1'>
+Detect camera to determine resolution options shown in GUI and added
+resolutions for HQ camera.<br>
+Setup->Preset->Settings-><a href="help.php#ZOOM_PERCENT">Zoom_Percent.</a><br>
+Setup->Config->Settings-><a href="help.php#STALL_WARNING">Preview_Stall_Warning.</a>
+</div>
+<br>
 Version 4.3.1 - video_mp4box_fps can be fractional. For audio/video drift
 tuning.
 <br>
@@ -828,6 +836,19 @@ Preset group and there will be no Servo button in the Config group.
 			field of view.  Set the value higher to decrease detection of large objects passing
 			quickly through the field of view. 
 			</li>
+<a name="ZOOM_PERCENT">
+			<p>
+			<li><span style='font-weight:700'>Zoom_Percent</span> -
+			is the percent width and height of the camera sensor used for
+			imaging.  Set the percent lower to digitally zoom in for videos
+			and stills.  Moderate zooming can tune the camera field of view
+			at the expense of some resolution as fewer pixels may be used to
+			convert to stills or videos.
+			While viewing the web page preview, a larger zoom (lower percent
+			value) magnifies the pixels and is useful for camera focusing.<br>
+			If a zoom value is selected, it is saved as part of the current
+			preset along with the motion limit and motion region settings.
+			</li>
 			</ul>
 		</li>
 		<p>
@@ -1063,6 +1084,27 @@ Preset group and there will be no Servo button in the Config group.
 			also appear on the saved preview or thumb.  This might help with some debugging, but
 			is normally not desirable, so the option should be set
 			<span style='font-weight:700'>ON</span>.
+			</li>
+<a name="STALL_WARNING">
+			<p>
+			<li><span style='font-weight:700'>Preview_Stall_Warning</span>
+			- default is
+			<span style='font-weight:700'>ON</span>.
+			Enable showing a warning on the web preview if the preview jpeg
+			encoder stalls when hitting GPU performance limits which cause
+			preview frames to be lost.
+			The solution is to lower video_fps until the stalls stop or at
+			least become infrequent.
+			This strangely seems more an issue (at least with current
+			firmware) with the HQ camera on the Pi 4.  With an HQ camera
+			on a Pi 4 I needed to lower video_fps to 20 to avoid stalls,
+			but on a P2 the HQ camera ran without stalls at video_fps 24.
+			I've not seen this issue with V1 or V2 cameras.<br>
+			If this option is
+			<span style='font-weight:700'>OFF</span>,
+			the warning is still enabled when showing preset information
+			with the
+			<span style='font-weight:700'>Show: Preset</span> button.
 			</li>
 			</ul>
 		</li>
@@ -1992,6 +2034,8 @@ preset next_position
 preset prev_settings
 preset next_settings
 preset goto position settings
+
+zoom percent  - percent is 10-100
 
 display [command] - commands sent by the web page to display OSD menus. Not intended for
 	script or command line use.
