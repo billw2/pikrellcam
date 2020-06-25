@@ -14,7 +14,6 @@
 # With this script only one alarm is sent per motion detect video.
 # See example-motion-send-alarm2 for a different approach.
 
-import sys
 import socket
 import time
 
@@ -40,6 +39,6 @@ send_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 msg_id = 1
 for x in range(0, repeat):
     msg = "%s:%d %s message alarm" % (from_host, msg_id, to_hosts)
-#    print msg
-    send_socket.sendto(msg, (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
+#    print(msg)
+    send_socket.sendto(msg.encode(), (PKC_MULTICAST_GROUP, PKC_MULTICAST_PORT))
     time.sleep(delay)

@@ -62,9 +62,9 @@ def host_match(from_host, to_hosts):
 
 
 while True:
-	line = sock.recv(256)
+	line = sock.recv(256).decode()
 	tnow = time.time()
-#	print line
+#	print(line)
 
 	from_host, to_hosts, msg_type, msg_body = line.split(' ', 3)
 	if (msg_type != 'message' or msg_body != 'alarm'):
@@ -84,7 +84,7 @@ while True:
 		continue
 
 	if (id != idprev or tnow - tplay >= holdoff):
-		print audio_command
+		print(audio_command)
 		os.system(audio_command)
 		tplay = tnow
 

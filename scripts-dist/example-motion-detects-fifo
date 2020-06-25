@@ -18,11 +18,17 @@
 import os
 import sys
 import signal
-import fcntl
-import atexit
 import select
-import StringIO
 import time
+
+try:
+	from StringIO import StringIO
+except ImportError:
+	# Python 3
+	from io import StringIO as _StringIO
+	def StringIO(initial_value=b''):
+		"""Take bytes as input but return a unicode IO object"""
+		return _StringIO(initial_value.decode())
 
 
 # Turn on pikrellcam motion detects writing to the motion_detects_FIFO
@@ -34,7 +40,7 @@ os.system('echo "motion_detects_fifo_enable on" > /home/pi/pikrellcam/www/FIFO')
 # read from the motion_detects_FIFO and exit.
 #
 def signal_handler(signum, frame):
-    print '  Turning off motion_detects_fifo_enable'
+	print('  Turning off motion_detects_fifo_enable')
 	os.system('echo "motion_detects_fifo_enable off" > /home/pi/pikrellcam/www/FIFO')
 	sys.exit(0)
 
@@ -62,39 +68,38 @@ while True:
 	#   region vectors.  If you care only about overall frame motion, look
 	#   for 'f' frame vectors.
 	#
-	lines = StringIO.StringIO(data)
+	lines = StringIO(data)
 	for line in lines.readlines():
 		line = line.strip('\n')
-		print "FIFO read: " + line
+		print("FIFO read: " + line)
 
 		# If some program sends a "motion_detects_fifo_enable off" to the
 		# command FIFO, an <off> tag will be written to the motion_detects_FIFO.
 		#
 		if (line.find('<off>') == 0):
-			print "    detected motion_detects_fifo_enable off - exiting."
+			print("    detected motion_detects_fifo_enable off - exiting.")
 			sys.exit(1)
 		elif (line.find('<motion') == 0):
 			state = 'motion'
 			# <motion t >  where t is system time with .1 second precision
 			m, t, b = line.split()
-			print "    motion detected - system time " + t + " => " + time.asctime( time.localtime( int(float(t)) ) )
+			print("    motion detected - system time " + t + " => " + time.asctime( time.localtime( int(float(t)) ) ))
 		elif (line.find('</motion>') == 0):
-			print ""
+			print("")
 			state = 'wait'
 		elif (state == 'motion'):
 			if (line[0] == "f"):
 				r, x, y, dx, dy, mag, count = line.split()
-				print "    motion vector - frame:" + " mag=" + mag + " count=" + count
+				print("    motion vector - frame:" + " mag=" + mag + " count=" + count)
 			elif (line[0].isdigit()):
 				r, x, y, dx, dy, mag, count = line.split()
-				print "    motion vector - region " + line[0] + ": mag=" + mag + " count=" + count
+				print("    motion vector - region " + line[0] + ": mag=" + mag + " count=" + count)
 			elif (line[0] == "b"):
 				b, count = line.split()
-				print "    burst detect - count=" + count
+				print("    burst detect - count=" + count)
 			elif (line[0] == "e"):
 				e, code = line.split()
-				print "    external trigger - code: " + code
+				print("    external trigger - code: " + code)
 			elif (line[0] == "a"):
 				a, level = line.split()
-				print "    audio trigger - level=" + level
-
+				print("    audio trigger - level=" + level)
