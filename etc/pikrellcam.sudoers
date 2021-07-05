@@ -1,4 +1,6 @@
-# If started from the web page, real user needs to be pi.
-# so give www-data permission to run sudo -u pi pikrellcam
+# If started from the web page, real user needs to be the $user.
+# so give nginx user permission to run sudo -u $user pikrellcam
+# Additionally the next permission is required for the systemd service if running on arch
 
-www-data ALL=(USER) NOPASSWD: pikrellcam
+NGINX_USER ALL=(USER) NOPASSWD: pikrellcam
+#USER ALL=(ALL:ALL) NOPASSWD: ALL

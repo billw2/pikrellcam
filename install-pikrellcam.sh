@@ -25,13 +25,23 @@ then
 	bad_install "directory www"
 fi
 
-sudo chown .www-data $PWD/www
+if [ -f "/etc/arch-release" ]; then
+	DISTRO="ARCH"
+	WWW_USER=http
+	WWW_GROUP=http
+else
+	DISTRO="DEBIAN"
+	WWW_USER=www-data
+	WWW_GROUP=www-data
+fi
+
+sudo chown .$WWW_GROUP $PWD/www
 sudo chmod 775 $PWD/www
 
 if [ ! -d media ]
 then
 	mkdir media media/archive media/videos media/thumbs media/stills
-	sudo chown .www-data media media/archive media/videos media/thumbs media/stills
+	sudo chown .$WWW_GROUP media media/archive media/videos media/thumbs media/stills
 	sudo chmod 775 media media/archive media/videos media/thumbs media/stills
 fi
 
@@ -61,7 +71,7 @@ else
 fi
 
 echo ""
-echo "For auto starting at boot, a PiKrellCam start command must be in rc.local."
+echo "For auto starting at boot, a PiKrellCam start command must be in rc.local or systemd service."
 echo "If you don't start at boot, PiKrellCam can always be started and stopped"
 echo "from the web page."
 echo -n "Do you want PiKrellCam to be auto started at boot? (yes/no): "
@@ -110,68 +120,110 @@ echo "Starting PiKrellCam install..."
 
 # =============== apt install needed packages ===============
 #
-JESSIE=8
-STRETCH=9
-BUSTER=10
 
-V=`cat /etc/debian_version`
-#DEB_VERSION="${V:0:1}"
-# Strip all chars after decimal point
-DEB_VERSION="${V%.*}"
-
-PACKAGE_LIST=""
-
-if ((DEB_VERSION >= BUSTER))
+if [ "$DISTRO" == "DEBIAN" ]
 then
+
+	JESSIE=8
+	STRETCH=9
+	BUSTER=10
+
+
+	V=`cat /etc/debian_version`
+	#DEB_VERSION="${V:0:1}"
+	# Strip all chars after decimal point
+	DEB_VERSION="${V%.*}"
+
+	PACKAGE_LIST=""
+
+
+	if ((DEB_VERSION >= BUSTER))
+	then
+		AV_PACKAGES="ffmpeg"
+		PHP_PACKAGES="php7.3 php7.3-common php7.3-fpm"
+	elif ((DEB_VERSION >= STRETCH))
+	then
+		AV_PACKAGES="libav-tools"
+		PHP_PACKAGES="php7.0 php7.0-common php7.0-fpm"
+	else
+		AV_PACKAGES="libav-tools"
+		PHP_PACKAGES="php5 php5-common php5-fpm"
+	fi
+
+	for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
+	do
+		if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
+		then
+			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+		fi
+	done
+
+	for PACKAGE in gpac nginx bc \
+		sshpass mpack imagemagick libasound2 libasound2-dev \
+		libmp3lame0 libmp3lame-dev openssl
+	do
+		if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
+		then
+			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+		fi
+	done
+
+	if [ "$PACKAGE_LIST" != "" ]
+	then
+		echo "Installing packages: $PACKAGE_LIST"
+		echo "Running: apt-get update"
+		sudo apt-get update
+		sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
+	else
+		echo "No packages need to be installed."
+	fi
+
+
+	if ((DEB_VERSION < JESSIE))
+	then
+		if ! dpkg -s realpath 2>/dev/null | grep Status | grep -q installed
+		then
+			echo "Installing package: realpath"
+			sudo apt-get install -y --no-install-recommends realpath
+		fi
+	fi
+	
+elif [ "$DISTRO" == "ARCH" ]
+then
+	PACKAGE_LIST=""
 	AV_PACKAGES="ffmpeg"
-	PHP_PACKAGES="php7.3 php7.3-common php7.3-fpm"
-elif ((DEB_VERSION >= STRETCH))
-then
-	AV_PACKAGES="libav-tools"
-	PHP_PACKAGES="php7.0 php7.0-common php7.0-fpm"
-else
-	AV_PACKAGES="libav-tools"
-	PHP_PACKAGES="php5 php5-common php5-fpm"
-fi
-
-for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
-do
-	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
+	PHP_PACKAGES="php php-fpm"
+	
+	for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
+	do
+		if ! pacman -Q 2>/dev/null | grep -q $PACKAGE
+		then
+			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+		fi
+	done
+	
+	for PACKAGE in sudo gpac nginx-mainline bc lame \
+		sshpass libmpack imagemagick alsa-lib openssl
+	do
+		if ! pacman -Q 2>/dev/null | grep -q $PACKAGE
+		then
+			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+		fi
+	done
+	
+	if [ "$PACKAGE_LIST" != "" ]
 	then
-		PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
+		echo "Installing packages: $PACKAGE_LIST"
+		echo "Running: pacman"
+		sudo pacman -Sy --noconfirm
+		sudo pacman -S pacman --needed --noconfirm
+		sudo pacman-db-upgrade
+		sudo pacman -S --noconfirm --needed $PACKAGE_LIST
+	else
+		echo "No packages need to be installed."
 	fi
-done
 
-for PACKAGE in gpac nginx bc \
-	sshpass mpack imagemagick apache2-utils libasound2 libasound2-dev \
-	libmp3lame0 libmp3lame-dev
-do
-	if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
-	then
-		PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
-	fi
-done
-
-if [ "$PACKAGE_LIST" != "" ]
-then
-	echo "Installing packages: $PACKAGE_LIST"
-	echo "Running: apt-get update"
-	sudo apt-get update
-	sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
-else
-	echo "No packages need to be installed."
 fi
-
-
-if ((DEB_VERSION < JESSIE))
-then
-	if ! dpkg -s realpath 2>/dev/null | grep Status | grep -q installed
-	then
-		echo "Installing package: realpath"
-		sudo apt-get install -y --no-install-recommends realpath
-	fi
-fi
-
 
 if [ ! -h /usr/local/bin/pikrellcam ]
 then
@@ -203,6 +255,11 @@ else
 " > www/user.php
 fi
 
+if [ "$DISTRO" == "ARCH" ]
+then
+	setfacl -m u:http:rwx $HOME
+fi
+
 # =============== set install_dir in pikrellcam.conf ===============
 #
 PIKRELLCAM_CONF=$HOME/.pikrellcam/pikrellcam.conf
@@ -219,47 +276,72 @@ then
 	sed -i  "/install_dir/c\install_dir $PWD" $PIKRELLCAM_CONF
 fi
 
+sed -i  "s/NGINX_GROUP/$WWW_GROUP/" $PIKRELLCAM_CONF
 
 # =============== pikrellcam autostart to rc.local  ===============
 #
 #CMD="su $USER -c '(sleep 5; \/home\/pi\/pikrellcam\/pikrellcam)  \&'"
 CMD="su $USER -c '(sleep 5; $PWD/pikrellcam) \&'"
 
-if [ "$AUTOSTART" == "yes" ]
+if [ "$DISTRO" == "DEBIAN" ]
 then
-    if ! fgrep -q "$CMD" /etc/rc.local
-    then
+	if [ "$AUTOSTART" == "yes" ]
+	then
+	    if ! fgrep -q "$CMD" /etc/rc.local
+	    then
+			if grep -q pikrellcam /etc/rc.local
+			then
+				sudo sed -i "/pikrellcam/d" /etc/rc.local
+			fi
+			echo "Adding a pikrellcam autostart command to /etc/rc.local:"
+		sudo sed -i "s|^exit.*|$CMD\n&|" /etc/rc.local
+			if ! [ -x /etc/rc.local ]
+			then
+				echo "Added execute permission to /etc/rc.local"
+				sudo chmod a+x /etc/rc.local
+			fi
+			grep pikrellcam /etc/rc.local
+	    fi
+	else
 		if grep -q pikrellcam /etc/rc.local
 		then
+			echo "Removing pikrellcam autostart line from /etc/rc.local."
 			sudo sed -i "/pikrellcam/d" /etc/rc.local
 		fi
-		echo "Adding a pikrellcam autostart command to /etc/rc.local:"
-        sudo sed -i "s|^exit.*|$CMD\n&|" /etc/rc.local
-		if ! [ -x /etc/rc.local ]
-		then
-			echo "Added execute permission to /etc/rc.local"
-			sudo chmod a+x /etc/rc.local
-		fi
-		grep pikrellcam /etc/rc.local
-    fi
-else
-	if grep -q pikrellcam /etc/rc.local
+	fi
+elif [ "$DISTRO" == "ARCH" ]
+then
+	if [ ! -f /etc/systemd/user/pikrellcam.service ]
 	then
-		echo "Removing pikrellcam autostart line from /etc/rc.local."
-		sudo sed -i "/pikrellcam/d" /etc/rc.local
+		cp etc/pikrellcam.service /tmp/pikrellcam.service.tmp
+		sed -i "s/USER/$USER/" /tmp/pikrellcam.service.tmp
+		sed -i "s|PWD|$PWD|" /tmp/pikrellcam.service.tmp
+		sudo cp /tmp/pikrellcam.service.tmp /etc/systemd/system/pikrellcam.service
+	fi
+		
+	if [ "$AUTOSTART" == "yes" ]
+	then
+		sudo systemctl enable pikrellcam
+	else
+		sudo systemctl disable pikrellcam
 	fi
 fi
 
 
-# ===== sudoers permission for www-data to run pikrellcam as pi ======
+# ===== sudoers permission for $WWW_USER to run pikrellcam as pi ======
 #
 CMD=$PWD/pikrellcam
 if ! grep -q "$CMD" /etc/sudoers.d/pikrellcam 2>/dev/null
 then
-	echo "Adding to /etc/sudoers.d: www-data permission to run pikrellcam as user pi:"
+	echo "Adding to /etc/sudoers.d: $WWW_USER permission to run pikrellcam as user pi:"
 	cp etc/pikrellcam.sudoers /tmp/pikrellcam.sudoers.tmp
-	sed -i "s|pikrellcam|$CMD|" /tmp/pikrellcam.sudoers.tmp
-	sed -i "s/USER/$USER/" /tmp/pikrellcam.sudoers.tmp
+	sed -i "s|pikrellcam|$CMD|g" /tmp/pikrellcam.sudoers.tmp
+	sed -i "s/NGINX_USER/$WWW_USER/g" /tmp/pikrellcam.sudoers.tmp
+	if [ "$DISTRO" == "ARCH" ]
+	then
+		sed -i "s/#USER/$USER/g" /tmp/pikrellcam.sudoers.tmp
+	fi
+	sed -i "s/USER/$USER/g" /tmp/pikrellcam.sudoers.tmp
 	sudo chown root.root /tmp/pikrellcam.sudoers.tmp
 	sudo chmod 440 /tmp/pikrellcam.sudoers.tmp
 	sudo mv /tmp/pikrellcam.sudoers.tmp /etc/sudoers.d/pikrellcam
@@ -282,8 +364,8 @@ fi
 
 if [ "$PASSWORD" != "" ]
 then
-	htpasswd -bc $HTPASSWD $USER $PASSWORD
-	sudo chown $USER.www-data $HTPASSWD
+	printf "$USER:$(openssl passwd -6 $PASSWORD)\n" > $HTPASSWD
+	sudo chown $USER.$WWW_GROUP $HTPASSWD
 fi
 
 
@@ -298,11 +380,25 @@ then
 	sudo sed -i  '/access_log/c\	access_log off;' /etc/nginx/nginx.conf
 fi
 
-if ((DEB_VERSION < JESSIE))
+if [ "$DISTRO" == "DEBIAN" ]
 then
-	NGINX_SITE=etc/nginx-wheezy-site-default
-else
-	NGINX_SITE=etc/nginx-jessie-site-default
+	if ((DEB_VERSION < JESSIE))
+	then
+		NGINX_SITE=etc/nginx-wheezy-site-default
+	else
+		NGINX_SITE=etc/nginx-jessie-site-default
+	fi
+elif [ "$DISTRO" == "ARCH" ]
+then
+	if [ ! -d "/etc/nginx/sites-enabled" ]; then
+		sudo mkdir /etc/nginx/sites-available
+		sudo mkdir /etc/nginx/sites-enabled
+		if ! grep -q "sites-enabled" /etc/nginx/nginx.conf 2>/dev/null
+		then
+			sudo sed -i '/include.*mime.types;/s|$|\n    include       sites-enabled/*;|' /etc/nginx/nginx.conf
+		fi
+	fi
+	NGINX_SITE=etc/nginx-arch-site-default
 fi
 
 echo "Installing /etc/nginx/sites-available/pikrellcam"
@@ -313,12 +409,19 @@ sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 			s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
 
-if ((DEB_VERSION >= BUSTER))
+if [ "$DISTRO" == "DEBIAN" ]
+	then
+	if ((DEB_VERSION >= BUSTER))
+	then
+		sudo sed -i "s/php5/php\/php7.3/" /etc/nginx/sites-available/pikrellcam
+	elif ((DEB_VERSION >= STRETCH))
+	then
+		sudo sed -i "s/php5/php\/php7.0/" /etc/nginx/sites-available/pikrellcam
+	fi
+elif [ "$DISTRO" == "ARCH" ]
 then
-	sudo sed -i "s/php5/php\/php7.3/" /etc/nginx/sites-available/pikrellcam
-elif ((DEB_VERSION >= STRETCH))
-then
-	sudo sed -i "s/php5/php\/php7.0/" /etc/nginx/sites-available/pikrellcam
+	sudo sed -i "s/php5/php\/php8/" /etc/nginx/sites-available/pikrellcam
+	sudo systemctl enable --now php-fpm
 fi
 
 NGINX_SITE=/etc/nginx/sites-available/pikrellcam
@@ -349,7 +452,14 @@ then
 	sudo sed -i 's/auth_basic/\# auth_basic/' $NGINX_SITE
 fi
 
-sudo service nginx restart
+if [ "$DISTRO" == "DEBIAN" ]
+then
+	sudo service nginx restart
+elif [ "$DISTRO" == "ARCH" ]
+then
+	sudo systemctl enable nginx
+	sudo systemctl restart nginx
+fi
 
 
 # =============== Setup FIFO  ===============
@@ -361,7 +471,7 @@ then
 	rm -f $fifo
 	mkfifo $fifo
 fi
-sudo chown $USER.www-data $fifo
+sudo chown $USER.$WWW_GROUP $fifo
 sudo chmod 664 $fifo
 
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=The PiKrellCam service
+After=network.target
+
+[Service]
+WorkingDirectory=PWD
+User=USER
+ExecStart=PWD/pikrellcam
+ExecStop=/bin/kill -s QUIT $MAINPID
+
+[Install]
+WantedBy=default.target
