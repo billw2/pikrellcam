@@ -12,6 +12,11 @@
 # Otherwise, $1 should be a jpg still and it
 #   is moved into the archive directory.
 
+if [ -f "/etc/arch-release" ]; then
+	WWW_GROUP=http
+else
+	WWW_GROUP=www-data
+fi
 
 STILLS_DIR=$1
 INSTALL_DIR=$2
@@ -30,7 +35,7 @@ fi
 if [ ! -d $STILLS_FULL_DIR/.thumbs ]
 then
 	mkdir $STILLS_FULL_DIR/.thumbs
-	sudo chown :www-data $STILLS_FULL_DIR/.thumbs
+	sudo chown :$WWW_GROUP $STILLS_FULL_DIR/.thumbs
 	sudo chmod 775  $STILLS_FULL_DIR/.thumbs
 fi
 

@@ -287,9 +287,9 @@ Go to the PiKrellCam web page in your browser (omit the port number if it was le
 	<p>
 	<li>PiKrellCam runs as user pi for simplified install and other benefits
 	(but a default user other than pi is possible).
-	PHP files are run via the web server nginx and so run as the user www-data.
+	PHP files are run via the web server nginx and so run as the user that nginx workers use.
 	The install script created a <nobr><span style='font-weight:700'>/etc/sudoers.d/pikrellcam</span></nobr>
-	file to give the user www-data permission to start pikrellcam as user pi from the web page.
+	file to give the user that nginx workers use permission to start pikrellcam as user pi from the web page.
 	If the option to run pikrellcam at boot was selected, a line to start pikrellcam as user pi
 	was added to <nobr><span style='font-weight:700'>/etc/rc.local</span></nobr>
 	</li>
@@ -1612,8 +1612,8 @@ that pikrellcam uses to store and view media files and the defaults are:
 <pre>
 pi@rpi2: ~$ ls -lt pikrellcam/www
 total 116
-lrwxrwxrwx 1 pi       www-data    33 Nov 16 09:07 archive -> /home/pi/pikrellcam/media/archive/
-lrwxrwxrwx 1 pi       www-data    25 Nov 16 09:07 media -> /home/pi/pikrellcam/media/
+lrwxrwxrwx 1 $USER       $NGINX_GROUP    33 Nov 16 09:07 archive -> /home/pi/pikrellcam/media/archive/
+lrwxrwxrwx 1 $USER       $NGINX_GROUP    25 Nov 16 09:07 media -> /home/pi/pikrellcam/media/
 </pre>
 The media link is the main media directory and its media file sub directories which contain a flat
 list of files where media files for all days are initially stored.
@@ -1700,7 +1700,7 @@ a separate disk mounted on the archive directory (as described above
 for mounting the media directory) or to another machine by network mounting
 on the archive directory.
 A network mount must have file system permissions set so that the pikrellcam
-installing user and www-data have read/write permissions from the Pi.
+installing user and the nginx worker group have read/write permissions from the Pi.
 <p>
 <span style='font-size: 1.2em; font-weight: 650;'>NFS Archiving Example 1</span>
 <div class='indent1'>
@@ -1935,28 +1935,28 @@ thumbs, and stills.  When you archive files from the web page,
 the web server sends a command to pikrellcam to archive the files and the pikrellcam program
 does the archiving.  Since pikrellcam runs as the user pi, pikrellcam has the sudo permission to
 create the appropriate directory structure for archiving.
-Since the web server runs as the user www-data, pikrellcam creates directories with write permission
-for the user www-data so files can be deleted from the web page. All directories in the archive
+Since the web server runs as the user that nginx workers use, pikrellcam creates directories with write permission
+for that user so files can be deleted from the web page. All directories in the archive
 path have permissions like:
 <pre>
 
 pi@rpi2: ~/pikrellcam/www/archive$ ls -Rl
 .:
 total 0
-drwxrwxr-x 3 pi www-data 60 Nov 12 12:16 2017/
+drwxrwxr-x 3 $USER $NGINX_GROUP 60 Nov 12 12:16 2017/
 
 ./2017:
 total 0
-drwxrwxr-x 6 pi www-data 120 Nov 15 15:28 11/
+drwxrwxr-x 6 $USER $NGINX_GROUP 120 Nov 15 15:28 11/
 
 ./2017/11:
 total 0
-drwxrwxr-x 4 pi www-data 80 Nov 15 15:29 13/
+drwxrwxr-x 4 $USER $NGINX_GROUP 80 Nov 15 15:29 13/
 
 ./2017/11/13:
 total 0
-drwxrwxr-x 2 pi www-data 80 Nov 14 22:08 thumbs/
-drwxrwxr-x 2 pi www-data 80 Nov 14 22:08 videos/
+drwxrwxr-x 2 $USER $NGINX_GROUP 80 Nov 14 22:08 thumbs/
+drwxrwxr-x 2 $USER $NGINX_GROUP 80 Nov 14 22:08 videos/
 </pre>
 Keep these permissions in mind if you manage the directory structure
 outside of pikrellcam.
