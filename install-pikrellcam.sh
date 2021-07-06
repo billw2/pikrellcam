@@ -250,7 +250,7 @@ then
 	rm -f www/user.php
 else
 	printf "<?php
-    \$e_user = "$USER";
+    \$e_user = \"$USER\";
 ?>
 " > www/user.php
 fi
