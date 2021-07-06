@@ -15,6 +15,11 @@
 # Otherwise, $1 should be a mp4 video and it and its corresponding thumb
 #   are moved into the archive directory.
 
+if [ -f "/etc/arch-release" ]; then
+	WWW_GROUP=http
+else
+	WWW_GROUP=www-data
+fi
 
 DAY_FLAG=$1
 VIDEO=$1
@@ -57,7 +62,7 @@ create_dir()
 	if [ ! -d $DIR ]
 	then
 		mkdir $DIR
-		sudo chown :www-data $DIR
+		sudo chown :$WWW_GROUP $DIR
 		sudo chmod 775  $DIR
 	fi
 	}

@@ -551,6 +551,7 @@ typedef struct
 	int		pi_model;
 
 	char	*install_dir,
+			*nginx_group,
 			*version,
 			*tmpfs_dir,		/* for mjpeg and info files */
 			*archive_dir,

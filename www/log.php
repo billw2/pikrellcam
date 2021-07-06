@@ -70,7 +70,7 @@ function dump_log()
     		fwrite($fifo, "delete_log");
     		fclose($fifo);
 			sleep(1);
-//			www-data cannot delete a pi /tmp file even if group write permission!
+//			nginx user cannot delete a pi /tmp file even if group write permission!
 //			unlink("$log_file");
 			}
 

@@ -576,6 +576,10 @@ static Config  config[] =
 	  "# the install-pikrellcam.sh script.  This should not need to be edited.\n"
 	  "#",
 	"install_dir", "/home/pi/pikrellcam", TRUE, { .string = &pikrellcam.install_dir }, config_string_set },
+	
+	{ "# The Nginx group \n"
+	  "#",
+	"nginx_group", "NGINX_GROUP", TRUE, { .string = &pikrellcam.nginx_group}, config_string_set },
 
 	{ "# If media_dir has no leading '/' it will be a sub directory in install_dir.\n"
 	  "# Otherwise it is a full pathname to the media directory.\n"
