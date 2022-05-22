@@ -23,7 +23,9 @@ https://aur.archlinux.org/packages/mpack/
 
 ---
 
-## Alpine specific instructions
+## Alpine (WIP) specific instructions
+
+Alpine installation is a WIP. Currently, it would require a recompile of the binary and shipping a sepearte one, plus an installation of more RasPi libs.
 
 Alpine installation requires it to be in ``sys`` mode.
 
