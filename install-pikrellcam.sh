@@ -1,8 +1,8 @@
 #!/bin/bash
 
-PGM=`basename $0`
+PGM=$(basename "$0")
 
-if [ `id -u` == 0 ]
+if [ "$(id -u)" == 0 ]
 then
     echo -e "$PGM should not be run as root.\n"
     exit 1
@@ -15,12 +15,12 @@ bad_install()
 	exit 1
 	}
 
-if [ ! -x $PWD/pikrellcam ]
+if [ ! -x "$PWD"/pikrellcam ]
 then
 	bad_install "program pikrellcam"
 fi
 
-if [ ! -d $PWD/www ]
+if [ ! -d "$PWD"/www ]
 then
 	bad_install "directory www"
 fi
@@ -33,10 +33,18 @@ else
 	DISTRO="DEBIAN"
 	WWW_USER=www-data
 	WWW_GROUP=www-data
+	V=$(cat /etc/debian_version)
+	#DEB_VERSION="${V:0:1}"
+	# Strip all chars after decimal point
+	DEB_VERSION="${V%.*}"
+	JESSIE=8
+	STRETCH=9
+	BUSTER=10
+	BULLSEYE=11
 fi
 
-sudo chown .$WWW_GROUP $PWD/www
-sudo chmod 775 $PWD/www
+sudo chown .$WWW_GROUP "$PWD"/www
+sudo chmod 775 "$PWD"/www
 
 if [ ! -d media ]
 then
@@ -47,12 +55,12 @@ fi
 
 if [ ! -h www/media ]
 then
-	ln -s $PWD/media www/media
+	ln -s "$PWD"/media www/media
 fi
 
 if [ ! -h www/archive ]
 then
-	ln -s $PWD/media/archive www/archive
+	ln -s "$PWD"/media/archive www/archive
 fi
 
 echo ""
@@ -62,7 +70,7 @@ echo "port 80, you should enter an alternate port for PiKrellCam."
 echo "Otherwise you can use the default port 80 or an alternate as you wish."
 echo "The port number will be set in: /etc/nginx.sites-available/pikrellcam."
 echo -n "Enter web server port: "
-read resp
+read -r resp
 if [ "$resp" == "" ]
 then
 	PORT=80
@@ -75,7 +83,7 @@ echo "For auto starting at boot, a PiKrellCam start command must be in rc.local 
 echo "If you don't start at boot, PiKrellCam can always be started and stopped"
 echo "from the web page."
 echo -n "Do you want PiKrellCam to be auto started at boot? (yes/no): "
-read resp
+read -r resp
 if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
 then
 	AUTOSTART=yes
@@ -92,7 +100,7 @@ if [ -f $HTPASSWD ]
 then
 	echo "A web password is already set."
 	echo -n "Do you want to change the password (yes/no)? "
-	read resp
+	read -r resp
 	if [ "$resp" == "y" ] || [ "$resp" == "yes" ]
 	then
 		SET_PASSWORD=yes
@@ -109,7 +117,7 @@ then
 	echo "Enter a password for a web page login for user: $USER"
 	echo "Enter a blank entry if you do not want the password login."
 	echo -n "Enter password: "
-	read PASSWORD
+	read -r PASSWORD
 fi
 
 
@@ -123,21 +131,13 @@ echo "Starting PiKrellCam install..."
 
 if [ "$DISTRO" == "DEBIAN" ]
 then
-
-	JESSIE=8
-	STRETCH=9
-	BUSTER=10
-
-
-	V=`cat /etc/debian_version`
-	#DEB_VERSION="${V:0:1}"
-	# Strip all chars after decimal point
-	DEB_VERSION="${V%.*}"
-
 	PACKAGE_LIST=""
 
-
 	if ((DEB_VERSION >= BUSTER))
+	then
+		AV_PACKAGES="ffmpeg"
+		PHP_PACKAGES="php8.0 php8.0-common php8.0-fpm"
+	elif ((DEB_VERSION >= BUSTER))
 	then
 		AV_PACKAGES="ffmpeg"
 		PHP_PACKAGES="php7.3 php7.3-common php7.3-fpm"
@@ -152,7 +152,7 @@ then
 
 	for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
 	do
-		if ! dpkg -s $PACKAGE 2>/dev/null | grep Status | grep -q installed
+		if ! dpkg -s "$PACKAGE" 2>/dev/null | grep Status | grep -q installed
 		then
 			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
 		fi
@@ -173,7 +173,7 @@ then
 		echo "Installing packages: $PACKAGE_LIST"
 		echo "Running: apt-get update"
 		sudo apt-get update
-		sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
+		sudo apt-get install -y --no-install-recommends "$PACKAGE_LIST"
 	else
 		echo "No packages need to be installed."
 	fi
@@ -196,7 +196,7 @@ then
 	
 	for PACKAGE in $PHP_PACKAGES $AV_PACKAGES
 	do
-		if ! pacman -Q 2>/dev/null | grep -q $PACKAGE
+		if ! pacman -Q 2>/dev/null | grep -q "$PACKAGE"
 		then
 			PACKAGE_LIST="$PACKAGE_LIST $PACKAGE"
 		fi
@@ -218,7 +218,7 @@ then
 		sudo pacman -Sy --noconfirm
 		sudo pacman -S pacman --needed --noconfirm
 		sudo pacman-db-upgrade
-		sudo pacman -S --noconfirm --needed $PACKAGE_LIST
+		sudo pacman -S --noconfirm --needed "$PACKAGE_LIST"
 	else
 		echo "No packages need to be installed."
 	fi
@@ -229,14 +229,14 @@ if [ ! -h /usr/local/bin/pikrellcam ]
 then
     echo "Making /usr/local/bin/pikrellcam link."
 	sudo rm -f /usr/local/bin/pikrellcam
-    sudo ln -s $PWD/pikrellcam /usr/local/bin/pikrellcam
+    sudo ln -s "$PWD"/pikrellcam /usr/local/bin/pikrellcam
 else
-    CURRENT_BIN=`realpath /usr/local/bin/pikrellcam`
+    CURRENT_BIN=$(realpath /usr/local/bin/pikrellcam)
     if [ "$CURRENT_BIN" != "$PWD/pikrellcam" ]
     then
     echo "Replacing /usr/local/bin/pikrellcam link"
         sudo rm /usr/local/bin/pikrellcam
-        sudo ln -s $PWD/pikrellcam /usr/local/bin/pikrellcam
+        sudo ln -s "$PWD"/pikrellcam /usr/local/bin/pikrellcam
     fi
 fi
 
@@ -257,18 +257,19 @@ fi
 
 if [ "$DISTRO" == "ARCH" ]
 then
-	setfacl -m u:http:rwx $HOME
+	setfacl -m u:http:rwx "$HOME"
 fi
 
 # =============== set install_dir in pikrellcam.conf ===============
 #
 PIKRELLCAM_CONF=$HOME/.pikrellcam/pikrellcam.conf
-if [ ! -f $PIKRELLCAM_CONF ]
+if [ ! -f "$PIKRELLCAM_CONF" ]
 then
 	echo "Unexpected failure to create config file $HOME/.pikrellcam/pikrellcam.conf"
 	exit 1
 fi
 
+# shellcheck disable=SC2086
 if ! grep -q "install_dir $PWD" $PIKRELLCAM_CONF
 then
 	echo "Setting install_dir config line in $PIKRELLCAM_CONF:"
@@ -276,7 +277,7 @@ then
 	sed -i  "/install_dir/c\install_dir $PWD" $PIKRELLCAM_CONF
 fi
 
-sed -i  "s/NGINX_GROUP/$WWW_GROUP/" $PIKRELLCAM_CONF
+sed -i  "s/NGINX_GROUP/$WWW_GROUP/" "$PIKRELLCAM_CONF"
 
 # =============== pikrellcam autostart to rc.local  ===============
 #
@@ -287,26 +288,43 @@ if [ "$DISTRO" == "DEBIAN" ]
 then
 	if [ "$AUTOSTART" == "yes" ]
 	then
-	    if ! fgrep -q "$CMD" /etc/rc.local
-	    then
+		if ((DEB_VERSION >= BULLSEYE))
+		then
+			if [ ! -f /etc/systemd/user/pikrellcam.service ]
+			then
+				cp etc/pikrellcam.service /tmp/pikrellcam.service.tmp
+				sed -i "s/USER/$USER/" /tmp/pikrellcam.service.tmp
+				sed -i "s|PWD|$PWD|" /tmp/pikrellcam.service.tmp
+				sudo cp /tmp/pikrellcam.service.tmp /etc/systemd/system/pikrellcam.service
+			fi
+			sudo systemctl enable pikrellcam
+		else
+		    if ! grep -F -q "$CMD" /etc/rc.local
+		    then
+				if grep -q pikrellcam /etc/rc.local
+				then
+					sudo sed -i "/pikrellcam/d" /etc/rc.local
+				fi
+				echo "Adding a pikrellcam autostart command to /etc/rc.local:"
+			sudo sed -i "s|^exit.*|$CMD\n&|" /etc/rc.local
+				if ! [ -x /etc/rc.local ]
+				then
+					echo "Added execute permission to /etc/rc.local"
+					sudo chmod a+x /etc/rc.local
+				fi
+				grep pikrellcam /etc/rc.local
+		    fi
+		fi
+	else
+		if ((DEB_VERSION >= BULLSEYE))
+		then
+			sudo systemctl disable pikrellcam
+		else
 			if grep -q pikrellcam /etc/rc.local
 			then
+				echo "Removing pikrellcam autostart line from /etc/rc.local."
 				sudo sed -i "/pikrellcam/d" /etc/rc.local
 			fi
-			echo "Adding a pikrellcam autostart command to /etc/rc.local:"
-		sudo sed -i "s|^exit.*|$CMD\n&|" /etc/rc.local
-			if ! [ -x /etc/rc.local ]
-			then
-				echo "Added execute permission to /etc/rc.local"
-				sudo chmod a+x /etc/rc.local
-			fi
-			grep pikrellcam /etc/rc.local
-	    fi
-	else
-		if grep -q pikrellcam /etc/rc.local
-		then
-			echo "Removing pikrellcam autostart line from /etc/rc.local."
-			sudo sed -i "/pikrellcam/d" /etc/rc.local
 		fi
 	fi
 elif [ "$DISTRO" == "ARCH" ]
@@ -364,8 +382,8 @@ fi
 
 if [ "$PASSWORD" != "" ]
 then
-	printf "$USER:$(openssl passwd -6 $PASSWORD)\n" > $HTPASSWD
-	sudo chown $USER.$WWW_GROUP $HTPASSWD
+	printf "$USER:$(openssl passwd -6 "$PASSWORD")\n" > $HTPASSWD
+	sudo chown "$USER".$WWW_GROUP $HTPASSWD
 fi
 
 
@@ -385,6 +403,9 @@ then
 	if ((DEB_VERSION < JESSIE))
 	then
 		NGINX_SITE=etc/nginx-wheezy-site-default
+	elif ((DEB_VERSION >= BULLSEYE))
+	then
+		NGINX_SITE=etc/nginx-arch-site-default
 	else
 		NGINX_SITE=etc/nginx-jessie-site-default
 	fi
@@ -411,7 +432,10 @@ sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 
 if [ "$DISTRO" == "DEBIAN" ]
 	then
-	if ((DEB_VERSION >= BUSTER))
+	if ((DEB_VERSION >= BULLSEYE))
+	then
+		sudo sed -i "s/php5/php\/php8.0/" /etc/nginx/sites-available/pikrellcam
+	elif ((DEB_VERSION >= BUSTER))
 	then
 		sudo sed -i "s/php5/php\/php7.3/" /etc/nginx/sites-available/pikrellcam
 	elif ((DEB_VERSION >= STRETCH))
@@ -420,7 +444,7 @@ if [ "$DISTRO" == "DEBIAN" ]
 	fi
 elif [ "$DISTRO" == "ARCH" ]
 then
-	sudo sed -i "s/php5/php\/php8/" /etc/nginx/sites-available/pikrellcam
+	sudo sed -i "s/php5/php\/php8.0/" /etc/nginx/sites-available/pikrellcam
 	sudo systemctl enable --now php-fpm
 fi
 
@@ -429,7 +453,7 @@ NGINX_SITE=/etc/nginx/sites-available/pikrellcam
 if [ "$PORT" == "80" ]
 then
 	NGINX_LINK=/etc/nginx/sites-enabled/default
-	CURRENT_SITE=`realpath $NGINX_LINK`
+	CURRENT_SITE=$(realpath $NGINX_LINK)
 	if [ "$CURRENT_SITE" != "$NGINX_SITE" ]
 	then
 		echo "Changing $NGINX_LINK link to pikrellcam"
@@ -440,11 +464,11 @@ else
 	NGINX_LINK=/etc/nginx/sites-enabled/pikrellcam
 fi
 
-if [ ! -h $NGINX_LINK 2>/dev/null ]
-then
-	echo "Adding $NGINX_LINK link to sites-available/pikrellcam."
-	sudo ln -s $NGINX_SITE $NGINX_LINK
-fi
+#if [ ! -h $NGINX_LINK 2>/dev/null ]
+#then
+#	echo "Adding $NGINX_LINK link to sites-available/pikrellcam."
+#	sudo ln -s $NGINX_SITE $NGINX_LINK
+#fi
 
 if [ ! -f $HTPASSWD ]
 then
@@ -468,11 +492,12 @@ fifo=$PWD/www/FIFO
 
 if [ ! -p "$fifo" ]
 then
-	rm -f $fifo
-	mkfifo $fifo
+	rm -f "$fifo"
+	mkfifo "$fifo"
 fi
+# shellcheck disable=SC2086
 sudo chown $USER.$WWW_GROUP $fifo
-sudo chmod 664 $fifo
+sudo chmod 664 "$fifo"
 
 
 
@@ -483,13 +508,13 @@ then
 	mkdir scripts
 fi
 
-cd scripts-dist
+cd scripts-dist || exit
 
 for script in *
 do
-	if [ ! -f ../scripts/$script ] && [ "${script:0:1}" != "_" ]
+	if [ ! -f ../scripts/"$script" ] && [ "${script:0:1}" != "_" ]
 	then
-		cp $script ../scripts 
+		cp "$script" ../scripts
 	fi
 done
 
