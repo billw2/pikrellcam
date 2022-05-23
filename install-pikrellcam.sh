@@ -355,7 +355,7 @@ then
 	cp etc/pikrellcam.sudoers /tmp/pikrellcam.sudoers.tmp
 	sed -i "s|pikrellcam|$CMD|g" /tmp/pikrellcam.sudoers.tmp
 	sed -i "s/NGINX_USER/$WWW_USER/g" /tmp/pikrellcam.sudoers.tmp
-	if [ "$DISTRO" == "ARCH" ]
+	if [ "$DISTRO" == "ARCH" ] || ((DEB_VERSION >= BULLSEYE))
 	then
 		sed -i "s/#USER/$USER/g" /tmp/pikrellcam.sudoers.tmp
 	fi
