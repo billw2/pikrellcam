@@ -173,7 +173,7 @@ then
 		echo "Installing packages: $PACKAGE_LIST"
 		echo "Running: apt-get update"
 		sudo apt-get update
-		sudo apt-get install -y --no-install-recommends "$PACKAGE_LIST"
+		sudo apt-get install -y --no-install-recommends $PACKAGE_LIST
 	else
 		echo "No packages need to be installed."
 	fi
@@ -405,7 +405,7 @@ then
 		NGINX_SITE=etc/nginx-wheezy-site-default
 	elif ((DEB_VERSION >= BULLSEYE))
 	then
-		NGINX_SITE=etc/nginx-arch-site-default
+		NGINX_SITE=etc/nginx-bullseye-site-default
 	else
 		NGINX_SITE=etc/nginx-jessie-site-default
 	fi
@@ -464,11 +464,11 @@ else
 	NGINX_LINK=/etc/nginx/sites-enabled/pikrellcam
 fi
 
-#if [ ! -h $NGINX_LINK 2>/dev/null ]
-#then
-#	echo "Adding $NGINX_LINK link to sites-available/pikrellcam."
-#	sudo ln -s $NGINX_SITE $NGINX_LINK
-#fi
+if [ ! -h $NGINX_LINK 2>/dev/null ]
+then
+	echo "Adding $NGINX_LINK link to sites-available/pikrellcam."
+	sudo ln -s $NGINX_SITE $NGINX_LINK
+fi
 
 if [ ! -f $HTPASSWD ]
 then

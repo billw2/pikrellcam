@@ -1,0 +1,25 @@
+server {
+	listen PORT default_server;
+	listen [::]:PORT default_server;
+
+	root PIKRELLCAM_WWW;
+	auth_basic "Restricted";
+	auth_basic_user_file PIKRELLCAM_WWW/.htpasswd;
+
+
+	index index.php index.html index.htm;
+
+	server_name _;
+
+	location / {
+		try_files $uri $uri/ =404;
+	}
+
+	location ~ \.php$ {
+		include fastcgi_params;                
+    		fastcgi_intercept_errors on;
+		fastcgi_pass unix:/var/run/php/php-fpm.sock;
+		fastcgi_param SCRIPT_FILENAME $document_root/$fastcgi_script_name;
+	}
+}
+
