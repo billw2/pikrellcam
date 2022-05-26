@@ -1782,11 +1782,11 @@ check_modes(char *fname, int mode)
 		if (grp && grp->gr_name && pwd && pwd->pw_name)
 			{
 			if (   strcmp(pwd->pw_name, pikrellcam.effective_user)
-			    || strcmp(grp->gr_name, "www-data")
+			    || strcmp(grp->gr_name, pikrellcam.nginx_group)
 			   )
 				{
-				snprintf(ch_cmd, sizeof(ch_cmd), "sudo chown %s.www-data %s",
-						pikrellcam.effective_user, fname);
+				snprintf(ch_cmd, sizeof(ch_cmd), "sudo chown %s.%s %s",
+						pikrellcam.effective_user, pikrellcam.nginx_group, fname);
 				if (pikrellcam.verbose)
 					log_printf_no_timestamp("  check_modes() execing: %s\n", ch_cmd);
 
