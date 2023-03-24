@@ -113,6 +113,7 @@ echo "Starting PiKrellCam install..."
 JESSIE=8
 STRETCH=9
 BUSTER=10
+BULLSEYE=11
 
 V=`cat /etc/debian_version`
 #DEB_VERSION="${V:0:1}"
@@ -121,7 +122,11 @@ DEB_VERSION="${V%.*}"
 
 PACKAGE_LIST=""
 
-if ((DEB_VERSION >= BUSTER))
+if ((DEB_VERSION >= BULLSEYE))
+then
+	AV_PACKAGES="ffmpeg"
+	PHP_PACKAGES="php7.4 php7.4-common php7.4-fpm"
+elif ((DEB_VERSION >= BUSTER))
 then
 	AV_PACKAGES="ffmpeg"
 	PHP_PACKAGES="php7.3 php7.3-common php7.3-fpm"
@@ -313,6 +318,9 @@ sudo sed -i "s|PIKRELLCAM_WWW|$PWD/www|; \
 			s/PORT/$PORT/" \
 			/etc/nginx/sites-available/pikrellcam
 
+if ((DEB_VERSION >= BULLSEYE))
+then
+	sudo sed -i "s/php5/php\/php7.4/" /etc/nginx/sites-available/pikrellcam
 if ((DEB_VERSION >= BUSTER))
 then
 	sudo sed -i "s/php5/php\/php7.3/" /etc/nginx/sites-available/pikrellcam
